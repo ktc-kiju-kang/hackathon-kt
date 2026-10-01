@@ -18,6 +18,7 @@ applied=$(psql_ -At -c "select version from public.schema_migrations")
 pending=0
 for f in $(ls "$dir"/*.sql 2>/dev/null | sort); do
   v=$(basename "$f" .sql)
+  [[ "$v" =~ ^[0-9]{4}_[a-z0-9_]+$ ]] || { echo "잘못된 파일명: $v.sql (NNNN_snake_case.sql)"; exit 1; }
   grep -qx "$v" <<<"$applied" && continue
   pending=$((pending + 1))
   if [ "$dry_run" = "--dry-run" ]; then

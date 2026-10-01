@@ -23,7 +23,7 @@ claude   # 세션 시작 시 내 이슈·열린 PR 표시
 - **Vercel**: New Project → `ktc-kiju-kang/hackathon-kt` → **Root Directory `frontend`** → 환경변수 `NEXT_PUBLIC_API_BASE_URL=https://hackathon-kt-api.onrender.com` (Production·Preview 모두). 없으면 배포 사이트가 조용히 mock으로 동작한다.
 - **Render**: 서비스 연결 저장소 `ktc-kiju-kang/hackathon-kt`, Root Directory `backend`. **Settings → Auto-Deploy: Off**, Deploy Hook URL 복사. 대시보드에서 `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` 입력.
 - **Supabase**: 프로젝트 1개 생성 → 키를 Render와 각자 `backend/.env`에. Connect → **Session pooler** 연결 문자열 복사 (GitHub Actions는 IPv6 direct 연결 불가).
-- **GitHub Secrets** (Settings → Secrets and variables → Actions):
+- **GitHub Secrets** (Settings → Environments → **production** → Environment secrets):
 
   | Secret | 값 |
   |---|---|

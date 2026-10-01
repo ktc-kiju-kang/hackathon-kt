@@ -93,7 +93,8 @@ docs/decisions/                  ADR
 
 - PR 프리뷰: Vercel이 PR마다 자동 생성 (main만 Actions가 배포). 백엔드 프리뷰는 없음.
 - 수동 재배포: Actions → Deploy → Run workflow (`gh workflow run deploy.yml`). 실패 원인 확인은 `/deploy-status`.
-- 배포용 GitHub Secrets: `RENDER_DEPLOY_HOOK_URL`, `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `SUPABASE_DB_URL`(없으면 마이그레이션 건너뜀).
+- 배포용 GitHub Secrets: `RENDER_DEPLOY_HOOK_URL`, `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `SUPABASE_DB_URL`(없으면 마이그레이션 건너뜀). **`production` Environment secrets에 넣는다** (보호 브랜치 main에서만 접근 가능).
+- 보안: Deploy는 main push로 돈 CI에서만 실행된다 (fork PR·다른 브랜치 수동 실행 차단).
 
 | 환경변수 위치 | 내용 |
 |---|---|

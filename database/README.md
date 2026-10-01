@@ -17,7 +17,8 @@ seed.sql                     데모/개발용 샘플 데이터
 - **이전 버전 backend와 호환되게 쓴다.** 마이그레이션이 backend 배포보다 먼저 적용된다.
   - OK: 테이블·nullable 컬럼·인덱스 추가
   - 2단계로: 컬럼 drop/rename → (1) 코드에서 사용 중단 배포 → (2) 다음 PR에서 drop
-- 한 파일은 한 트랜잭션으로 적용된다. `create index concurrently`처럼 트랜잭션 밖에서만 되는 문은 쓰지 않는다.
+- 한 파일은 한 트랜잭션으로 적용된다. 파일 안에 `begin;`/`commit;`을 쓰지 않고, `create index concurrently`처럼 트랜잭션 밖에서만 되는 문도 쓰지 않는다.
+- 파일명은 `NNNN_snake_case.sql` (예: `0002_add_items.sql`). 형식이 다르면 적용이 중단된다.
 
 ## 적용 방법 (자동)
 팀이 하나의 Supabase 클라우드 프로젝트를 공유한다. **main에 머지되면 Deploy 워크플로가 자동 적용**한다 (`scripts/migrate.sh`).
