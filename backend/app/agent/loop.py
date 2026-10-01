@@ -24,6 +24,9 @@ async def _run_tool(tools: dict[str, Tool], call: ToolCall) -> Message:
     tool = tools.get(call.name)
     if tool is None:
         return _tool_msg(call, f"알 수 없는 도구: {call.name}", error=True)
+    if "__invalid_json__" in call.input:  # 어댑터가 JSON 파싱 실패를 표시한 경우
+        payload = {"INVALID_JSON": call.input["__invalid_json__"]}
+        return _tool_msg(call, json.dumps(payload, ensure_ascii=False), error=True)
     try:
         args = tool.input_model.model_validate(call.input)  # LLM 입력은 항상 검증 후 실행
     except ValidationError as e:

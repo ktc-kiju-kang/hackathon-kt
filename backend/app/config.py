@@ -15,12 +15,17 @@ class Settings(BaseSettings):
     supabase_url: str = ""
     supabase_service_role_key: str = ""
 
-    # AI 에이전트 (app/agent). LLM_PROVIDER 비우면 ANTHROPIC_API_KEY 있을 때 anthropic, 없으면 mock
+    # AI 에이전트 (app/agent). LLM_PROVIDER: anthropic | gemini | openai | mock
+    # (비우면 키로 자동 선택). LLM_MODEL 비우면 공급자 기본값
+    # (anthropic: claude-opus-5-5, gemini: gemini-3.8-flash)
     llm_provider: str = ""
-    llm_model: str = "claude-opus-5-5"
+    llm_model: str = ""
     llm_effort: str = "medium"  # low | medium | high | xhigh | max
     llm_max_tokens: int = 8000  # 한 턴 출력 상한 (공개 API라 비용 보호 위해 보수적으로)
     anthropic_api_key: str = ""  # 비밀값. Render 대시보드 / backend/.env 에만
+    gemini_api_key: str = ""  # 비밀값. Google AI Studio에서 발급
+    llm_base_url: str = ""  # openai 호환 API 주소 (gemini는 기본값 사용)
+    llm_api_key: str = ""  # openai 호환 API 키 (LLM_PROVIDER=openai)
     agent_max_turns: int = 6  # 한 요청에서 LLM↔도구 왕복 최대 횟수
     agent_tool_timeout: float = 30.0
     # 공개 API 남용 방지 (프로세스 메모리 기준 — 서버 재시작 시 초기화)

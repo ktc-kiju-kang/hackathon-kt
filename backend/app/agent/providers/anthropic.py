@@ -94,7 +94,7 @@ class AnthropicProvider:
         self, *, system: str, history: list[Message], tools: list[Tool]
     ) -> AsyncIterator[ProviderEvent]:
         params: dict[str, Any] = {
-            "model": settings.llm_model,
+            "model": settings.llm_model or "claude-opus-5-5",
             "max_tokens": settings.llm_max_tokens,
             "system": system,
             "messages": to_anthropic_messages(history, self.name),
