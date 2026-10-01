@@ -13,7 +13,8 @@
 
 ## 작업 방식: 기능 단위 담당
 - 역할·디렉터리 고정 담당은 없다. **이슈(기능) 하나를 한 사람이 frontend + backend + DB까지 끝까지** 맡는다.
-- 담당자 = 이슈 assignee. 칸반에서 카드를 가져가며 본인을 assign한다.
+- 담당자 = 이슈 assignee. 칸반 Todo에서 카드를 가져가며 본인을 assign한다.
+- 카드 이동: 이슈 생성 → Todo(자동), 작업 시작 → In Progress(`/start-task`), PR 연결 → In Review(자동), 머지 → Done(자동). 상세는 `docs/TEAM.md`
 - 파일을 **기능별로 나눠** 서로 다른 기능이 같은 파일을 건드리지 않게 한다 (아래 "구조"의 `<feature>` 파일들).
 
 ## 구조

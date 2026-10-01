@@ -16,9 +16,17 @@
 ## 칸반 (GitHub Projects)
 - 보드: https://github.com/users/ktc-kiju-kang/projects/1 (팀원 모두 Write 권한)
 - 컬럼: Todo → In Progress → In Review → Done
-- 카드 = 이슈 (템플릿: 기능 / 버그). 작업 시작 시 본인 assign + In Progress
-- PR에 `Closes #번호` → 머지 시 이슈 닫힘 → Done
-- Project 자동화(Workflows, 보드 ⋯ → Workflows): Auto-add to project(repo 이슈) → Todo, Item closed → Done, Pull request merged → Done
+- 카드 = 이슈 (템플릿: 기능 / 버그)
+
+| 상태 | 언제 | 누가 옮기나 |
+|---|---|---|
+| Todo | 이슈 생성 | 자동 (Auto-add `is:issue is:open` + Item added) |
+| In Progress | 작업 시작 | **사람** — `/start-task`가 assign과 함께 옮김, 또는 카드 드래그 |
+| In Review | PR에 `Closes #번호` 연결 | 자동 (Pull request linked to issue) |
+| Done | PR 머지 / 이슈 닫힘 | 자동 (Pull request merged, Item closed) |
+
+- 카드를 Done으로 끌면 이슈도 닫힌다 (Auto-close issue). 실수로 끌었으면 이슈를 Reopen.
+- 자동화 설정: 보드 ⋯ → Workflows (Status 옵션을 바꾸면 각 워크플로의 값이 풀리므로 다시 지정)
 
 ## 권한
 - main 보호: PR + CI(`frontend`, `backend`) + 1명 승인. 관리자(owner `ktc-kiju-kang`)만 우회 가능
