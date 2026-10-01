@@ -15,4 +15,10 @@ disable-model-invocation: true
 5. 작업 범위를 안내한다: `frontend/src/app/<route>/`, `frontend/src/features/<feature>/`, `backend/app/{routers,services,schemas}/<feature>.py`, `backend/tests/test_<feature>.py`, `docs/contracts/<feature>.md`, (DB) `database/migrations/`.
    - 같은 기능 파일을 다른 열린 PR/브랜치가 건드리고 있으면(`gh pr list`, `git branch -r`) 충돌 위험을 알린다.
 6. 이 기능이 쓰는 기존 계약(`docs/contracts/`)을 요약한다. 새 API가 필요하면 `/add-endpoint`로 계약부터 정하자고 제안한다.
-7. 칸반 카드를 In Progress로 옮기라고 안내한다 (Project 자동화가 없을 때).
+7. 칸반 카드를 In Progress로 옮긴다:
+   ```bash
+   item=$(gh project item-add 1 --owner ktc-kiju-kang --url <이슈 URL> --format json --jq .id)   # 이미 있으면 같은 id 반환
+   gh project item-edit --project-id PVT_kwHODZOImM4BlTN_ --id "$item" \
+     --field-id PVTSSF_lAHODZOImM4BlTN_zhkAnc8 --single-select-option-id c73842c3
+   ```
+   (Status 옵션 id: Todo=5ed4277e, In Progress=c73842c3, In Review=180f967e, Done=d85b72df) `project` 권한 오류면 `gh auth refresh -h github.com -s project` 안내.
