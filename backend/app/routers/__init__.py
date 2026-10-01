@@ -13,5 +13,12 @@ def discover_routers() -> list[APIRouter]:
     for mod in sorted(pkgutil.iter_modules(__path__), key=lambda m: m.name):
         if mod.ispkg or mod.name.startswith("_"):
             continue
-        routers.append(importlib.import_module(f"{__name__}.{mod.name}").router)
+        module = importlib.import_module(f"{__name__}.{mod.name}")
+        router = getattr(module, "router", None)
+        if not isinstance(router, APIRouter):
+            raise RuntimeError(
+                f"app/routers/{mod.name}.py 에 `router = APIRouter(...)`가 없습니다. "
+                "헬퍼 모듈이면 파일명을 _로 시작하거나 services/로 옮기세요."
+            )
+        routers.append(router)
     return routers
