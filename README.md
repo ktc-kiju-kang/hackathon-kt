@@ -59,7 +59,7 @@ docs/contracts/           기능별 API 계약
 docs/decisions/           기술 결정 기록(ADR)
 .claude/                  팀 공용 Claude 설정·스킬·reviewer
 .github/                  이슈/PR 템플릿, CI
-scripts/                  new-worktree / sync / session-context
+scripts/                  new-worktree / sync / check-conflicts / migrate / smoke / session-context
 render.yaml               Render 배포
 .env.example              전체 환경변수 목록
 ```
