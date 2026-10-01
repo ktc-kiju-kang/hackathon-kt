@@ -1,11 +1,13 @@
 # KT 해커톤
 
-🌐 데모: https://kiju-kang.github.io/hackathon-kt/
+🌐 웹: https://kiju-kang.github.io/hackathon-kt/ · API: https://hackathon-kt-api.onrender.com/api/docs
 
 ## 시작하기 (팀원 각자)
 ```bash
 git clone https://github.com/kiju-kang/hackathon-kt.git && cd hackathon-kt
-cd web && npm install && npm run dev && cd ..   # 웹: http://localhost:5173
+cd web && npm install && npm run dev                      # 웹: http://localhost:5173
+cd api && python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
+.venv/bin/fastapi dev app/main.py                         # API: http://localhost:8000/api/docs
 claude                        # 세션 시작 시 팀 현황 자동 표시
 /start-task a T-001 setup     # 작업 시작
 ```
@@ -25,7 +27,7 @@ docs/
 tasks/T-xxx-*.md          작업당 1파일
 scripts/                  new-worktree / sync / session-context
 web/                      프론트엔드 (Vite + React + TS)
-src/                      기타 코드 (백엔드 등, TBD)
+api/                      백엔드 (FastAPI)
 .github/workflows/        CI(lint+build) / Pages 배포
 ```
 

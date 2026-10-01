@@ -1,0 +1,15 @@
+# 0002. 백엔드: FastAPI
+
+- 상태: 채택
+- 날짜: 2026-10-01
+
+## 배경
+AI/데이터 연동 가능성이 높고, 프론트와 API 계약을 빠르게 공유해야 한다.
+
+## 결정
+`api/`에 FastAPI + Pydantic을 사용한다. 의존성은 `requirements*.txt` + venv, 린트/포맷은 ruff, 테스트는 pytest.
+
+## 결과 / 트레이드오프
+- `/api/docs`에서 OpenAPI 문서가 자동 생성 → 프론트가 계약 확인 용이.
+- 프론트(TS)와 타입 공유는 수동. 필요 시 OpenAPI → TS 타입 생성 도입 검토.
+- 배포 대상은 미정 (GitHub Pages는 정적 호스팅만 가능).
