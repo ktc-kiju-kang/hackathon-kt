@@ -180,3 +180,87 @@ def test_auto_select_gemini(monkeypatch):
         assert providers.get_provider().name == "gemini"
     finally:
         providers.get_provider.cache_clear()
+
+
+def test_parallel_calls_same_index_gemini_style():
+    """실제 Gemini 응답 형태: 병렬 호출 두 개가 같은 index=0, 다른 id로 온다 (운영에서 발견)."""
+    turn = [
+        chunk(
+            {
+                "tool_calls": [
+                    {
+                        "index": 0,
+                        "id": "call_a",
+                        "type": "function",
+                        "function": {
+                            "name": "calculator",
+                            "arguments": '{"expression":"1234 * 5678 / 9"}',
+                        },
+                        "extra_content": SIG,
+                    }
+                ]
+            }
+        ),
+        chunk(
+            {
+                "tool_calls": [
+                    {
+                        "index": 0,
+                        "id": "call_b",
+                        "type": "function",
+                        "function": {
+                            "name": "get_current_time",
+                            "arguments": '{"timezone":"Asia/Seoul"}',
+                        },
+                    }
+                ]
+            }
+        ),
+        chunk(finish="tool_calls"),
+    ]
+    client = FakeClient([turn, FINAL_TURN])
+    _, history, events = run(client, "계산하고 시각도")
+    calls = [e.data for e in events if e.type == "tool_call"]
+    assert [c["name"] for c in calls] == ["calculator", "get_current_time"]
+    assert all(not e.data["is_error"] for e in events if e.type == "tool_result")
+    sent = next(m for m in client.requests[1]["messages"] if m["role"] == "assistant")
+    assert [c["id"] for c in sent["tool_calls"]] == ["call_a", "call_b"]
+    assert sent["tool_calls"][0]["extra_content"] == SIG  # 서명은 첫 호출에만, 그대로
+
+
+def test_parallel_calls_distinct_index_openai_style():
+    turn = [
+        chunk(
+            {
+                "tool_calls": [
+                    {
+                        "index": 0,
+                        "id": "c1",
+                        "type": "function",
+                        "function": {"name": "calculator", "arguments": ""},
+                    }
+                ]
+            }
+        ),
+        chunk(
+            {
+                "tool_calls": [
+                    {
+                        "index": 1,
+                        "id": "c2",
+                        "type": "function",
+                        "function": {"name": "get_current_time", "arguments": ""},
+                    }
+                ]
+            }
+        ),
+        chunk({"tool_calls": [{"index": 0, "function": {"arguments": '{"expression":"1+1"}'}}]}),
+        chunk({"tool_calls": [{"index": 1, "function": {"arguments": "{}"}}]}),
+        chunk(finish="tool_calls"),
+    ]
+    _, _, events = run(FakeClient([turn, FINAL_TURN]))
+    calls = [e.data for e in events if e.type == "tool_call"]
+    assert [(c["name"], c["input"]) for c in calls] == [
+        ("calculator", {"expression": "1+1"}),
+        ("get_current_time", {}),
+    ]
