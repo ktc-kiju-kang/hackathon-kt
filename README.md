@@ -9,7 +9,7 @@ git clone https://github.com/ktc-kiju-kang/hackathon-kt.git && cd hackathon-kt
 # frontend — http://localhost:3000
 cd frontend && npm install && cp .env.example .env.local && npm run dev
 
-# backend — http://localhost:8000/api/docs  (Supabase 키는 팀 채널에서 받아 .env에)
+# backend — http://localhost:8000/api/docs  (SUPABASE_URL·SUPABASE_SERVICE_ROLE_KEY는 팀원에게 안전한 경로로 받아 .env에)
 cd backend && python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
 cp .env.example .env && .venv/bin/fastapi dev app/main.py
 
@@ -22,7 +22,11 @@ claude   # 세션 시작 시 내 이슈·열린 PR 표시
 ## 배포 최초 설정 (1회, 관리자)
 - **Vercel**: New Project → `ktc-kiju-kang/hackathon-kt` → **Root Directory `frontend`** → 환경변수 `NEXT_PUBLIC_API_BASE_URL=https://hackathon-kt-api.onrender.com` (Production·Preview 모두). 없으면 배포 사이트가 조용히 mock으로 동작한다.
 - **Render**: 서비스 연결 저장소 `ktc-kiju-kang/hackathon-kt`, Root Directory `backend`. **Settings → Auto-Deploy: Off**, Deploy Hook URL 복사. 대시보드에서 `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` 입력.
-- **Supabase**: 프로젝트 1개 생성 → 키를 Render와 각자 `backend/.env`에. Connect → **Session pooler** 연결 문자열 복사 (GitHub Actions는 IPv6 direct 연결 불가).
+- **Supabase** (생성됨: `atirjbxwroqkbopnqybz`, Singapore):
+  - `SUPABASE_URL` = `https://atirjbxwroqkbopnqybz.supabase.co`
+  - `SUPABASE_SERVICE_ROLE_KEY` = Project Settings → API Keys → **Legacy API keys의 `service_role`** (`eyJ…`) → Render와 각자 `backend/.env`에
+  - `SUPABASE_DB_URL` = Connect → Direct → **Session pooler** (`postgresql://postgres.atirjbxwroqkbopnqybz:[비밀번호]@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres`, 특수문자는 URL 인코딩). GitHub Actions는 IPv6 direct 연결 불가
+- 설정 확인: `scripts/smoke.sh` — 모두 ✅ (특히 `DB 연결 ok`)면 끝
 - **GitHub Secrets** (Settings → Environments → **production** → Environment secrets):
 
   | Secret | 값 |

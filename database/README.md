@@ -2,6 +2,10 @@
 
 DB는 **백엔드(FastAPI)만** 접근한다. 프론트는 Supabase에 직접 붙지 않는다.
 
+- 프로젝트: `atirjbxwroqkbopnqybz` (ap-southeast-1) — 대시보드에서 데이터 조회는 자유, **스키마 변경은 마이그레이션 파일로만**
+- 연결 확인: 운영 `curl https://hackathon-kt-api.onrender.com/api/health` → `"db":"ok"`, 로컬은 `localhost:8000/api/health`
+- `public.schema_migrations`는 적용 기록용(파이프라인 전용). 지우거나 고치지 않는다.
+
 ## 구성
 ```
 migrations/NNNN_<설명>.sql   스키마 변경 (순서대로 적용, 적용된 파일은 수정 금지 → 새 파일 추가)

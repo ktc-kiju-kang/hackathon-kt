@@ -10,11 +10,12 @@ argument-hint: <feature> <METHOD> <path> <설명>
 2. **DB (필요 시)** — `database/migrations/NNNN_<설명>.sql` 새 파일 (규칙: `database/README.md` — RLS 켜기, 기본 컬럼, 번호는 머지 직전 확정). 계약 문서의 "DB" 항목에도 적는다. **공유 DB에는 직접 적용하지 않는다** — main 머지 시 배포 파이프라인이 자동 적용. 이전 버전 backend와 호환되게 쓰고, Docker Postgres로 로컬 검증 (`database/README.md`).
 3. **backend** (`backend/app/`)
    - `schemas/<feature>.py`: Pydantic 모델 (계약과 필드명·타입 일치)
-   - `services/<feature>.py`: 로직·DB 접근 (`from app.db import get_supabase`)
+   - `services/<feature>.py`: 로직·DB 접근 (`get_supabase().table("<table>")...execute().data`). service_role이라 RLS를 우회하므로 **행 접근 권한 체크를 service에서** 한다
    - `routers/<feature>.py`: `router = APIRouter(prefix="/<feature>", tags=["<feature>"])`, 핸들러는 service 호출만, `response_model` 지정. `main.py`는 자동 등록이라 고치지 않는다.
-   - `tests/test_<feature>.py`: 정상 + 주요 에러 케이스. DB 쓰는 service는 `monkeypatch`로 대체해 DB 없이 통과하게 한다.
+   - `tests/test_<feature>.py`: 정상 + 주요 에러 케이스. DB 쓰는 service는 `monkeypatch`로 대체해 DB 없이 통과하게 한다 (로컬 `.env`에 실제 키가 있어도 실제 DB에 붙지 않게).
 4. **frontend** — `frontend/src/features/<feature>/api.ts`
    - 계약과 같은 TS 타입, `@/lib/api-client`의 `request`로 호출하는 함수
    - `isMock`이면 계약 형태의 mock 반환 (`features/health/api.ts` 패턴)
 5. **검증** — backend: ruff + pytest, frontend: lint + build 모두 통과.
+   - 로컬 `backend/.env`에 Supabase 키가 있으면 `fastapi dev`로 띄워 실제 DB로 한 번 호출해 본다. 단 공유 DB이므로 **쓰기 테스트 데이터는 지우고**, 새 테이블은 마이그레이션이 머지·적용된 뒤에야 존재한다 (그 전엔 mock/monkeypatch로).
 6. 결과로 계약 요약, 변경 파일, 컴포넌트에서 호출하는 예시 한 줄을 보여준다.
