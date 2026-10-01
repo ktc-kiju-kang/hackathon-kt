@@ -4,7 +4,7 @@
 > 저장소는 **공개**다. 키·토큰·개인정보는 절대 커밋하지 않는다.
 
 ## 개요
-- 주제: _TBD_
+- 주제: **KT Group AI Opportunity Radar** — OpenAI Signals(공개 ChatGPT 사용 데이터)로 AI 활용 트렌드를 분석해 KT 그룹사 사업과 매칭하고, 사업기회 → 프로덕트·PoC 설계까지 만들어 주는 에이전트 (기획·데이터·MVP 범위: `docs/PROJECT.md`)
 - 저장소: https://github.com/ktc-kiju-kang/hackathon-kt
 - 칸반: https://github.com/users/ktc-kiju-kang/projects/1 (GitHub Projects "KT 해커톤") — 카드 = 이슈
 - 프론트(배포): https://hackathon-kt.vercel.app (Vercel, PR마다 프리뷰 URL)
