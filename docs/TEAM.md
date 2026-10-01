@@ -1,18 +1,27 @@
-# 팀 구성 & 소유 영역
+# 팀
 
-| 멤버 ID | 이름 | GitHub | 역할 | 소유 디렉터리 |
-|---|---|---|---|---|
-| `a` | 김정남 | `ktc-bill-kim` | 프론트엔드 (잠정) | `web/` |
-| `b` | 김재혁 | `ktc-jehyuk-kim` | 백엔드/API (잠정) | `api/` |
-| `c` | 강기주 | `ktc-kiju-kang` | AI/데이터·인프라 (잠정) | _TBD_ |
+| 이름 | GitHub |
+|---|---|
+| 김정남 | `ktc-bill-kim` |
+| 김재혁 | `ktc-jehyuk-kim` |
+| 강기주 | `ktc-kiju-kang` |
 
-역할은 주제 확정 후 조정한다. 연락처는 공개 레포이므로 여기 적지 않는다.
+연락처는 공개 레포이므로 여기 적지 않는다.
 
-공용 영역(`docs/CONTRACTS.md`, `CLAUDE.md`, `.claude/`, `.github/`, `render.yaml`)은 변경 시 다른 1명 이상 리뷰.
+## 담당 방식
+- 고정 역할·디렉터리 담당 없음. **기능(이슈) 단위**로 assignee가 frontend + backend + DB를 끝까지 맡는다.
+- 누가 무엇을 하는지는 칸반(GitHub Projects)이 단일 진실. 이 문서에 따로 적지 않는다.
+- 공용 영역(`CLAUDE.md`, `.claude/`, `.github/`, `render.yaml`, `frontend/src/app/layout.tsx`, `frontend/src/lib/api-client.ts`, `backend/app/main.py`, `backend/app/config.py`, `backend/app/db.py`, `database/`)은 변경 시 다른 1명 이상 리뷰.
+
+## 칸반 (GitHub Projects)
+- 컬럼: Todo → In Progress → In Review → Done
+- 카드 = 이슈 (템플릿: 기능 / 버그). 작업 시작 시 본인 assign + In Progress
+- PR에 `Closes #번호` → 머지 시 이슈 닫힘 → Done
+- 권장 Project 자동화(Workflows): Item added → Todo, PR linked → In Review, Item closed → Done
 
 ## 권한
-- main 보호: PR + CI(`web`, `api`) + 1명 승인. 관리자(`kiju-kang`)만 우회 가능
-- 저장소 설정·Actions 변수·Pages 설정은 관리자만 변경
+- main 보호: PR + CI(`frontend`, `backend`) + 1명 승인. 관리자(`kiju-kang`)만 우회 가능
+- 저장소 설정은 관리자만 변경. Vercel·Render·Supabase 대시보드 접근 권한은 _TBD_
 
 ## 커뮤니케이션
 - 채널: _TBD_

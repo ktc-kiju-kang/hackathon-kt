@@ -1,16 +1,18 @@
 ---
 name: start-task
-description: 새 작업 시작 — task 파일 생성, 브랜치 또는 worktree 생성, status 갱신. 사용자가 새 기능/작업을 시작하려 할 때 사용.
-argument-hint: <member> <task-id> <설명>
+description: 이슈 작업 시작 — 본인 assign, 브랜치 또는 worktree 생성, 관련 계약 요약. 칸반 카드를 가져가 작업을 시작할 때 사용.
+argument-hint: <이슈번호>
 disable-model-invocation: true
 ---
-새 작업을 시작한다. 인자: $ARGUMENTS (member: a|b|c, task-id: T-xxx, 설명: kebab-case)
+이슈 작업을 시작한다: $ARGUMENTS
 
-1. 인자가 부족하면 물어본다. task 번호는 멤버 대역(a=001~299, b=300~599, c=600~899)에서 `tasks/`에 없는 다음 번호를 제안한다.
-2. `docs/TEAM.md`로 멤버의 소유 영역을 확인하고, 작업이 다른 영역을 건드릴 것 같으면 미리 알린다.
-3. `tasks/<task-id>-<설명>.md`를 `tasks/README.md` 템플릿으로 만든다 (상태: doing). 목표·완료 조건은 사용자에게 물어 채운다.
-4. 브랜치 `<member>/<task-id>-<설명>`을 최신 main 기준으로 만든다:
+1. 이슈 번호가 없으면 `gh issue list --state open --search "no:assignee"`로 미배정 이슈를 보여주고 고르게 한다. 이슈 자체가 없으면 `/new-issue`를 제안한다.
+2. `gh issue view <번호>`로 목표·완료 조건·의존 이슈를 읽고 요약한다. 의존 이슈가 아직 열려 있으면 알린다.
+3. 다른 사람이 assign돼 있으면 멈추고 사용자에게 확인한다. 아니면 `gh issue edit <번호> --add-assignee @me`.
+4. feature 이름(이슈 제목의 `[feature]`, 없으면 제안)과 짧은 설명으로 브랜치 `feat/<번호>-<설명>`(버그면 `fix/`)을 최신 main 기준으로 만든다:
    - 현재 main이고 미커밋 변경이 없으면: `git fetch origin main && git checkout -b <branch> origin/main`
-   - 이미 다른 작업 중이면: `scripts/new-worktree.sh <member> <task-id> <설명>` 후 경로를 안내한다.
-5. `docs/status/<member>.md`의 업데이트 시각·현재 작업·브랜치를 갱신한다.
-6. 작업이 API를 쓰거나 만들면 `docs/CONTRACTS.md`에서 관련 계약을 요약해 보여준다. 계약이 없으면 `/add-endpoint`로 계약부터 정하자고 제안한다.
+   - 이미 다른 작업 중이면: `scripts/new-worktree.sh <번호> <설명> [type]` 후 경로 안내
+5. 작업 범위를 안내한다: `frontend/src/app/<route>/`, `frontend/src/features/<feature>/`, `backend/app/{routers,services,schemas}/<feature>.py`, `backend/tests/test_<feature>.py`, `docs/contracts/<feature>.md`, (DB) `database/migrations/`.
+   - 같은 기능 파일을 다른 열린 PR/브랜치가 건드리고 있으면(`gh pr list`, `git branch -r`) 충돌 위험을 알린다.
+6. 이 기능이 쓰는 기존 계약(`docs/contracts/`)을 요약한다. 새 API가 필요하면 `/add-endpoint`로 계약부터 정하자고 제안한다.
+7. 칸반 카드를 In Progress로 옮기라고 안내한다 (Project 자동화가 없을 때).

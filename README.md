@@ -1,35 +1,40 @@
 # KT 해커톤
 
-🌐 웹: https://kiju-kang.github.io/hackathon-kt/ · API: https://hackathon-kt-api.onrender.com/api/docs
+API: https://hackathon-kt-api.onrender.com/api/docs · 프론트: Vercel (_URL TBD_)
 
 ## 시작하기 (팀원 각자)
 ```bash
 git clone https://github.com/kiju-kang/hackathon-kt.git && cd hackathon-kt
-cd web && npm install && npm run dev                      # 웹: http://localhost:5173
-cd api && python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
-.venv/bin/fastapi dev app/main.py                         # API: http://localhost:8000/api/docs
-claude                        # 세션 시작 시 팀 현황 자동 표시
-/start-task a T-003 login-page   # 작업 시작
+
+# frontend — http://localhost:3000
+cd frontend && npm install && cp .env.example .env.local && npm run dev
+
+# backend — http://localhost:8000/api/docs  (Supabase 키는 팀 채널에서 받아 .env에)
+cd backend && python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
+cp .env.example .env && .venv/bin/fastapi dev app/main.py
+
+claude   # 세션 시작 시 내 이슈·열린 PR 표시
 ```
+
+## 흐름 (기능 단위)
+1. 칸반에서 카드(이슈) 선택 또는 `/new-issue`로 생성
+2. `/start-task <이슈번호>` → 본인 assign + `feat/<번호>-<설명>` 브랜치
+3. 기능 파일만 만들어 구현 (`/add-endpoint`로 계약 → backend → frontend)
+4. `/handoff` → `Closes #번호` PR → CI 통과 + 리뷰 1명 → 머지 → 카드 Done, 자동 배포
 
 ## 구조
 ```
-CLAUDE.md                 팀 공용 규칙 (Claude가 자동으로 읽음)
-.claude/
-  settings.json           공용 권한 + SessionStart 훅
-  skills/                 /start-task /add-endpoint /sync /handoff /team-status /deploy-status
-  agents/reviewer.md      PR 전 셀프 리뷰 서브에이전트
-docs/
-  TEAM.md                 멤버·역할·소유 영역
-  CONTRACTS.md            API/타입/스키마 계약 (단일 진실)
-  decisions/              기술 결정 기록(ADR)
-  status/<member>.md      멤버별 현황 (본인 파일만 수정)
-tasks/T-xxx-*.md          작업당 1파일
+frontend/                 Next.js + TS + Tailwind + shadcn/ui   → Vercel
+  src/app/<route>/          화면
+  src/features/<feature>/   기능별 컴포넌트 + API client(api.ts)
+backend/                  FastAPI                               → Render
+  app/routers|services|schemas/<feature>.py
+database/                 Supabase 마이그레이션·seed
+docs/contracts/           기능별 API 계약
+docs/decisions/           기술 결정 기록(ADR)
+.claude/                  팀 공용 Claude 설정·스킬·reviewer
+.github/                  이슈/PR 템플릿, CI
 scripts/                  new-worktree / sync / session-context
-web/                      프론트엔드 (Vite + React + TS)
-api/                      백엔드 (FastAPI)
-.github/workflows/        CI(lint+build) / Pages 배포
+render.yaml               Render 배포
+.env.example              전체 환경변수 목록
 ```
-
-## 흐름
-`/start-task` → 구현 → `/sync` → `/handoff` → PR → CI 통과 + 리뷰 1명 → 머지 → 자동 배포

@@ -1,5 +1,5 @@
 # Render Blueprint — https://render.com/docs/blueprint-spec
-# 최초 1회: Render 대시보드 > New > Blueprint > 이 레포 선택. 이후 main 머지 + CI 통과 시 자동 배포.
+# main 머지 + CI 통과 시 자동 배포.
 services:
   - type: web
     name: hackathon-kt-api
@@ -7,7 +7,7 @@ services:
     plan: free
     region: singapore
     branch: main
-    rootDir: api
+    rootDir: backend
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /api/health
@@ -16,4 +16,11 @@ services:
       - key: PYTHON_VERSION
         value: 3.13.5
       - key: CORS_ORIGINS
-        value: https://kiju-kang.github.io,http://localhost:5173
+        value: http://localhost:3000
+      - key: CORS_ORIGIN_REGEX
+        value: https://hackathon-kt.*\.vercel\.app
+      # 비밀값: Render 대시보드에서 입력
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
