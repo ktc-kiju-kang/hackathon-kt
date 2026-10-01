@@ -41,11 +41,21 @@ claude   # 세션 시작 시 내 이슈·열린 PR 표시
 
 배포 흐름: main 머지 → CI → Deploy 워크플로(마이그레이션 → backend → frontend → 스모크 테스트). 상세는 CLAUDE.md "배포".
 
+## 화면
+| 경로 | 내용 | 기능 폴더 |
+|---|---|---|
+| `/` | 홈 (API·DB 상태) | `features/health` |
+| `/agent` | AI 에이전트 (스트리밍 채팅 + 도구) | `features/agent` ↔ `/api/chat` |
+| `/chat` | 채팅 (임시 UI, 백엔드 미연결) | `features/chat` |
+| `/samples/*` | UI 샘플: 에디터·테이블·복합 화면·모달 | `features/samples` |
+
+새 화면은 `/add-page` (라우트 + 기능 폴더 + 사이드바 메뉴).
+
 ## 흐름 (기능 단위)
 1. [칸반](https://github.com/users/ktc-kiju-kang/projects/1)에서 Todo 카드 선택 또는 `/new-issue`로 생성
 2. `/start-task <이슈번호>` → 본인 assign + `feat/<번호>-<설명>` 브랜치
 3. 기능 파일만 만들어 구현 (`/add-endpoint`로 계약 → backend → frontend)
-4. `/handoff` → `Closes #번호` PR → CI 통과 + 리뷰 1명 → 머지 → 카드 Done, 자동 배포
+4. `/handoff` → 충돌 검사(`/pr-check`) → `Closes #번호` PR → CI 통과 + 리뷰 1명 → 머지 → 카드 Done, 자동 배포
 
 ## 구조
 ```
@@ -54,6 +64,7 @@ frontend/                 Next.js + TS + Tailwind + shadcn/ui   → Vercel
   src/features/<feature>/   기능별 컴포넌트 + API client(api.ts)
 backend/                  FastAPI                               → Render
   app/routers|services|schemas/<feature>.py
+  app/agent/                AI 에이전트 (LLM 어댑터·도구·루프), evals/ 평가
 database/                 Supabase 마이그레이션·seed
 docs/contracts/           기능별 API 계약
 docs/decisions/           기술 결정 기록(ADR)

@@ -23,4 +23,4 @@ argument-hint: <도구 이름> <설명>
    - 등록은 자동 (파일만 추가). `loop.py`·`main.py`는 고치지 않는다.
 3. **테스트** — `backend/tests/test_tool_<name>.py`: `run()` 직접 호출로 정상·잘못된 입력·외부 실패(monkeypatch) 케이스. 실제 외부 API·DB에 붙지 않게.
 4. **eval** — `backend/evals/cases.json`에 이 도구를 써야 하는 질문 1개(`expect_tools`)와 쓰면 안 되는 질문 1개(`forbid_tools`)를 추가.
-5. **검증** — `ruff` + `pytest` 통과. 로컬 확인: `cd backend && LLM_PROVIDER=mock`으로는 도구 선택이 안 되므로, 실제 LLM으로 `python -m evals.run_eval --only <id>` (API 비용 발생 — 사용자 확인 후).
+5. **검증** — `ruff` + `pytest` 통과. mock LLM은 정해진 규칙으로만 도구를 고르므로 새 도구는 실제 LLM으로 확인한다: `backend/.env`에 `GEMINI_API_KEY`(무료 등급, 분당 한도 작음) 또는 `ANTHROPIC_API_KEY`(유료) → `python -m evals.run_eval --only <id>` 또는 로컬 `/agent`에서 질문. 유료 키면 실행 전 사용자 확인.

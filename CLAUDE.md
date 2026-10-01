@@ -10,7 +10,8 @@
 - 프론트(배포): https://hackathon-kt.vercel.app (Vercel, PR마다 프리뷰 URL)
 - API(배포): https://hackathon-kt-api.onrender.com/api/docs
 - DB: Supabase 팀 공유 프로젝트 1개 — `https://atirjbxwroqkbopnqybz.supabase.co` (ap-southeast-1, Render와 같은 리전)
-- 상태 확인: `/api/health` → `version`(배포 커밋), `db`(Supabase 연결: ok/error/unconfigured)
+- 상태 확인: `/api/health` → `version`(배포 커밋), `db`(Supabase 연결·service_role 키: ok/error/unconfigured), `llm`(anthropic/gemini/openai/mock)
+- 화면: `/` 홈 · `/agent` AI 에이전트 · `/chat` 채팅(임시 UI) · `/samples/*` UI 샘플 (메뉴: `components/app-sidebar.tsx`)
 
 ## 작업 방식: 기능 단위 담당
 - 역할·디렉터리 고정 담당은 없다. **이슈(기능) 하나를 한 사람이 frontend + backend + DB까지 끝까지** 맡는다.
@@ -24,7 +25,9 @@ frontend/                        Next.js(App Router) + TS + Tailwind v4 + shadcn
   src/app/<route>/page.tsx         화면(라우트) — 기능 담당자
   src/features/<feature>/          기능별 컴포넌트·api.ts(타입+호출+mock) — 기능 담당자
   src/components/ui/               shadcn 생성 컴포넌트 (공용)
-  src/components/                  공용 컴포넌트, providers.tsx
+  src/components/app-shell.tsx     좌측 사이드바 + 상단 헤더(h-12) 레이아웃 (공용)
+  src/components/app-sidebar.tsx   메뉴 — MENU_GROUPS 배열에 항목 추가 (공용, 한 줄씩)
+  src/components/                  그 밖의 공용 컴포넌트, providers.tsx
   src/lib/api-client.ts            공용 HTTP 클라이언트(request, isMock)
   src/app/layout.tsx, page.tsx     공용 (최소 수정)
 backend/                         FastAPI
@@ -57,9 +60,10 @@ docs/decisions/                  ADR
    - 브랜치: `<type>/<이슈번호>-<짧은설명>` (예: `feat/12-login-page`, `fix/20-cors`). type: feat/fix/refactor/docs/chore
    - 이슈 없는 인프라·문서 작업만 `<type>/<설명>` 허용
    - PR 본문에 `Closes #<이슈번호>` → 머지 시 이슈 닫힘·카드 Done. 머지된 브랜치는 자동 삭제
+   - **승인 후 새 커밋을 push하면 승인이 취소된다** → 리뷰 반영 후 리뷰어에게 재승인 요청
 3. **동시에 여러 이슈는 worktree로:** `scripts/new-worktree.sh <이슈번호> <설명>`
 4. **계약 우선:** 다른 기능·화면이 쓰는 API는 `docs/contracts/<feature>.md`에 먼저 정의한다. 남의 기능 계약을 바꾸면 그 담당자를 PR 리뷰어로 지정한다.
-5. **공용 파일은 최소한으로, 작게 고친다:** `layout.tsx`, `src/app/page.tsx`, `api-client.ts`, `components/`, `config.py`, `db.py`, `requirements*.txt`, `package.json`, 루트 설정. 큰 변경은 별도 PR로 먼저 머지한다.
+5. **공용 파일은 최소한으로, 작게 고친다:** `layout.tsx`, `src/app/page.tsx`, `app-shell.tsx`, `app-sidebar.tsx`(메뉴 한 줄 추가는 OK), `api-client.ts`, `components/`, `config.py`, `db.py`, `app/agent/`(loop·providers·prompts·types — `tools/<name>.py` 제외), `requirements*.txt`, `package.json`, 루트 설정. 큰 변경은 별도 PR로 먼저 머지한다.
 6. **남의 기능 파일은 직접 고치지 않는다.** 필요하면 담당자에게 요청하거나, 사용자 확인 후 수정하고 담당자를 리뷰어로 지정한다.
 7. **DB 마이그레이션은 main 머지 시 공유 DB에 자동 적용된다.** 번호는 머지 직전에 확정. 마이그레이션은 backend 배포보다 먼저 적용되므로 **이전 버전 코드와도 호환**되게 쓴다(컬럼 추가 OK, drop/rename은 2단계로). 파괴적 변경은 팀에 먼저 알린다.
 8. **작게, 자주 머지.** 작업 시작 전과 PR 전에 `scripts/sync.sh`로 main 반영. **PR 전에는 `scripts/check-conflicts.sh`(`/pr-check`)로 충돌 검사** — git이 아직 모르는 충돌(같은 화면 경로를 두 사람이 만듦, 마이그레이션 번호 중복, 다른 열린 PR과 같은 파일)까지 찾는다.
@@ -75,7 +79,10 @@ docs/decisions/                  ADR
 - import는 `@/` 별칭, 클래스 병합은 `cn()` (`@/lib/utils`), 아이콘 `lucide-react`, 알림 `sonner`의 `toast`.
 - 색상은 테마 토큰(`bg-background`, `text-muted-foreground` 등)만. 다크모드는 `next-themes`(시스템 연동).
 - **API 호출은 `src/features/<feature>/api.ts`에서만**, `@/lib/api-client`의 `request` 사용. `isMock`일 때 계약 형태의 mock을 반환해 백엔드 없이도 동작하게 한다.
-- effect 본문에서 setState를 동기 호출하지 않는다 (lint 에러). 비동기 콜백(`.then`)에서 호출한다.
+- effect 본문에서 setState를 동기 호출하지 않는다 (lint 에러). 비동기 콜백(`.then`)에서 호출한다. effect 콜백은 값을 반환하지 않게 `{ }`로 감싼다.
+- **새 화면 = 라우트 + 기능 폴더 + 메뉴 한 줄** (`/add-page`). 모든 화면은 `AppShell`(사이드바 + 상단 헤더 `h-12`) 안에 그려진다.
+  - 화면 전체 높이를 쓰는 페이지(채팅 등)는 루트를 `h-[calc(100svh-3rem)]`로, 스크롤은 페이지가 아니라 내부 목록(`min-h-0 flex-1 overflow-y-auto`)에서.
+  - 같은 이름의 라우트·기능 폴더를 두 사람이 만들지 않게, 시작 전에 `ls frontend/src/app frontend/src/features`와 열린 PR을 확인한다 (`/pr-check`가 PR 전에 다시 잡는다).
 
 ### backend
 - 기능 = `routers/<feature>.py` + `services/<feature>.py` + `schemas/<feature>.py`.
@@ -99,6 +106,7 @@ docs/decisions/                  ADR
   - 무료 등급(Gemini 등)은 입력이 학습에 쓰일 수 있다 → 개인정보·사내 데이터를 넣지 않는다. 분당 요청 제한이 작아 에이전트 왕복이 많으면 429가 날 수 있다.
 - **도구 추가 = `app/agent/tools/<name>.py` 파일 하나** (`/add-agent-tool`). 입력은 pydantic, 실행 전 자동 검증. 도구 입력은 신뢰할 수 없는 값으로 다룬다.
 - OpenAI 호환이 아닌 LLM 추가: `providers/<name>.py`에 `LLMProvider`(`stream_turn`) 구현 + `providers/__init__.py` 등록. 응답 원본은 `Message.raw`에 그대로 보관·재전송(Claude thinking, Gemini thought signature 등). 루프·도구·저장·UI는 그대로.
+- **어댑터를 바꾸면 가짜 스트림 테스트만으로 끝내지 않는다.** 공급자마다 스트림 형식이 다르다(예: Gemini는 병렬 도구 호출을 같은 `index`로 보냄 → 실제 API에서만 드러났음). 실제 API로 **도구 2개 동시 호출 + 같은 대화 2턴째**까지 한 번 확인하고, 드러난 형식은 테스트 픽스처로 추가한다.
 - `SYSTEM_PROMPT`(`agent/prompts.py`)에 날짜 등 바뀌는 값을 넣지 않는다 (프롬프트 캐시가 깨짐). 공용 파일이라 변경 시 리뷰 필요.
 - 대화 기록은 append-only (`raw`의 thinking 블록 유효성). 저장된 메시지를 수정·삭제하는 기능을 만들지 않는다.
 - **LLM 일시 오류**(한도 초과 429·5xx)는 루프가 글자를 보내기 전에만 대기 후 재시도한다(`AGENT_LLM_RETRIES`=2, retry-after 또는 4초→8초, 최대 20초). 오류 문구는 `app/agent/errors.py`에서 사용자용 한국어로 바꿔 SSE `error.message`로 보낸다 — 화면에 예외 이름을 노출하지 않는다.
@@ -124,7 +132,7 @@ docs/decisions/                  ADR
 | 환경변수 위치 | 내용 |
 |---|---|
 | Vercel 프로젝트 (Config 타입) | `NEXT_PUBLIC_API_BASE_URL` = Render URL |
-| Render 대시보드 | `CORS_*`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ANTHROPIC_API_KEY` 또는 `GEMINI_API_KEY`, (선택) `LLM_PROVIDER`·`LLM_MODEL`·`LLM_EFFORT` (`render.yaml`은 참고용 — Blueprint 미연결 시 대시보드가 실제 값) |
+| Render 대시보드 | `CORS_*`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`(**`service_role` 또는 `sb_secret_` 키** — anon/publishable이면 쓰기가 RLS에 막힘, health `db: error`로 표시), `ANTHROPIC_API_KEY` 또는 `GEMINI_API_KEY`, (선택) `LLM_PROVIDER`·`LLM_MODEL`·`LLM_EFFORT` (`render.yaml`은 참고용 — Blueprint 미연결 시 대시보드가 실제 값) |
 
 - 전체 키 목록은 루트 `.env.example`. 로컬 값은 `frontend/.env.local`, `backend/.env` (커밋 금지).
 - `NEXT_PUBLIC_*`는 브라우저 번들에 노출된다. 비밀값 금지. **`SUPABASE_SERVICE_ROLE_KEY`는 백엔드에만.**
@@ -139,6 +147,7 @@ docs/decisions/                  ADR
   | `/new-issue` | 칸반 카드(이슈) 만들기 |
   | `/start-task <이슈번호>` | 이슈 작업 시작 (assign + 브랜치/worktree) |
   | `/add-endpoint` | 기능에 API 추가 (계약 → backend → frontend api.ts → 테스트) |
+  | `/add-page` | 새 화면 추가 (라우트 + 기능 폴더 + 사이드바 메뉴) |
   | `/add-agent-tool` | AI 에이전트에 도구 추가 (도구 파일 → 테스트 → eval 케이스) |
   | `/pr-check` | PR 전 충돌 검사 (git 충돌·같은 화면 경로·마이그레이션 번호·다른 PR과 겹침) |
   | `/sync` | main 반영 |
@@ -146,4 +155,5 @@ docs/decisions/                  ADR
   | `/team-status` | 팀 현황 (이슈·PR·충돌 위험) |
   | `/deploy-status` | 배포 파이프라인·서비스 상태 확인 |
 - PR 전에는 `reviewer` 서브에이전트로 셀프 리뷰.
+- **다른 사람 PR의 충돌을 풀 때**는 그 브랜치에 main을 merge한다 (rebase·force push로 남의 기록을 바꾸지 않는다). 남의 기능 파일이 걸리면 선택지를 사용자에게 묻는다.
 - 이슈 생성·push·PR 생성·수동 재배포는 사용자 확인 후. PR 머지는 사람이 한다. 공유 DB에 직접 SQL을 실행하지 않는다 (마이그레이션 파일 + 배포 파이프라인으로만).

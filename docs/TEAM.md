@@ -11,7 +11,7 @@
 ## 담당 방식
 - 고정 역할·디렉터리 담당 없음. **기능(이슈) 단위**로 assignee가 frontend + backend + DB를 끝까지 맡는다.
 - 누가 무엇을 하는지는 칸반(GitHub Projects)이 단일 진실. 이 문서에 따로 적지 않는다.
-- 공용 영역(`CLAUDE.md`, `.claude/`, `.github/`, `render.yaml`, `frontend/src/app/layout.tsx`, `frontend/src/lib/api-client.ts`, `backend/app/main.py`, `backend/app/config.py`, `backend/app/db.py`, `database/`)은 변경 시 다른 1명 이상 리뷰.
+- 공용 영역(`CLAUDE.md`, `.claude/`, `.github/`, `render.yaml`, `scripts/`, `frontend/src/app/layout.tsx`, `frontend/src/components/app-shell.tsx`·`app-sidebar.tsx`, `frontend/src/lib/api-client.ts`, `backend/app/main.py`·`config.py`·`db.py`, `backend/app/agent/`(도구 파일 제외), `database/`)은 변경 시 다른 1명 이상 리뷰. 사이드바 메뉴 한 줄 추가는 예외적으로 가볍게 봐도 된다.
 
 ## 칸반 (GitHub Projects)
 - 보드: https://github.com/users/ktc-kiju-kang/projects/1 (팀원 모두 Write 권한)
@@ -29,7 +29,7 @@
 - 자동화 설정: 보드 ⋯ → Workflows (Status 옵션을 바꾸면 각 워크플로의 값이 풀리므로 다시 지정)
 
 ## 권한
-- main 보호: PR + CI(`frontend`, `backend`) + 1명 승인. 관리자(owner `ktc-kiju-kang`)만 우회 가능
+- main 보호: PR + CI(`frontend`, `backend`) + 1명 승인. **승인 후 새 push 시 승인 자동 취소**. 최신 main 반영은 필수 아님(대신 `/pr-check`). 관리자(owner `ktc-kiju-kang`)만 우회 가능
 - 이전 저장소 `kiju-kang/hackathon-kt`(PR #1~#5 기록)는 더 이상 사용하지 않는다
 - 저장소 설정은 관리자만 변경. Vercel·Render·Supabase 대시보드 접근 권한은 _TBD_
 
