@@ -5,7 +5,7 @@
 
 ## 개요
 - 주제: _TBD_
-- 저장소: https://github.com/kiju-kang/hackathon-kt
+- 저장소: https://github.com/ktc-kiju-kang/hackathon-kt
 - 칸반: GitHub Projects (_URL TBD_) — 카드 = 이슈
 - 프론트(배포): Vercel (_URL TBD_)
 - API(배포): https://hackathon-kt-api.onrender.com/api/docs

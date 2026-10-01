@@ -20,7 +20,8 @@
 - 권장 Project 자동화(Workflows): Item added → Todo, PR linked → In Review, Item closed → Done
 
 ## 권한
-- main 보호: PR + CI(`frontend`, `backend`) + 1명 승인. 관리자(`kiju-kang`)만 우회 가능
+- main 보호: PR + CI(`frontend`, `backend`) + 1명 승인. 관리자(owner `ktc-kiju-kang`)만 우회 가능
+- 이전 저장소 `kiju-kang/hackathon-kt`(PR #1~#5 기록)는 더 이상 사용하지 않는다
 - 저장소 설정은 관리자만 변경. Vercel·Render·Supabase 대시보드 접근 권한은 _TBD_
 
 ## 커뮤니케이션
