@@ -16,7 +16,7 @@ cp .env.example .env && .venv/bin/fastapi dev app/main.py
 claude   # 세션 시작 시 내 이슈·열린 PR 표시
 ```
 
-> Claude가 칸반 카드를 옮기려면 gh에 `project` 권한이 필요합니다(1회):
+> `/start-task`가 칸반 카드를 In Progress로 옮기려면 gh에 `project` 권한이 필요합니다(1회):
 > `gh auth refresh -h github.com -s project`
 
 ## 배포 최초 설정 (1회, 관리자)
