@@ -6,78 +6,103 @@
 ## 개요
 - 주제: _TBD_
 - 저장소: https://github.com/kiju-kang/hackathon-kt
-- 웹(배포): https://kiju-kang.github.io/hackathon-kt/
+- 칸반: GitHub Projects (_URL TBD_) — 카드 = 이슈
+- 프론트(배포): Vercel (_URL TBD_)
 - API(배포): https://hackathon-kt-api.onrender.com/api/docs
+- DB: Supabase (팀 공유 클라우드 프로젝트 1개)
+
+## 작업 방식: 기능 단위 담당
+- 역할·디렉터리 고정 담당은 없다. **이슈(기능) 하나를 한 사람이 frontend + backend + DB까지 끝까지** 맡는다.
+- 담당자 = 이슈 assignee. 칸반에서 카드를 가져가며 본인을 assign한다.
+- 파일을 **기능별로 나눠** 서로 다른 기능이 같은 파일을 건드리지 않게 한다 (아래 "구조"의 `<feature>` 파일들).
 
 ## 구조
 ```
-web/        프론트엔드 — Vite + React + TS + Tailwind v4 + shadcn/ui (owner: a)
-api/        백엔드 — FastAPI (owner: b)
-docs/       TEAM(멤버·소유) / CONTRACTS(API 계약) / decisions(ADR) / status(멤버별 현황)
-tasks/      작업당 1파일 (T-xxx-*.md)
-scripts/    new-worktree / sync / session-context
-.claude/    공용 설정, 스킬, reviewer 에이전트
-render.yaml Render 배포 Blueprint
+frontend/                        Next.js(App Router) + TS + Tailwind v4 + shadcn/ui
+  src/app/<route>/page.tsx         화면(라우트) — 기능 담당자
+  src/features/<feature>/          기능별 컴포넌트·api.ts(타입+호출+mock) — 기능 담당자
+  src/components/ui/               shadcn 생성 컴포넌트 (공용)
+  src/components/                  공용 컴포넌트, providers.tsx
+  src/lib/api-client.ts            공용 HTTP 클라이언트(request, isMock)
+  src/app/layout.tsx, page.tsx     공용 (최소 수정)
+backend/                         FastAPI
+  app/routers/<feature>.py         엔드포인트 (자동 등록) — 기능 담당자
+  app/services/<feature>.py        비즈니스 로직·DB 접근 — 기능 담당자
+  app/schemas/<feature>.py         Pydantic 요청/응답 모델 — 기능 담당자
+  app/main.py, config.py, db.py    공용 (main.py는 수정 불필요)
+  tests/test_<feature>.py
+database/                        Supabase Postgres
+  migrations/NNNN_<설명>.sql       스키마 변경 (규칙: database/README.md)
+  seed.sql
+docs/contracts/<feature>.md      기능별 API 계약
+docs/decisions/                  ADR
 ```
 
 ## 명령
-| | web (`cd web`) | api (`cd api`) |
+| | frontend (`cd frontend`) | backend (`cd backend`) |
 |---|---|---|
-| 셋업 | `npm install` | `python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt` |
-| 실행 | `npm run dev` → :5173 | `.venv/bin/fastapi dev app/main.py` → :8000 (`/api/docs`) |
+| 셋업 | `npm install && cp .env.example .env.local` | `python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt && cp .env.example .env` |
+| 실행 | `npm run dev` → :3000 | `.venv/bin/fastapi dev app/main.py` → :8000 (`/api/docs`) |
 | 검증 | `npm run lint && npm run build` | `.venv/bin/ruff check . && .venv/bin/ruff format --check . && .venv/bin/pytest` |
 
-**PR 전 변경한 쪽의 검증 명령을 반드시 통과시킨다.** CI(`web`, `api` 잡)가 동일하게 실행한다.
+**PR 전 변경한 쪽의 검증 명령을 반드시 통과시킨다.** CI(`frontend`, `backend` 잡)가 동일하게 실행한다.
 
 ## 협업 규칙 (Claude도 반드시 따를 것)
-1. **main 직접 커밋·push 금지.** main은 보호됨: PR + CI(`web`, `api`) 통과 + 1명 승인 필요.
-   - 브랜치명: `<member>/<task-id>-<짧은설명>` (예: `a/T-003-login-page`)
-   - 머지된 브랜치는 GitHub에서 자동 삭제된다.
-2. **동시에 여러 작업은 git worktree로:** `scripts/new-worktree.sh <member> <task-id> <설명>`
-3. **계약 우선:** 멤버 간 경계(API·타입·스키마)는 `docs/CONTRACTS.md`가 단일 진실. 계약 변경은 작은 PR로 먼저 머지 후 구현.
-4. **공용 파일 동시 편집 금지:**
-   - 진행상황 → `docs/status/<member>.md` (본인 파일만)
-   - 작업 → `tasks/T-xxx-*.md` (작업당 1파일, owner만 수정. 번호 대역 a=001~299, b=300~599, c=600~899)
-5. **작게, 자주 머지.** 작업 시작 전과 PR 전에 `scripts/sync.sh`로 main 반영.
-6. 커밋: `<type>(<scope>): <요약>` — type: feat/fix/refactor/docs/chore/test, scope: web/api/docs/ci 등
-7. 다른 멤버 소유 영역, `docs/CONTRACTS.md`, 루트 설정(`CLAUDE.md`, `.claude/`, `render.yaml`, `.github/`)을 바꿔야 하면 **먼저 사용자에게 확인**하고 PR에 해당 owner 리뷰를 요청한다.
+1. **이슈 없이 기능 작업을 시작하지 않는다.** 칸반 카드(이슈)를 먼저 만들고 assign한다. (`/new-issue`)
+2. **main 직접 커밋·push 금지.** main 보호: PR + CI 통과 + 1명 승인.
+   - 브랜치: `<type>/<이슈번호>-<짧은설명>` (예: `feat/12-login-page`, `fix/20-cors`). type: feat/fix/refactor/docs/chore
+   - 이슈 없는 인프라·문서 작업만 `<type>/<설명>` 허용
+   - PR 본문에 `Closes #<이슈번호>` → 머지 시 이슈 닫힘·카드 Done. 머지된 브랜치는 자동 삭제
+3. **동시에 여러 이슈는 worktree로:** `scripts/new-worktree.sh <이슈번호> <설명>`
+4. **계약 우선:** 다른 기능·화면이 쓰는 API는 `docs/contracts/<feature>.md`에 먼저 정의한다. 남의 기능 계약을 바꾸면 그 담당자를 PR 리뷰어로 지정한다.
+5. **공용 파일은 최소한으로, 작게 고친다:** `layout.tsx`, `src/app/page.tsx`, `api-client.ts`, `components/`, `config.py`, `db.py`, `requirements*.txt`, `package.json`, 루트 설정. 큰 변경은 별도 PR로 먼저 머지한다.
+6. **남의 기능 파일은 직접 고치지 않는다.** 필요하면 담당자에게 요청하거나, 사용자 확인 후 수정하고 담당자를 리뷰어로 지정한다.
+7. **DB 마이그레이션은 공유 DB에 바로 반영된다.** 번호는 머지 직전에 확정, drop/rename 같은 파괴적 변경은 팀에 먼저 알린다.
+8. **작게, 자주 머지.** 작업 시작 전과 PR 전에 `scripts/sync.sh`로 main 반영.
+9. 커밋: `<type>(<feature>): <요약>` — 예: `feat(login): 로그인 폼 추가`
 
 ## 코드 규칙
 
-### web
-- UI는 shadcn 컴포넌트 우선: `npx shadcn@latest add <이름>` → `src/components/ui/`
-- `src/components/ui/`는 생성 코드. 직접 수정 최소화, 조합 컴포넌트는 `src/components/`에 둔다.
-- import는 `@/` 별칭, 클래스 병합은 `cn()` (`@/lib/utils`), 아이콘은 `lucide-react`
-- 색상은 테마 토큰(`bg-background`, `text-muted-foreground` 등)만 사용. 테마는 `src/index.css`. 다크모드는 시스템 설정 연동(`.dark`).
-- 알림은 `sonner`의 `toast`.
-- **API 호출은 `src/api/client.ts`에만.** 타입은 `api/app/schemas.py`와 맞춘다. 백엔드 미구현 엔드포인트는 mock을 먼저 둔다.
+### frontend
+- 이 버전의 Next.js는 학습 데이터와 다를 수 있다. API·규칙이 애매하면 `frontend/node_modules/next/dist/docs/`를 먼저 확인한다 (`frontend/AGENTS.md`).
+- 기본은 Server Component. 상태·이벤트·브라우저 API가 필요한 컴포넌트만 `'use client'`.
+- 데이터·비즈니스 로직은 FastAPI에 둔다. Next.js Route Handler/Server Action에 백엔드 로직을 넣지 않는다.
+- UI는 shadcn 컴포넌트 우선: `npx shadcn@latest add <이름>` → `src/components/ui/` (생성 코드 직접 수정 최소화).
+- import는 `@/` 별칭, 클래스 병합은 `cn()` (`@/lib/utils`), 아이콘 `lucide-react`, 알림 `sonner`의 `toast`.
+- 색상은 테마 토큰(`bg-background`, `text-muted-foreground` 등)만. 다크모드는 `next-themes`(시스템 연동).
+- **API 호출은 `src/features/<feature>/api.ts`에서만**, `@/lib/api-client`의 `request` 사용. `isMock`일 때 계약 형태의 mock을 반환해 백엔드 없이도 동작하게 한다.
+- effect 본문에서 setState를 동기 호출하지 않는다 (lint 에러). 비동기 콜백(`.then`)에서 호출한다.
 
-### api
-- 라우터는 `app/routers/<도메인>.py`에 만들고 `app/main.py`에서 `prefix="/api"`로 등록.
-- 요청/응답 모델은 `app/schemas.py` (Pydantic). `response_model`을 항상 지정한다.
-- 설정·비밀값은 `app/config.py`의 `Settings`(환경변수)로만 읽는다.
-- 새 엔드포인트마다 `tests/`에 최소 1개 테스트.
+### backend
+- 기능 = `routers/<feature>.py` + `services/<feature>.py` + `schemas/<feature>.py`.
+  - `router = APIRouter(prefix="/<feature>", tags=["<feature>"])`를 정의하면 자동 등록 → `/api/<feature>/...`
+  - router는 얇게(검증·응답), 로직·DB 접근은 service에. `response_model` 항상 지정.
+- DB는 `app.db.get_supabase()`로 service에서만 접근. 설정·비밀값은 `app/config.py`의 `Settings`로만 읽는다.
+- 기능마다 `tests/test_<feature>.py`에 최소 1개 테스트. DB가 필요한 테스트는 service를 monkeypatch해 DB 없이 돌게 한다 (CI에는 DB 없음).
 
 ## 배포 & 환경변수
 | | 트리거 | 환경변수 |
 |---|---|---|
-| web → GitHub Pages | main에 `web/**` 변경 머지 | 빌드 시 저장소 Actions 변수(`VITE_API_BASE_URL` = Render URL) 주입. 변경은 관리자 권한 필요 |
-| api → Render (free, singapore) | main 머지 + CI 통과 | `render.yaml`의 `envVars`. 비밀값은 `sync: false`로 선언하고 Render 대시보드에서 입력 |
+| frontend → Vercel | main 머지 시 프로덕션, PR마다 프리뷰 URL | Vercel 프로젝트 환경변수 `NEXT_PUBLIC_API_BASE_URL`(= Render URL) |
+| backend → Render (free, singapore) | main 머지 + CI 통과 | `render.yaml`의 `envVars`. 비밀값(`SUPABASE_*`)은 `sync: false`, Render 대시보드에서 입력 |
+| database → Supabase | 수동 (SQL Editor / psql) | — |
 
-- 로컬: `web/.env`, `api/.env` (커밋 금지). 새 키는 각 `.env.example`에 이름만 추가.
-- `VITE_*` 변수는 브라우저 번들에 그대로 노출된다. 비밀값을 넣지 말 것.
-- Render free 플랜은 15분 미사용 시 잠든다(첫 요청 ~1분). 데모 직전에 `/api/health`를 호출해 깨운다.
+- 전체 키 목록은 루트 `.env.example`. 로컬 값은 `frontend/.env.local`, `backend/.env` (커밋 금지).
+- `NEXT_PUBLIC_*`는 브라우저 번들에 노출된다. 비밀값 금지. **`SUPABASE_SERVICE_ROLE_KEY`는 백엔드에만.**
+- CORS: `localhost:3000` + `https://hackathon-kt*.vercel.app`(프리뷰 포함) 허용.
+- Render free는 15분 미사용 시 잠든다(첫 요청 ~1분). 데모 직전에 `/api/health`를 호출해 깨운다.
 
 ## Claude 작업 방식
-- 세션 시작 시 훅이 브랜치·동기화 상태와 팀원 현황을 보여준다. main보다 뒤처져 있으면 먼저 `/sync`를 제안한다.
+- 세션 시작 시 훅이 브랜치·동기화 상태, 내 이슈, 열린 PR을 보여준다. main보다 뒤처져 있으면 먼저 `/sync`를 제안한다.
 - 스킬:
   | 스킬 | 언제 |
   |---|---|
-  | `/start-task` | 작업 시작 (task 파일 + 브랜치/worktree) |
-  | `/add-endpoint` | API 기능 추가 (계약 → api → web client → 테스트) |
+  | `/new-issue` | 칸반 카드(이슈) 만들기 |
+  | `/start-task <이슈번호>` | 이슈 작업 시작 (assign + 브랜치/worktree) |
+  | `/add-endpoint` | 기능에 API 추가 (계약 → backend → frontend api.ts → 테스트) |
   | `/sync` | main 반영 |
-  | `/handoff` | 작업 마무리 (검증·셀프리뷰·status·PR) |
-  | `/team-status` | 팀 전체 현황 |
-  | `/deploy-status` | 배포(Pages/Render) 상태 확인 |
+  | `/handoff` | 작업 마무리 (검증·셀프리뷰·PR `Closes #`) |
+  | `/team-status` | 팀 현황 (이슈·PR·충돌 위험) |
+  | `/deploy-status` | 배포(Vercel/Render) 상태 확인 |
 - PR 전에는 `reviewer` 서브에이전트로 셀프 리뷰.
-- push·PR 생성은 사용자 확인 후. PR 머지는 사람이 한다.
+- 이슈 생성·push·PR 생성·DB 마이그레이션 적용은 사용자 확인 후. PR 머지는 사람이 한다.

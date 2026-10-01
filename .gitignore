@@ -6,7 +6,6 @@ CLAUDE.local.md
 !.env.example
 
 # worktree
-../hackathon-kt-wt-*
 
 # 일반
 .DS_Store

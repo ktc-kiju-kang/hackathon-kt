@@ -1,0 +1,29 @@
+name: 기능
+description: 칸반에 올릴 기능 단위 작업 (frontend + backend 끝까지 한 사람이 담당)
+labels: ["feature"]
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: 목표
+      description: 사용자가 무엇을 할 수 있게 되는가
+    validations:
+      required: true
+  - type: textarea
+    id: done
+    attributes:
+      label: 완료 조건
+      value: |
+        - [ ]
+    validations:
+      required: true
+  - type: textarea
+    id: api
+    attributes:
+      label: API / 계약
+      description: 필요한 엔드포인트 초안 (docs/contracts/<feature>.md 로 옮김). 없으면 비움
+  - type: input
+    id: deps
+    attributes:
+      label: 의존 이슈
+      placeholder: "#12, #15"
