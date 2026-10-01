@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import {
   AppWindow,
   Bot,
+  ChartLine,
   FileText,
   Home,
   LayoutDashboard,
@@ -33,6 +34,7 @@ const MENU_GROUPS = [
       { title: '홈', href: '/', icon: Home },
       { title: '채팅', href: '/chat', icon: MessageSquare },
       { title: 'AI 에이전트', href: '/agent', icon: Bot },
+      { title: 'AI 활용 트렌드', href: '/trends', icon: ChartLine },
     ],
   },
   {

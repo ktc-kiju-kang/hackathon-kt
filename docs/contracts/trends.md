@@ -1,15 +1,15 @@
 # trends (OpenAI Signals 트렌드)
 - 담당: (#22 담당자) · 이슈: #22 · 계약: #21
-- 사용처: frontend `/trends` (`features/trends`), radar·product의 근거(Evidence) 채우기 (`app.services.trends.resolve_evidence`), 에이전트 도구 `tools/signals_trends.py`
-- DB: Signals CSV를 적재한 표 (#22에서 마이그레이션). 원본 `https://cdn.openai.com/signals/data-download-csv.zip`, 설명은 `docs/PROJECT.md`
+- 사용처: frontend `/trends` (`features/trends`), radar·product의 근거(Evidence) 채우기 (`app.services.trends.resolve_evidence`), 에이전트 도구 `tools/get_ai_usage_trends.py`
+- 데이터: DB를 쓰지 않는다. 공개된 읽기 전용 데이터라 `backend/data/signals/`의 원본 CSV 9개를 서버 메모리에 읽는다 (약 2MB). 원본 `https://cdn.openai.com/signals/data-download-csv.zip`, 설명은 `docs/PROJECT.md`
 - 스키마: `backend/app/schemas/trends.py` (#21에서 만듦)
 
-인증 없음 (공개 집계 데이터). 응답은 DB에 적재된 값만 쓴다. LLM은 호출하지 않는다.
+인증 없음 (공개 집계 데이터). 응답은 원본 CSV 값만 쓴다. LLM은 호출하지 않는다.
 
-**적재 시 주의**: 나미비아 국가 코드가 문자열 `NA`다. pandas는 기본 설정에서 이 값을 NaN으로 읽으므로 `keep_default_na=False`로 읽는다.
+**읽을 때 주의**: 나미비아 국가 코드가 문자열 `NA`다. pandas는 기본 설정에서 이 값을 NaN으로 읽는다. 현재 구현은 `csv` 모듈로 문자열 그대로 읽는다.
 
 ## 지원 국가
-`meta.countries`는 아래 4개 파일 모두에 24개월 데이터가 빠짐없이 있는 국가만 담는다. 현재 93개국이고 `KR`, `US`가 포함된다.
+`meta.countries`는 아래 4개 파일 모두에 24개월 데이터가 빠짐없이 있는 국가만 담는다. 업무 메시지(`work_related=1`) 행도 매월 있어야 한다. 작은 나라는 업무 데이터가 아예 없는 경우가 많아서, 현재 67개국이다. `KR`, `US`는 포함된다.
 - topic×country
 - work_related×country
 - topic×work_related×country
@@ -128,3 +128,4 @@ Evidence = EvidenceRef & {
 | 날짜 | 변경 | 작성자 |
 |---|---|---|
 | 2026-10-01 | 추가 | ktc-kiju-kang |
+| 2026-10-01 | 데이터 저장을 DB에서 레포 CSV로 변경, 지원 국가 67개로 정정 (API 형태는 그대로) | ktc-kiju-kang |
