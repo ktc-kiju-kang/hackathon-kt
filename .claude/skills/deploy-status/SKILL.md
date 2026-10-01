@@ -7,7 +7,7 @@ description: 배포 상태 확인 — Deploy 워크플로(마이그레이션→b
    - 실패했으면 `gh run view <id> --log-failed`로 실패 단계와 원인을 요약한다:
      - migrate: SQL 오류 → 새 마이그레이션 파일로 수정 / `SUPABASE_DB_URL` 연결 실패 → Session pooler URL인지 확인
      - backend: Deploy Hook secret 없음 / 15분 내 새 version 미반영 → Render 대시보드 로그 확인
-     - frontend: Vercel secret 없음 / `NEXT_PUBLIC_API_BASE_URL` 비어 있음 / 빌드 실패
+     - frontend: Vercel secret 없음 / `NEXT_PUBLIC_API_BASE_URL` 비어 있음 / 빌드 실패 / deploy 단계 "Project not found" → `VERCEL_ORG_ID`가 Team ID(`team_…`)가 아님
      - smoke: 아래 3번 결과 참고
 2. 수동 재배포가 필요하면 사용자 확인 후 `gh workflow run deploy.yml`.
 3. 운영 상태: `scripts/smoke.sh $(git rev-parse origin/main)` — API health·version(=main SHA)·화면 200·CORS.

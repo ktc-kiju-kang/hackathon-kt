@@ -29,7 +29,8 @@ claude   # 세션 시작 시 내 이슈·열린 PR 표시
   |---|---|
   | `RENDER_DEPLOY_HOOK_URL` | Render Deploy Hook URL |
   | `VERCEL_TOKEN` | vercel.com/account/tokens 에서 생성 |
-  | `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` | Vercel 프로젝트 Settings → General (또는 `vercel link` 후 `.vercel/project.json`) |
+  | `VERCEL_ORG_ID` | Vercel 팀(개인 계정도 팀) **Settings → General → Team ID** (`team_…`). Account의 Vercel ID 아님 |
+  | `VERCEL_PROJECT_ID` | Vercel 프로젝트 Settings → General → Project ID (둘 다 `cd frontend && npx vercel link` 후 `.vercel/project.json`으로도 확인) |
   | `SUPABASE_DB_URL` | Supabase Session pooler 연결 문자열 (비밀번호 포함) |
 
 배포 흐름: main 머지 → CI → Deploy 워크플로(마이그레이션 → backend → frontend → 스모크 테스트). 상세는 CLAUDE.md "배포".
