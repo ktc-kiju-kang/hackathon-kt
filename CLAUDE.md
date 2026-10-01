@@ -94,9 +94,11 @@ docs/decisions/                  ADR
 
 ### AI 에이전트 (`backend/app/agent/`)
 - 흐름: `/api/chat/.../messages` → `loop.run_agent` → LLM 어댑터 → 도구 실행 → 반복 → SSE (`docs/contracts/chat.md`)
-- LLM: 기본 Claude `claude-opus-5-5` (`LLM_MODEL`, `LLM_EFFORT`=medium). `ANTHROPIC_API_KEY`가 없으면 **mock**(규칙 기반 가짜 LLM)으로 동작 → 키 없이도 UI·루프 개발 가능. 운영 상태는 `/api/health`의 `llm`.
+- LLM은 **키로 자동 선택**: `ANTHROPIC_API_KEY` → Claude `claude-opus-5-5` / `GEMINI_API_KEY` → Gemini `gemini-3.8-flash`(무료 등급) / 둘 다 없으면 **mock**(규칙 기반 가짜 LLM, 키 없이 UI·루프 개발용). 강제 지정은 `LLM_PROVIDER`, 모델은 `LLM_MODEL`, 생각 깊이는 `LLM_EFFORT`(medium). 운영 상태는 `/api/health`의 `llm`.
+  - OpenAI 호환 API(Groq·GitHub Models·OpenRouter·Ollama 등): `LLM_PROVIDER=openai` + `LLM_BASE_URL` + `LLM_MODEL` + `LLM_API_KEY` — 코드 수정 없음 (`providers/openai_compat.py`)
+  - 무료 등급(Gemini 등)은 입력이 학습에 쓰일 수 있다 → 개인정보·사내 데이터를 넣지 않는다. 분당 요청 제한이 작아 에이전트 왕복이 많으면 429가 날 수 있다.
 - **도구 추가 = `app/agent/tools/<name>.py` 파일 하나** (`/add-agent-tool`). 입력은 pydantic, 실행 전 자동 검증. 도구 입력은 신뢰할 수 없는 값으로 다룬다.
-- 다른 LLM으로 교체: `providers/<name>.py`에 `LLMProvider`(`stream_turn`) 구현 + `providers/__init__.py` 등록 + `LLM_PROVIDER`. 루프·도구·저장·UI는 그대로.
+- OpenAI 호환이 아닌 LLM 추가: `providers/<name>.py`에 `LLMProvider`(`stream_turn`) 구현 + `providers/__init__.py` 등록. 응답 원본은 `Message.raw`에 그대로 보관·재전송(Claude thinking, Gemini thought signature 등). 루프·도구·저장·UI는 그대로.
 - `SYSTEM_PROMPT`(`agent/prompts.py`)에 날짜 등 바뀌는 값을 넣지 않는다 (프롬프트 캐시가 깨짐). 공용 파일이라 변경 시 리뷰 필요.
 - 대화 기록은 append-only (`raw`의 thinking 블록 유효성). 저장된 메시지를 수정·삭제하는 기능을 만들지 않는다.
 - **비용 보호** (공개 API): IP당 10분 20회, 서버 전체 하루 500회, 대화당 메시지 80개, 턴당 출력 8000토큰, 요청당 6턴 (`CHAT_*`, `LLM_MAX_TOKENS`, `AGENT_MAX_TURNS`). 메모리 기준이라 재시작 시 초기화 — **Anthropic Console에서 월 사용 한도도 설정**한다.
@@ -121,7 +123,7 @@ docs/decisions/                  ADR
 | 환경변수 위치 | 내용 |
 |---|---|
 | Vercel 프로젝트 (Config 타입) | `NEXT_PUBLIC_API_BASE_URL` = Render URL |
-| Render 대시보드 | `CORS_*`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ANTHROPIC_API_KEY`, (선택) `LLM_MODEL`·`LLM_EFFORT` (`render.yaml`은 참고용 — Blueprint 미연결 시 대시보드가 실제 값) |
+| Render 대시보드 | `CORS_*`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ANTHROPIC_API_KEY` 또는 `GEMINI_API_KEY`, (선택) `LLM_PROVIDER`·`LLM_MODEL`·`LLM_EFFORT` (`render.yaml`은 참고용 — Blueprint 미연결 시 대시보드가 실제 값) |
 
 - 전체 키 목록은 루트 `.env.example`. 로컬 값은 `frontend/.env.local`, `backend/.env` (커밋 금지).
 - `NEXT_PUBLIC_*`는 브라우저 번들에 노출된다. 비밀값 금지. **`SUPABASE_SERVICE_ROLE_KEY`는 백엔드에만.**

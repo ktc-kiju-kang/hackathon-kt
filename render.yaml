@@ -26,7 +26,7 @@ services:
         sync: false
       - key: ANTHROPIC_API_KEY
         sync: false
-      - key: LLM_MODEL
-        value: claude-opus-5-5
+      - key: GEMINI_API_KEY
+        sync: false
       - key: LLM_EFFORT
         value: medium

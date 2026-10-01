@@ -4,7 +4,7 @@
 - 날짜: 2026-10-01
 
 ## 결정
-- **직접 만든 도구 호출 루프** (`backend/app/agent/loop.py`) + **LLM 어댑터** (`providers/`). 기본은 Claude(`claude-opus-5-5`, Anthropic Python SDK), 키가 없으면 `mock`.
+- **직접 만든 도구 호출 루프** (`backend/app/agent/loop.py`) + **LLM 어댑터** (`providers/`): Claude(`claude-opus-5-5`, Anthropic SDK), Gemini·OpenAI 호환(`openai_compat.py`, OpenAI SDK), 키가 없으면 `mock`. 키로 자동 선택.
 - 대화 기록은 **공급자 중립 형식**(`agent/types.py` Message)으로 저장. Claude 응답 원본(`raw`, thinking 블록 포함)은 같은 공급자로 이어갈 때 그대로 재전송.
 - 도구 = `agent/tools/<name>.py` 파일 하나, 자동 등록, 입력은 pydantic으로 스키마 생성 + 실행 전 검증.
 - 프론트는 SSE로 텍스트·도구 실행을 실시간 표시. 대화는 Supabase(`conversations`, `messages`).
