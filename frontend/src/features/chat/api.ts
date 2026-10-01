@@ -9,6 +9,7 @@ export type ChatMessage = {
   tool_calls: ToolCall[]
   tool_call_id: string | null
   is_error: boolean
+  created_at?: string
 }
 
 export type Conversation = { id: string; title: string | null; created_at: string }
@@ -18,10 +19,12 @@ export type ChatEvent =
   | { type: 'tool_call'; data: ToolCall }
   | { type: 'tool_result'; data: { tool_call_id: string; content: string; is_error: boolean } }
   | { type: 'message'; data: { message: ChatMessage } }
-  | { type: 'done'; data: { stop_reason: string } }
+  | { type: 'done'; data: { stop_reason: string; usage?: Record<string, number> } }
   | { type: 'error'; data: { message: string } }
 
 // 로그인 없는 소유권: 브라우저별 임의 ID (docs/contracts/chat.md)
+let memoryClientId: string | null = null // localStorage를 못 쓰면 탭 단위 임의 ID
+
 function clientId(): string {
   const KEY = 'kt-hackathon-client-id'
   try {
@@ -32,7 +35,8 @@ function clientId(): string {
     }
     return id
   } catch {
-    return 'anonymous-session'
+    memoryClientId ??= crypto.randomUUID()
+    return memoryClientId
   }
 }
 
@@ -67,7 +71,11 @@ export async function sendMessage(
     body: JSON.stringify({ content }),
     signal,
   })
-  if (!res.ok || !res.body) throw new Error(`${res.status} ${res.statusText}`)
+  if (!res.ok || !res.body) {
+    // 429(사용량 한도)·409(대화 길이) 등은 서버 메시지를 그대로 보여준다
+    const detail = await res.json().then((b) => b?.detail, () => null)
+    throw new Error(typeof detail === 'string' ? detail : `${res.status} ${res.statusText}`)
+  }
 
   const reader = res.body.pipeThrough(new TextDecoderStream()).getReader()
   let buf = ''

@@ -6,9 +6,13 @@ from collections.abc import AsyncIterator
 from fastapi import HTTPException
 
 from app.agent.loop import run_agent
-from app.agent.types import Message
+from app.agent.types import AgentEvent, Message
+from app.config import settings
 from app.schemas.chat import ChatMessage, Conversation
 from app.services.chat_store import get_chat_store
+from app.services.rate_limit import check_chat_quota
+
+PING_INTERVAL = 15.0  # 모델 생각·도구 실행 중에도 연결이 끊기지 않게 SSE 주석을 보낸다
 
 
 def _is_uuid(value: str) -> bool:
@@ -56,28 +60,60 @@ def list_messages(conversation_id: str, client_id: str) -> list[ChatMessage]:
     return out
 
 
-async def send_message(conversation_id: str, client_id: str, content: str) -> AsyncIterator[str]:
+def _sse(ev: AgentEvent) -> str:
+    return f"event: {ev.type}\ndata: {json.dumps(ev.data, ensure_ascii=False, default=str)}\n\n"
+
+
+async def send_message(
+    conversation_id: str, client_id: str, content: str, ip: str
+) -> AsyncIterator[str]:
     """사용자 메시지를 저장하고 에이전트를 돌려 SSE 문자열을 스트리밍한다.
 
-    권한 체크는 스트림 시작 전에 끝낸다 (스트림 도중엔 HTTP 상태코드를 바꿀 수 없음).
+    권한·한도 체크는 스트림 시작 전에 끝낸다 (스트림 도중엔 HTTP 상태코드를 바꿀 수 없음).
+    Supabase 클라이언트는 동기라 모두 스레드에서 호출한다 (다른 스트림을 막지 않게).
     """
-    conv = _owned(conversation_id, client_id)
+    conv = await asyncio.to_thread(_owned, conversation_id, client_id)
+    history = await asyncio.to_thread(_history, conversation_id)
+    if len(history) >= settings.chat_max_messages:
+        # 앞부분을 잘라 보내면 LLM 쪽 기록이 '수정'된 것이 되므로, 새 대화를 시작하게 한다
+        raise HTTPException(status_code=409, detail="대화가 너무 깁니다. 새 대화를 시작하세요")
+    check_chat_quota(ip)
+
     store = get_chat_store()
-    history = _history(conversation_id)
     user_msg = Message(role="user", content=content)
     history.append(user_msg)
-    store.append_messages(conversation_id, [user_msg])
+    await asyncio.to_thread(store.append_messages, conversation_id, [user_msg])
     if not conv.get("title"):
-        store.set_title(conversation_id, content[:40])
+        await asyncio.to_thread(store.set_title, conversation_id, content[:40])
 
     async def events() -> AsyncIterator[str]:
-        saved = len(history)
-        async for ev in run_agent(history):
-            if ev.type in ("message", "tool_result", "done", "error"):
-                # 턴이 끝날 때마다 새 메시지 저장 → 중간에 끊겨도 진행분은 남는다
-                await asyncio.to_thread(store.append_messages, conversation_id, history[saved:])
-                saved = len(history)
-            data = json.dumps(ev.data, ensure_ascii=False, default=str)
-            yield f"event: {ev.type}\ndata: {data}\n\n"
+        queue: asyncio.Queue[AgentEvent | None] = asyncio.Queue()
+
+        async def produce() -> None:
+            saved = len(history)
+            try:
+                async for ev in run_agent(history):
+                    if ev.type in ("message", "tool_result", "done", "error"):
+                        # 턴마다 새 메시지 저장 → 중간에 끊겨도 진행분은 남는다
+                        new = history[saved:]
+                        saved = len(history)
+                        await asyncio.to_thread(store.append_messages, conversation_id, new)
+                    await queue.put(ev)
+            finally:
+                await queue.put(None)
+
+        task = asyncio.create_task(produce())
+        try:
+            while True:
+                try:
+                    ev = await asyncio.wait_for(queue.get(), timeout=PING_INTERVAL)
+                except TimeoutError:
+                    yield ": ping\n\n"
+                    continue
+                if ev is None:
+                    break
+                yield _sse(ev)
+        finally:
+            task.cancel()  # 클라이언트가 끊으면 LLM 호출도 멈춘다 (비용 절약)
 
     return events()

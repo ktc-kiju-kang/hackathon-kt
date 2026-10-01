@@ -12,7 +12,14 @@ from typing import Any
 import anthropic
 
 from app.agent.tools import Tool
-from app.agent.types import Message, ProviderEvent, TextDelta, ToolCall, TurnComplete
+from app.agent.types import (
+    Message,
+    ProviderEvent,
+    TextDelta,
+    ToolCall,
+    TurnComplete,
+    close_orphan_tool_calls,
+)
 from app.config import settings
 
 log = logging.getLogger(__name__)
@@ -36,7 +43,7 @@ def _sanitize_raw(blocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
 def to_anthropic_messages(history: list[Message], provider_name: str) -> list[dict[str, Any]]:
     """중립 기록 → Anthropic messages. 연속된 tool 결과는 user 메시지 하나로 묶는다."""
     out: list[dict[str, Any]] = []
-    for m in history:
+    for m in close_orphan_tool_calls(history):
         if m.role == "user":
             out.append({"role": "user", "content": m.content})
         elif m.role == "assistant":
@@ -100,26 +107,37 @@ class AnthropicProvider:
             params["tools"] = to_anthropic_tools(tools)
 
         for attempt in range(3):
+            emitted = False
             try:
                 async with self.client.beta.messages.stream(**params) as stream:
                     async for event in stream:
                         if event.type == "text":
+                            emitted = True
                             yield TextDelta(text=event.text)
                     final = await stream.get_final_message()
                 break
             except ValueError:
                 # 도구 입력 JSON을 아예 파싱 못 함 (tool_use 블록이 완성 전이라 답할 id가 없음)
-                # → 같은 요청 재시도. API 오류는 ValueError가 아니므로 그대로 올라간다.
-                log.warning("unparseable tool input JSON, retrying (%d)", attempt + 1)
-                if attempt == 2:
+                # → 같은 요청 재시도. 이미 화면에 텍스트를 보냈으면 중복되므로 재시도하지 않는다.
+                # API 오류는 ValueError가 아니므로 그대로 올라간다.
+                log.warning("unparseable tool input JSON (attempt %d)", attempt + 1)
+                if emitted or attempt == 2:
                     raise
 
-        raw = _sanitize_raw([b.model_dump(mode="json", exclude_none=True) for b in final.content])
-        text = "".join(b.text for b in final.content if b.type == "text")
+        # by_alias: fallback 블록의 `from` 필드가 파이썬에선 `from_` → API 형식으로 되돌린다
+        raw = _sanitize_raw(
+            [b.model_dump(mode="json", by_alias=True, exclude_none=True) for b in final.content]
+        )
+        # 텍스트·도구 호출은 재전송할 raw에서 뽑는다 (fallback 앞의 버려진 tool_use 제외)
+        text = "".join(b.get("text", "") for b in raw if b.get("type") == "text")
         calls = [
-            ToolCall(id=b.id, name=b.name, input=b.input if isinstance(b.input, dict) else {})
-            for b in final.content
-            if b.type == "tool_use"
+            ToolCall(
+                id=b["id"],
+                name=b["name"],
+                input=b["input"] if isinstance(b.get("input"), dict) else {},
+            )
+            for b in raw
+            if b.get("type") == "tool_use"
         ]
         stop = final.stop_reason
         stop_reason = (

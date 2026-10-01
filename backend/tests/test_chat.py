@@ -51,3 +51,23 @@ def test_other_client_cannot_access():
 def test_requires_client_id_and_valid_id():
     assert client.post("/api/chat/conversations", json={}).status_code == 422
     assert client.get("/api/chat/conversations/not-a-uuid/messages", headers=H).status_code == 404
+
+
+def test_rate_limit(monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "chat_rate_per_ip", 2)
+    conv = client.post("/api/chat/conversations", json={}, headers=H).json()
+    url = f"/api/chat/conversations/{conv['id']}/messages"
+    codes = [client.post(url, json={"content": "hi"}, headers=H).status_code for _ in range(3)]
+    assert codes == [200, 200, 429]
+
+
+def test_conversation_length_cap(monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "chat_max_messages", 2)
+    conv = client.post("/api/chat/conversations", json={}, headers=H).json()
+    url = f"/api/chat/conversations/{conv['id']}/messages"
+    assert client.post(url, json={"content": "hi"}, headers=H).status_code == 200  # user+assistant
+    assert client.post(url, json={"content": "again"}, headers=H).status_code == 409

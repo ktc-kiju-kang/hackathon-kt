@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Header
+from fastapi import APIRouter, Header, Request
 from fastapi.responses import StreamingResponse
 
 from app.schemas.chat import ChatMessage, ChatMessageIn, Conversation, ConversationCreate
@@ -8,6 +8,12 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 
 # 로그인 없는 해커톤용 소유권: 브라우저가 만든 임의 UUID를 X-Client-Id 헤더로 보낸다
 ClientId = Header(alias="X-Client-Id", min_length=8, max_length=64)
+
+
+def _ip(request: Request) -> str:
+    # Render 프록시 뒤: 실제 클라이언트 IP는 X-Forwarded-For 첫 값
+    fwd = request.headers.get("x-forwarded-for", "")
+    return fwd.split(",")[0].strip() or (request.client.host if request.client else "unknown")
 
 
 @router.post("/conversations", response_model=Conversation, status_code=201)
@@ -27,9 +33,9 @@ def list_messages(conversation_id: str, client_id: str = ClientId) -> list[ChatM
 
 @router.post("/conversations/{conversation_id}/messages")
 async def send_message(
-    conversation_id: str, body: ChatMessageIn, client_id: str = ClientId
+    conversation_id: str, body: ChatMessageIn, request: Request, client_id: str = ClientId
 ) -> StreamingResponse:
-    stream = await service.send_message(conversation_id, client_id, body.content)
+    stream = await service.send_message(conversation_id, client_id, body.content, _ip(request))
     return StreamingResponse(
         stream,
         media_type="text/event-stream",

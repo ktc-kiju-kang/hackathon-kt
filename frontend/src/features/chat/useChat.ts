@@ -98,7 +98,7 @@ export function useChat() {
         }
         await sendMessage(id, text, onEvent, abortRef.current.signal)
       } catch (e) {
-        if ((e as Error).name !== 'AbortError') toast.error(`전송 실패: ${(e as Error).message}`)
+        if ((e as Error).name !== 'AbortError') toast.error((e as Error).message)
       } finally {
         updateAgent((a) => void (a.streaming = false))
         setBusy(false)

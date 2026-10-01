@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from app.agent.loop import run_agent
 from app.agent.providers.anthropic import _sanitize_raw, to_anthropic_messages
 from app.agent.tools import Tool, get_tools
-from app.agent.types import Message, TextDelta, ToolCall, TurnComplete
+from app.agent.types import Message, TextDelta, ToolCall, TurnComplete, close_orphan_tool_calls
 
 
 def collect(history, **kw):
@@ -126,3 +126,67 @@ def test_sanitize_after_fallback():
         {"type": "text", "text": "b"},
     ]
     assert [b["type"] for b in _sanitize_raw(blocks)] == ["text", "fallback", "thinking", "text"]
+
+
+def test_orphan_tool_calls_closed():
+    history = [
+        Message(role="user", content="q"),
+        Message(
+            role="assistant", tool_calls=[ToolCall(id="a", name="x"), ToolCall(id="b", name="y")]
+        ),
+        Message(role="tool", tool_call_id="a", content="ok"),
+        Message(role="user", content="다음 질문"),  # b의 결과 없이 끊긴 뒤 새 질문
+    ]
+    fixed = close_orphan_tool_calls(history)
+    assert [(m.role, m.tool_call_id) for m in fixed] == [
+        ("user", None),
+        ("assistant", None),
+        ("tool", "a"),
+        ("tool", "b"),
+        ("user", None),
+    ]
+    assert fixed[3].is_error and len(history) == 4  # 원본은 그대로
+    out = to_anthropic_messages(history, "anthropic")
+    assert [b["tool_use_id"] for b in out[2]["content"]] == ["a", "b"]
+
+
+def test_calculator_blocks_huge_power():
+    calc = next(t for t in get_tools() if t.name == "calculator")
+    for expr in ["((9**99)**99)**99", "10**400", "(10**12+1)**2"]:
+        try:
+            asyncio.run(calc.run(calc.input_model(expression=expr)))
+            raise AssertionError(expr)
+        except ValueError:
+            pass
+
+
+TRIGGER = {"type": "refusal"}
+
+
+def test_fallback_block_dumped_with_alias():
+    from anthropic.types.beta import BetaMessage
+
+    msg = BetaMessage.model_validate(
+        {
+            "id": "m",
+            "type": "message",
+            "role": "assistant",
+            "model": "claude-opus-5-5",
+            "stop_reason": "end_turn",
+            "stop_sequence": None,
+            "usage": {"input_tokens": 1, "output_tokens": 1},
+            "content": [
+                {"type": "text", "text": "a"},
+                {
+                    "type": "fallback",
+                    "from": {"model": "claude-opus-5-5"},
+                    "to": {"model": "claude-opus-4-8"},
+                    "trigger": {"type": "refusal"},
+                },
+                {"type": "text", "text": "b"},
+            ],
+        }
+    )
+    raw = [b.model_dump(mode="json", by_alias=True, exclude_none=True) for b in msg.content]
+    fb = next(b for b in raw if b["type"] == "fallback")
+    assert "from" in fb and "from_" not in fb

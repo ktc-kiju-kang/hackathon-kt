@@ -1,4 +1,5 @@
 import ast
+import asyncio
 import json
 import operator
 
@@ -22,12 +23,21 @@ def _eval(node: ast.AST) -> float:
     if isinstance(node, ast.Constant) and isinstance(node.value, int | float):
         return node.value
     if isinstance(node, ast.BinOp) and type(node.op) in _OPS:
-        if isinstance(node.op, ast.Pow) and abs(_eval(node.right)) > 100:
-            raise ValueError("지수가 너무 큽니다")
-        return _OPS[type(node.op)](_eval(node.left), _eval(node.right))
+        left, right = _eval(node.left), _eval(node.right)
+        if isinstance(node.op, ast.Pow):
+            # 계산 전에 결과 크기를 막는다 (중첩 거듭제곱으로 서버가 멈추지 않게)
+            if abs(right) > 100 or abs(left) > 1e12:
+                raise ValueError("거듭제곱 값이 너무 큽니다")
+        return _check(_OPS[type(node.op)](left, right))
     if isinstance(node, ast.UnaryOp) and type(node.op) in _OPS:
-        return _OPS[type(node.op)](_eval(node.operand))
+        return _check(_OPS[type(node.op)](_eval(node.operand)))
     raise ValueError("숫자와 + - * / ** % ( ) 만 사용할 수 있습니다")
+
+
+def _check(value: float) -> float:
+    if abs(value) > 1e300:
+        raise ValueError("결과가 너무 큽니다")
+    return value
 
 
 class Input(BaseModel):
@@ -35,7 +45,8 @@ class Input(BaseModel):
 
 
 async def run(args: Input) -> str:
-    value = _eval(ast.parse(args.expression, mode="eval").body)
+    tree = ast.parse(args.expression, mode="eval").body
+    value = await asyncio.to_thread(_eval, tree)  # CPU 작업이 이벤트 루프를 막지 않게
     return json.dumps({"expression": args.expression, "result": value})
 
 
