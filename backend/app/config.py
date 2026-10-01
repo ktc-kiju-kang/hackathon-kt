@@ -15,6 +15,15 @@ class Settings(BaseSettings):
     supabase_url: str = ""
     supabase_service_role_key: str = ""
 
+    # AI 에이전트 (app/agent). LLM_PROVIDER 비우면 ANTHROPIC_API_KEY 있을 때 anthropic, 없으면 mock
+    llm_provider: str = ""
+    llm_model: str = "claude-opus-5-5"
+    llm_effort: str = "medium"  # low | medium | high | xhigh | max
+    llm_max_tokens: int = 64000
+    anthropic_api_key: str = ""  # 비밀값. Render 대시보드 / backend/.env 에만
+    agent_max_turns: int = 10  # 한 요청에서 LLM↔도구 왕복 최대 횟수
+    agent_tool_timeout: float = 30.0
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

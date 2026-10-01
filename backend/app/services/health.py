@@ -1,6 +1,7 @@
 import logging
 from datetime import UTC, datetime
 
+from app.agent.providers import get_provider
 from app.config import settings
 from app.db import get_supabase
 from app.schemas.health import Health
@@ -26,4 +27,5 @@ def get_health() -> Health:
         time=datetime.now(UTC),
         version=settings.render_git_commit or None,
         db=check_db(),
+        llm=get_provider().name,
     )

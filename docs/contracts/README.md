@@ -28,3 +28,4 @@ Errors: 404 { "detail": "..." }
 
 ## 목록
 - [health](health.md) — 서버 상태 확인
+- [chat](chat.md) — AI 에이전트 대화 (SSE 스트리밍)

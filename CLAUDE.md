@@ -32,6 +32,8 @@ backend/                         FastAPI
   app/services/<feature>.py        비즈니스 로직·DB 접근 — 기능 담당자
   app/schemas/<feature>.py         Pydantic 요청/응답 모델 — 기능 담당자
   app/main.py, config.py, db.py    공용 (main.py는 수정 불필요)
+  app/agent/                       AI 에이전트 엔진 (공용) — providers/ 어댑터, tools/<name>.py 도구(기능 담당자), loop.py
+  evals/                           에이전트 평가 (cases.json + run_eval.py)
   tests/test_<feature>.py
 database/                        Supabase Postgres
   migrations/NNNN_<설명>.sql       스키마 변경 (규칙: database/README.md)
@@ -90,6 +92,15 @@ docs/decisions/                  ADR
   - 로컬 `backend/.env`에 실제 Supabase 키가 있으면 테스트가 실제 DB에 붙는다. 테스트는 `monkeypatch.setattr(settings, ...)`로 설정을 고정해 **로컬 .env와 무관하게** 통과해야 한다.
 - `schema_migrations` 테이블은 배포 파이프라인 전용. 기능에서 읽거나 쓰지 않는다.
 
+### AI 에이전트 (`backend/app/agent/`)
+- 흐름: `/api/chat/.../messages` → `loop.run_agent` → LLM 어댑터 → 도구 실행 → 반복 → SSE (`docs/contracts/chat.md`)
+- LLM: 기본 Claude `claude-opus-5-5` (`LLM_MODEL`, `LLM_EFFORT`=medium). `ANTHROPIC_API_KEY`가 없으면 **mock**(규칙 기반 가짜 LLM)으로 동작 → 키 없이도 UI·루프 개발 가능. 운영 상태는 `/api/health`의 `llm`.
+- **도구 추가 = `app/agent/tools/<name>.py` 파일 하나** (`/add-agent-tool`). 입력은 pydantic, 실행 전 자동 검증. 도구 입력은 신뢰할 수 없는 값으로 다룬다.
+- 다른 LLM으로 교체: `providers/<name>.py`에 `LLMProvider`(`stream_turn`) 구현 + `providers/__init__.py` 등록 + `LLM_PROVIDER`. 루프·도구·저장·UI는 그대로.
+- `SYSTEM_PROMPT`(`agent/prompts.py`)에 날짜 등 바뀌는 값을 넣지 않는다 (프롬프트 캐시가 깨짐). 공용 파일이라 변경 시 리뷰 필요.
+- 대화 기록은 append-only (`raw`의 thinking 블록 유효성). 저장된 메시지를 수정·삭제하는 기능을 만들지 않는다.
+- 품질 확인: `cd backend && .venv/bin/python -m evals.run_eval` — **실제 API 비용 발생**, 실행 전 사용자 확인. `--provider mock`은 무료(흐름만).
+
 ## 배포 & 환경변수
 **main 머지 → CI 통과 → `.github/workflows/deploy.yml`이 순서대로 배포한다.** 플랫폼 자체 자동배포(main)는 끈다.
 
@@ -108,7 +119,7 @@ docs/decisions/                  ADR
 | 환경변수 위치 | 내용 |
 |---|---|
 | Vercel 프로젝트 (Config 타입) | `NEXT_PUBLIC_API_BASE_URL` = Render URL |
-| Render 대시보드 | `CORS_*`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (`render.yaml`은 참고용 — Blueprint 미연결 시 대시보드가 실제 값) |
+| Render 대시보드 | `CORS_*`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ANTHROPIC_API_KEY`, (선택) `LLM_MODEL`·`LLM_EFFORT` (`render.yaml`은 참고용 — Blueprint 미연결 시 대시보드가 실제 값) |
 
 - 전체 키 목록은 루트 `.env.example`. 로컬 값은 `frontend/.env.local`, `backend/.env` (커밋 금지).
 - `NEXT_PUBLIC_*`는 브라우저 번들에 노출된다. 비밀값 금지. **`SUPABASE_SERVICE_ROLE_KEY`는 백엔드에만.**
@@ -123,6 +134,7 @@ docs/decisions/                  ADR
   | `/new-issue` | 칸반 카드(이슈) 만들기 |
   | `/start-task <이슈번호>` | 이슈 작업 시작 (assign + 브랜치/worktree) |
   | `/add-endpoint` | 기능에 API 추가 (계약 → backend → frontend api.ts → 테스트) |
+  | `/add-agent-tool` | AI 에이전트에 도구 추가 (도구 파일 → 테스트 → eval 케이스) |
   | `/sync` | main 반영 |
   | `/handoff` | 작업 마무리 (검증·셀프리뷰·PR `Closes #`) |
   | `/team-status` | 팀 현황 (이슈·PR·충돌 위험) |
