@@ -47,6 +47,9 @@ export function HealthCard() {
               <Badge variant={health.status === 'ok' ? 'default' : 'secondary'}>
                 {health.status}
               </Badge>
+              {health.db && (
+                <Badge variant={health.db === 'ok' ? 'outline' : 'destructive'}>DB {health.db}</Badge>
+              )}
               <span className="text-muted-foreground">
                 {new Date(health.time).toLocaleString('ko-KR')}
               </span>

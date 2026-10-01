@@ -9,3 +9,4 @@ class Health(BaseModel):
     status: Literal["ok"]
     time: datetime
     version: str | None = None  # 배포된 git 커밋 SHA (로컬은 null)
+    db: Literal["ok", "error", "unconfigured"] = "unconfigured"

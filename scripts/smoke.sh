@@ -11,6 +11,7 @@ ng() { echo "❌ $*"; fail=1; }
 
 body=$(curl -fsS -m 90 "$API_URL/api/health") && echo "$body" | grep -q '"status":"ok"' \
   && ok "API health: $body" || ng "API health 실패: ${body:-no response}"
+echo "$body" | grep -q '"db":"ok"' && ok "DB 연결 ok" || ng "DB 연결 이상: $(echo "$body" | sed -n 's/.*"db":"\([^"]*\)".*/\1/p') (Render의 SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY 확인)"
 if [ -n "$expect_sha" ]; then
   echo "$body" | grep -q "\"version\":\"$expect_sha\"" && ok "API version = $expect_sha" || ng "API version 불일치 (기대 $expect_sha)"
 fi
