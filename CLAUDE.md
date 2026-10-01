@@ -9,7 +9,8 @@
 - 칸반: https://github.com/users/ktc-kiju-kang/projects/1 (GitHub Projects "KT 해커톤") — 카드 = 이슈
 - 프론트(배포): https://hackathon-kt.vercel.app (Vercel, PR마다 프리뷰 URL)
 - API(배포): https://hackathon-kt-api.onrender.com/api/docs
-- DB: Supabase (팀 공유 클라우드 프로젝트 1개)
+- DB: Supabase 팀 공유 프로젝트 1개 — `https://atirjbxwroqkbopnqybz.supabase.co` (ap-southeast-1, Render와 같은 리전)
+- 상태 확인: `/api/health` → `version`(배포 커밋), `db`(Supabase 연결: ok/error/unconfigured)
 
 ## 작업 방식: 기능 단위 담당
 - 역할·디렉터리 고정 담당은 없다. **이슈(기능) 하나를 한 사람이 frontend + backend + DB까지 끝까지** 맡는다.
@@ -79,7 +80,15 @@ docs/decisions/                  ADR
   - `router = APIRouter(prefix="/<feature>", tags=["<feature>"])`를 정의하면 자동 등록 → `/api/<feature>/...`
   - router는 얇게(검증·응답), 로직·DB 접근은 service에. `response_model` 항상 지정.
 - DB는 `app.db.get_supabase()`로 service에서만 접근. 설정·비밀값은 `app/config.py`의 `Settings`로만 읽는다.
-- 기능마다 `tests/test_<feature>.py`에 최소 1개 테스트. DB가 필요한 테스트는 service를 monkeypatch해 DB 없이 돌게 한다 (CI에는 DB 없음).
+- DB 사용 예 (service):
+  ```python
+  from app.db import get_supabase
+  rows = get_supabase().table("items").select("*").eq("owner", uid).execute().data
+  ```
+  `service_role` 키라 RLS를 우회한다 → **권한 체크(누가 어떤 행에 접근 가능한지)는 service 코드에서** 한다.
+- 기능마다 `tests/test_<feature>.py`에 최소 1개 테스트. DB가 필요한 테스트는 service 함수를 monkeypatch해 DB 없이 돌게 한다 (CI에는 DB 없음).
+  - 로컬 `backend/.env`에 실제 Supabase 키가 있으면 테스트가 실제 DB에 붙는다. 테스트는 `monkeypatch.setattr(settings, ...)`로 설정을 고정해 **로컬 .env와 무관하게** 통과해야 한다.
+- `schema_migrations` 테이블은 배포 파이프라인 전용. 기능에서 읽거나 쓰지 않는다.
 
 ## 배포 & 환경변수
 **main 머지 → CI 통과 → `.github/workflows/deploy.yml`이 순서대로 배포한다.** 플랫폼 자체 자동배포(main)는 끈다.
@@ -89,7 +98,7 @@ docs/decisions/                  ADR
 | 1. migrate | Supabase | `scripts/migrate.sh` (미적용 파일만, `schema_migrations` 기록) | 이후 단계 중단, 해당 파일 롤백 |
 | 2. backend | Render | Deploy Hook → `/api/health`의 `version`이 머지 커밋 SHA가 될 때까지 대기 | frontend 배포 안 함 |
 | 3. frontend | Vercel | `vercel build/deploy --prod` (API URL 비어 있으면 중단) | 이전 버전 유지 |
-| 4. smoke | 전체 | `scripts/smoke.sh <sha>` (health·version·화면·CORS) | 실패 알림 |
+| 4. smoke | 전체 | `scripts/smoke.sh <sha>` (health·version·**db**·화면·CORS) | 실패 알림 |
 
 - PR 프리뷰: Vercel이 PR마다 자동 생성 (main만 Actions가 배포). 백엔드 프리뷰는 없음.
 - 수동 재배포: Actions → Deploy → Run workflow (`gh workflow run deploy.yml`). 실패 원인 확인은 `/deploy-status`.
