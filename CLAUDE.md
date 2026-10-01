@@ -62,7 +62,7 @@ docs/decisions/                  ADR
 5. **공용 파일은 최소한으로, 작게 고친다:** `layout.tsx`, `src/app/page.tsx`, `api-client.ts`, `components/`, `config.py`, `db.py`, `requirements*.txt`, `package.json`, 루트 설정. 큰 변경은 별도 PR로 먼저 머지한다.
 6. **남의 기능 파일은 직접 고치지 않는다.** 필요하면 담당자에게 요청하거나, 사용자 확인 후 수정하고 담당자를 리뷰어로 지정한다.
 7. **DB 마이그레이션은 main 머지 시 공유 DB에 자동 적용된다.** 번호는 머지 직전에 확정. 마이그레이션은 backend 배포보다 먼저 적용되므로 **이전 버전 코드와도 호환**되게 쓴다(컬럼 추가 OK, drop/rename은 2단계로). 파괴적 변경은 팀에 먼저 알린다.
-8. **작게, 자주 머지.** 작업 시작 전과 PR 전에 `scripts/sync.sh`로 main 반영.
+8. **작게, 자주 머지.** 작업 시작 전과 PR 전에 `scripts/sync.sh`로 main 반영. **PR 전에는 `scripts/check-conflicts.sh`(`/pr-check`)로 충돌 검사** — git이 아직 모르는 충돌(같은 화면 경로를 두 사람이 만듦, 마이그레이션 번호 중복, 다른 열린 PR과 같은 파일)까지 찾는다.
 9. 커밋: `<type>(<feature>): <요약>` — 예: `feat(login): 로그인 폼 추가`
 
 ## 코드 규칙
@@ -137,6 +137,7 @@ docs/decisions/                  ADR
   | `/start-task <이슈번호>` | 이슈 작업 시작 (assign + 브랜치/worktree) |
   | `/add-endpoint` | 기능에 API 추가 (계약 → backend → frontend api.ts → 테스트) |
   | `/add-agent-tool` | AI 에이전트에 도구 추가 (도구 파일 → 테스트 → eval 케이스) |
+  | `/pr-check` | PR 전 충돌 검사 (git 충돌·같은 화면 경로·마이그레이션 번호·다른 PR과 겹침) |
   | `/sync` | main 반영 |
   | `/handoff` | 작업 마무리 (검증·셀프리뷰·PR `Closes #`) |
   | `/team-status` | 팀 현황 (이슈·PR·충돌 위험) |
