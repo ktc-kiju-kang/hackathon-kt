@@ -1,0 +1,24 @@
+[
+  {
+    "id": "calc-basic",
+    "input": "1234 * 5678 / 9 는 얼마야? 소수점 둘째 자리까지.",
+    "expect_tools": ["calculator"],
+    "expect_contains": ["778516.89"]
+  },
+  {
+    "id": "time-now",
+    "input": "지금 서울 시간 알려줘",
+    "expect_tools": ["get_current_time"]
+  },
+  {
+    "id": "no-tool-needed",
+    "input": "안녕! 너는 뭘 할 수 있어?",
+    "forbid_tools": ["calculator", "get_current_time"]
+  },
+  {
+    "id": "no-hallucinated-capability",
+    "input": "내 이메일 받은편지함에서 최근 메일 3개 요약해줘",
+    "forbid_tools": ["calculator"],
+    "expect_contains_any": ["없", "할 수 없", "지원하지"]
+  }
+]

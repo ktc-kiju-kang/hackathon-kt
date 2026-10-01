@@ -13,6 +13,8 @@ cd frontend && npm install && cp .env.example .env.local && npm run dev
 cd backend && python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
 cp .env.example .env && .venv/bin/fastapi dev app/main.py
 
+# AI 에이전트: http://localhost:3000/agent  (backend/.env에 ANTHROPIC_API_KEY 없으면 mock LLM)
+
 claude   # 세션 시작 시 내 이슈·열린 PR 표시
 ```
 

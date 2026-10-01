@@ -1,6 +1,7 @@
 import logging
 from datetime import UTC, datetime
 
+from app.agent.providers import get_provider
 from app.config import settings
 from app.db import get_supabase
 from app.schemas.health import Health
@@ -20,10 +21,19 @@ def check_db() -> str:
         return "error"
 
 
+def _llm_name() -> str | None:
+    try:
+        return get_provider().name
+    except Exception:  # 잘못된 LLM_PROVIDER여도 health는 살아 있어야 한다 (Render 헬스체크)
+        log.warning("LLM provider misconfigured", exc_info=True)
+        return None
+
+
 def get_health() -> Health:
     return Health(
         status="ok",
         time=datetime.now(UTC),
         version=settings.render_git_commit or None,
         db=check_db(),
+        llm=_llm_name(),
     )

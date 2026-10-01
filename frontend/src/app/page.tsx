@@ -1,3 +1,6 @@
+import Link from 'next/link'
+import { BotIcon } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { HealthCard } from '@/features/health/HealthCard'
 
 // 화면 조립만 담당. 기능 UI는 src/features/<feature>/, 새 화면은 src/app/<route>/page.tsx
@@ -10,6 +13,11 @@ export default function Home() {
       </header>
 
       <div className="grid gap-6">
+        <Button asChild size="lg" className="justify-self-start">
+          <Link href="/agent">
+            <BotIcon /> AI 에이전트와 대화하기
+          </Link>
+        </Button>
         <HealthCard />
       </div>
     </main>

@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, MessageSquare, Rocket } from 'lucide-react'
+import { Bot, Home, MessageSquare, Rocket } from 'lucide-react'
 import {
   Sidebar,
   SidebarContent,
@@ -20,6 +20,7 @@ import {
 const MENUS = [
   { title: '홈', href: '/', icon: Home },
   { title: '채팅', href: '/chat', icon: MessageSquare },
+  { title: 'AI 에이전트', href: '/agent', icon: Bot },
 ]
 
 export function AppSidebar() {

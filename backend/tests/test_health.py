@@ -15,6 +15,7 @@ def test_health(monkeypatch):
     assert body["status"] == "ok"
     assert "time" in body
     assert body["db"] == "unconfigured"
+    assert body["llm"] in ("anthropic", "mock")
 
 
 def test_health_version(monkeypatch):

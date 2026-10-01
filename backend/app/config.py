@@ -15,6 +15,19 @@ class Settings(BaseSettings):
     supabase_url: str = ""
     supabase_service_role_key: str = ""
 
+    # AI 에이전트 (app/agent). LLM_PROVIDER 비우면 ANTHROPIC_API_KEY 있을 때 anthropic, 없으면 mock
+    llm_provider: str = ""
+    llm_model: str = "claude-opus-5-5"
+    llm_effort: str = "medium"  # low | medium | high | xhigh | max
+    llm_max_tokens: int = 8000  # 한 턴 출력 상한 (공개 API라 비용 보호 위해 보수적으로)
+    anthropic_api_key: str = ""  # 비밀값. Render 대시보드 / backend/.env 에만
+    agent_max_turns: int = 6  # 한 요청에서 LLM↔도구 왕복 최대 횟수
+    agent_tool_timeout: float = 30.0
+    # 공개 API 남용 방지 (프로세스 메모리 기준 — 서버 재시작 시 초기화)
+    chat_rate_per_ip: int = 20  # IP당 10분에 보낼 수 있는 메시지 수
+    chat_daily_limit: int = 500  # 서버 전체 하루 메시지 수
+    chat_max_messages: int = 80  # 대화 하나의 최대 저장 메시지 수 (넘으면 새 대화)
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
