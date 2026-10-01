@@ -5,7 +5,11 @@
 ## 프로젝트 개요
 - 주제: _TBD_
 - 저장소: https://github.com/kiju-kang/hackathon-kt (공개 — 비밀값 절대 커밋 금지)
-- 웹: `web/` — Vite + React + TypeScript
+- 웹: `web/` — Vite + React + TypeScript + Tailwind v4 + **shadcn/ui** (radix-nova, lucide 아이콘)
+  - UI는 shadcn 컴포넌트를 우선 사용: `cd web && npx shadcn@latest add <이름>` → `src/components/ui/`에 생성
+  - `src/components/ui/`는 생성 코드이므로 직접 수정은 최소화하고, 조합 컴포넌트는 `src/components/`에 만든다
+  - import 경로는 `@/` 별칭 사용 (예: `@/components/ui/button`), 클래스 병합은 `cn()` (`@/lib/utils`)
+  - 색상은 하드코딩 대신 테마 토큰(`bg-background`, `text-muted-foreground` 등) 사용. 테마는 `src/index.css`
   - 실행: `cd web && npm install && npm run dev` (http://localhost:5173)
   - 검증: `cd web && npm run lint && npm run build` (CI가 PR마다 동일하게 실행)
   - API 호출은 `web/src/api/client.ts`에 모은다. `VITE_API_BASE_URL`이 비면 mock으로 동작
