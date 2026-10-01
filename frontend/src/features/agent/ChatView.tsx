@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { LoaderCircleIcon, PlusIcon, SendIcon, SquareIcon, WrenchIcon } from 'lucide-react'
+import { CircleAlertIcon, LoaderCircleIcon, PlusIcon, SendIcon, SquareIcon, WrenchIcon } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -64,11 +64,21 @@ export function ChatView() {
               {item.tools.map((t) => (
                 <ToolCard key={t.id} tool={t} />
               ))}
-              {(item.text || item.streaming) && (
+              {(item.text.trim() || (item.streaming && !item.status && !item.error)) && (
                 <div className="whitespace-pre-wrap rounded-2xl bg-muted px-4 py-2">
-                  {item.text}
+                  {item.text.trim()}
                   {item.streaming && <span className="ml-0.5 inline-block w-2 animate-pulse">▍</span>}
                 </div>
+              )}
+              {item.status && (
+                <p className="flex items-center gap-1.5 px-1 text-xs text-muted-foreground">
+                  <LoaderCircleIcon className="size-3.5 animate-spin" /> {item.status}
+                </p>
+              )}
+              {item.error && (
+                <p role="alert" className="flex items-center gap-1.5 px-1 text-sm text-destructive">
+                  <CircleAlertIcon className="size-4 shrink-0" /> {item.error}
+                </p>
               )}
             </div>
           ),

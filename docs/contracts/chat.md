@@ -31,8 +31,9 @@ Request: `{ "content": string(1~8000) }` → 200 `text/event-stream` · 404 · 4
 | `message` | `{ "message": ChatMessage }` | assistant 한 턴 완료 (도구 호출이 있으면 이어서 tool_call) |
 | `tool_call` | `{ "id", "name", "input": object }` | 도구 실행 시작 |
 | `tool_result` | `{ "tool_call_id", "content": string, "is_error": bool }` | 도구 결과 |
+| `retry` | `{ "code": "rate_limit" \| "unavailable", "wait_seconds": number, "attempt": number }` | LLM 일시 오류로 대기 후 재시도 (글자를 보내기 전에만, 최대 `AGENT_LLM_RETRIES`회) |
 | `done` | `{ "stop_reason": string, "usage": object }` | 정상 종료 (마지막 이벤트) |
-| `error` | `{ "message": string }` | 오류 종료 (마지막 이벤트) |
+| `error` | `{ "message": string, "code"?: string }` | 오류 종료 (마지막 이벤트). `message`는 사용자에게 그대로 보여줄 한국어 문구. `code`: `rate_limit` \| `unavailable` \| `bad_request` \| `auth` \| `internal` 등 |
 
 한 요청에서 `text → message → tool_call* → tool_result* → text → message → ... → done` 순으로 반복된다 (최대 `AGENT_MAX_TURNS`).
 
@@ -48,3 +49,4 @@ ChatMessage  = { role: "user" | "assistant" | "tool", content: string,
 | 날짜 | 변경 | 작성자 |
 |---|---|---|
 | 2026-10-01 | 추가 | ktc-kiju-kang |
+| 2026-10-01 | `retry` 이벤트, `error.code` 추가 (v1 호환) | ktc-kiju-kang |

@@ -134,7 +134,7 @@ class OpenAICompatProvider:
         self.client = client or AsyncOpenAI(
             api_key=api_key or settings.llm_api_key or "missing",
             base_url=settings.llm_base_url or cfg["base_url"],
-            max_retries=2,
+            max_retries=1,
         )
 
     async def stream_turn(
