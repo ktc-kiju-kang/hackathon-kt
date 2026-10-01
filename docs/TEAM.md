@@ -2,11 +2,11 @@
 
 | 멤버 ID | 이름 | GitHub | 역할 | 소유 디렉터리 |
 |---|---|---|---|---|
-| `a` | _TBD_ | _TBD_ | 프론트엔드 | `web/` |
-| `b` | _TBD_ | _TBD_ | 백엔드/API | `api/` |
-| `c` | _TBD_ | _TBD_ | 예: AI/데이터 | _TBD_ |
+| `a` | 김정남 | `ktc-bill-kim` | 프론트엔드 (잠정) | `web/` |
+| `b` | 김재혁 | `ktc-jehyuk-kim` | 백엔드/API (잠정) | `api/` |
+| `c` | 강기주 | `ktc-kiju-kang` | AI/데이터·인프라 (잠정) | _TBD_ |
 
-Collaborator: `ktc-kiju-kang`, `ktc-bill-kim`, `ktc-jehyuk-kim` (멤버 ID 매핑은 확정 후 위 표에 기입)
+역할은 주제 확정 후 조정한다. 연락처는 공개 레포이므로 여기 적지 않는다.
 
 공용 영역(`docs/CONTRACTS.md`, `CLAUDE.md`, `.claude/`, `.github/`, `render.yaml`)은 변경 시 다른 1명 이상 리뷰.
 
