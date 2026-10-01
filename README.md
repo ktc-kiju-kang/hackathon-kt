@@ -1,6 +1,6 @@
 # KT 해커톤
 
-🌐 데모: https://kiju-kang.github.io/hackathon-kt/
+🌐 웹: https://kiju-kang.github.io/hackathon-kt/ · API: https://hackathon-kt-api.onrender.com/api/docs
 
 ## 시작하기 (팀원 각자)
 ```bash
