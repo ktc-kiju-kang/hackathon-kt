@@ -1,32 +1,69 @@
-import { useEffect, useState } from 'react'
-import { api, type Health } from './api/client'
+import { useCallback, useEffect, useState } from 'react'
+import { toast } from 'sonner'
+import { RefreshCwIcon } from 'lucide-react'
+import { api, type Health } from '@/api/client'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Toaster } from '@/components/ui/sonner'
 
 export default function App() {
   const [health, setHealth] = useState<Health | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
 
-  useEffect(() => {
-    api.health().then(setHealth).catch((e: Error) => setError(e.message))
+  const check = useCallback(async () => {
+    setLoading(true)
+    try {
+      setHealth(await api.health())
+    } catch (e) {
+      setHealth(null)
+      toast.error(`API 연결 실패: ${(e as Error).message}`)
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
+  useEffect(() => {
+    void check()
+  }, [check])
+
   return (
-    <main className="container">
-      <header>
-        <h1>KT 해커톤</h1>
-        <p className="subtitle">프로젝트 주제 확정 전 기본 화면입니다.</p>
+    <main className="mx-auto max-w-3xl px-4 py-12">
+      <header className="mb-8">
+        <h1 className="text-3xl font-bold tracking-tight">KT 해커톤</h1>
+        <p className="mt-2 text-muted-foreground">프로젝트 주제 확정 전 기본 화면입니다.</p>
       </header>
 
-      <section className="card">
-        <h2>API 상태</h2>
-        {error && <p className="error">연결 실패: {error}</p>}
-        {!error && !health && <p>확인 중…</p>}
-        {health && (
-          <p>
-            <span className={`badge badge-${health.status}`}>{health.status}</span>{' '}
-            {new Date(health.time).toLocaleString('ko-KR')}
-          </p>
-        )}
-      </section>
+      <Card>
+        <CardHeader>
+          <CardTitle>API 상태</CardTitle>
+          <CardDescription>
+            VITE_API_BASE_URL이 비어 있으면 mock 응답을 사용합니다.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2 text-sm">
+            {health ? (
+              <>
+                <Badge variant={health.status === 'ok' ? 'default' : 'secondary'}>
+                  {health.status}
+                </Badge>
+                <span className="text-muted-foreground">
+                  {new Date(health.time).toLocaleString('ko-KR')}
+                </span>
+              </>
+            ) : (
+              <span className="text-muted-foreground">{loading ? '확인 중…' : '응답 없음'}</span>
+            )}
+          </div>
+          <Button variant="outline" size="sm" onClick={check} disabled={loading}>
+            <RefreshCwIcon className={loading ? 'animate-spin' : ''} />
+            다시 확인
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Toaster richColors />
     </main>
   )
 }
