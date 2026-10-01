@@ -58,7 +58,7 @@ docs/decisions/                  ADR
 4. **계약 우선:** 다른 기능·화면이 쓰는 API는 `docs/contracts/<feature>.md`에 먼저 정의한다. 남의 기능 계약을 바꾸면 그 담당자를 PR 리뷰어로 지정한다.
 5. **공용 파일은 최소한으로, 작게 고친다:** `layout.tsx`, `src/app/page.tsx`, `api-client.ts`, `components/`, `config.py`, `db.py`, `requirements*.txt`, `package.json`, 루트 설정. 큰 변경은 별도 PR로 먼저 머지한다.
 6. **남의 기능 파일은 직접 고치지 않는다.** 필요하면 담당자에게 요청하거나, 사용자 확인 후 수정하고 담당자를 리뷰어로 지정한다.
-7. **DB 마이그레이션은 공유 DB에 바로 반영된다.** 번호는 머지 직전에 확정, drop/rename 같은 파괴적 변경은 팀에 먼저 알린다.
+7. **DB 마이그레이션은 main 머지 시 공유 DB에 자동 적용된다.** 번호는 머지 직전에 확정. 마이그레이션은 backend 배포보다 먼저 적용되므로 **이전 버전 코드와도 호환**되게 쓴다(컬럼 추가 OK, drop/rename은 2단계로). 파괴적 변경은 팀에 먼저 알린다.
 8. **작게, 자주 머지.** 작업 시작 전과 PR 전에 `scripts/sync.sh`로 main 반영.
 9. 커밋: `<type>(<feature>): <요약>` — 예: `feat(login): 로그인 폼 추가`
 
@@ -82,11 +82,24 @@ docs/decisions/                  ADR
 - 기능마다 `tests/test_<feature>.py`에 최소 1개 테스트. DB가 필요한 테스트는 service를 monkeypatch해 DB 없이 돌게 한다 (CI에는 DB 없음).
 
 ## 배포 & 환경변수
-| | 트리거 | 환경변수 |
-|---|---|---|
-| frontend → Vercel | main 머지 시 프로덕션, PR마다 프리뷰 URL | Vercel 프로젝트 환경변수 `NEXT_PUBLIC_API_BASE_URL`(= Render URL) |
-| backend → Render (free, singapore) | main 머지 + CI 통과 | `render.yaml`의 `envVars`. 비밀값(`SUPABASE_*`)은 `sync: false`, Render 대시보드에서 입력 |
-| database → Supabase | 수동 (SQL Editor / psql) | — |
+**main 머지 → CI 통과 → `.github/workflows/deploy.yml`이 순서대로 배포한다.** 플랫폼 자체 자동배포(main)는 끈다.
+
+| 단계 | 대상 | 방법 | 실패 시 |
+|---|---|---|---|
+| 1. migrate | Supabase | `scripts/migrate.sh` (미적용 파일만, `schema_migrations` 기록) | 이후 단계 중단, 해당 파일 롤백 |
+| 2. backend | Render | Deploy Hook → `/api/health`의 `version`이 머지 커밋 SHA가 될 때까지 대기 | frontend 배포 안 함 |
+| 3. frontend | Vercel | `vercel build/deploy --prod` (API URL 비어 있으면 중단) | 이전 버전 유지 |
+| 4. smoke | 전체 | `scripts/smoke.sh <sha>` (health·version·화면·CORS) | 실패 알림 |
+
+- PR 프리뷰: Vercel이 PR마다 자동 생성 (main만 Actions가 배포). 백엔드 프리뷰는 없음.
+- 수동 재배포: Actions → Deploy → Run workflow (`gh workflow run deploy.yml`). 실패 원인 확인은 `/deploy-status`.
+- 배포용 GitHub Secrets: `RENDER_DEPLOY_HOOK_URL`, `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `SUPABASE_DB_URL`(없으면 마이그레이션 건너뜀). **`production` Environment secrets에 넣는다** (보호 브랜치 main에서만 접근 가능).
+- 보안: Deploy는 main push로 돈 CI에서만 실행된다 (fork PR·다른 브랜치 수동 실행 차단).
+
+| 환경변수 위치 | 내용 |
+|---|---|
+| Vercel 프로젝트 (Config 타입) | `NEXT_PUBLIC_API_BASE_URL` = Render URL |
+| Render 대시보드 | `CORS_*`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (`render.yaml`은 참고용 — Blueprint 미연결 시 대시보드가 실제 값) |
 
 - 전체 키 목록은 루트 `.env.example`. 로컬 값은 `frontend/.env.local`, `backend/.env` (커밋 금지).
 - `NEXT_PUBLIC_*`는 브라우저 번들에 노출된다. 비밀값 금지. **`SUPABASE_SERVICE_ROLE_KEY`는 백엔드에만.**
@@ -104,6 +117,6 @@ docs/decisions/                  ADR
   | `/sync` | main 반영 |
   | `/handoff` | 작업 마무리 (검증·셀프리뷰·PR `Closes #`) |
   | `/team-status` | 팀 현황 (이슈·PR·충돌 위험) |
-  | `/deploy-status` | 배포(Vercel/Render) 상태 확인 |
+  | `/deploy-status` | 배포 파이프라인·서비스 상태 확인 |
 - PR 전에는 `reviewer` 서브에이전트로 셀프 리뷰.
-- 이슈 생성·push·PR 생성·DB 마이그레이션 적용은 사용자 확인 후. PR 머지는 사람이 한다.
+- 이슈 생성·push·PR 생성·수동 재배포는 사용자 확인 후. PR 머지는 사람이 한다. 공유 DB에 직접 SQL을 실행하지 않는다 (마이그레이션 파일 + 배포 파이프라인으로만).

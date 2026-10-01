@@ -8,6 +8,9 @@ class Settings(BaseSettings):
     cors_origins: str = "https://hackathon-kt.vercel.app,http://localhost:3000"
     cors_origin_regex: str = r"https://hackathon-[a-z0-9-]+-ktc-kiju-kang\.vercel\.app"
 
+    # 배포된 커밋 SHA. Render가 RENDER_GIT_COMMIT을 자동 주입 (배포 확인용)
+    render_git_commit: str = ""
+
     # Supabase (백엔드 전용. service_role 키는 절대 프론트/레포에 두지 않는다)
     supabase_url: str = ""
     supabase_service_role_key: str = ""
