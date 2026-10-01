@@ -7,7 +7,7 @@ argument-hint: <feature> <METHOD> <path> <설명>
 
 1. **계약** — `docs/contracts/<feature>.md` (없으면 `docs/contracts/README.md` 템플릿으로 생성하고 목록에 추가)에 메서드·경로(`/api/<feature>/...`)·Request/Response JSON·에러·변경 이력을 적는다. 사용자에게 보여주고 확인받는다.
    - 다른 기능 담당자가 이 API를 쓰거나 남의 계약을 바꾸는 경우, 계약만 먼저 작은 PR로 올리자고 제안한다.
-2. **DB (필요 시)** — `database/migrations/NNNN_<설명>.sql` 새 파일 (규칙: `database/README.md` — RLS 켜기, 기본 컬럼, 번호는 머지 직전 확정). 계약 문서의 "DB" 항목에도 적는다. **공유 DB 적용은 사용자 확인 후** (SQL Editor 또는 psql).
+2. **DB (필요 시)** — `database/migrations/NNNN_<설명>.sql` 새 파일 (규칙: `database/README.md` — RLS 켜기, 기본 컬럼, 번호는 머지 직전 확정). 계약 문서의 "DB" 항목에도 적는다. **공유 DB에는 직접 적용하지 않는다** — main 머지 시 배포 파이프라인이 자동 적용. 이전 버전 backend와 호환되게 쓰고, Docker Postgres로 로컬 검증 (`database/README.md`).
 3. **backend** (`backend/app/`)
    - `schemas/<feature>.py`: Pydantic 모델 (계약과 필드명·타입 일치)
    - `services/<feature>.py`: 로직·DB 접근 (`from app.db import get_supabase`)

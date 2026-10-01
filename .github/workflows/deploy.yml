@@ -1,0 +1,105 @@
+name: Deploy
+
+# main CI 통과 → DB 마이그레이션 → backend(Render) → frontend(Vercel) → 스모크 테스트
+# 수동 재배포: Actions > Deploy > Run workflow (또는 gh workflow run deploy.yml)
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+  API_URL: https://hackathon-kt-api.onrender.com
+  WEB_URL: https://hackathon-kt.vercel.app
+
+jobs:
+  migrate:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SHA }}
+      - name: Apply pending migrations
+        env:
+          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::warning::SUPABASE_DB_URL secret 없음 — 마이그레이션 건너뜀"
+            exit 0
+          fi
+          command -v psql >/dev/null || { sudo apt-get update -q && sudo apt-get install -yq postgresql-client; }
+          scripts/migrate.sh
+
+  backend:
+    needs: migrate
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Trigger Render deploy
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "::error::RENDER_DEPLOY_HOOK_URL secret이 없습니다 (Render > Settings > Deploy Hook)"
+            exit 1
+          fi
+          curl -fsS -X POST "$HOOK" >/dev/null
+      - name: Wait for new version (최대 15분)
+        run: |
+          for i in $(seq 1 90); do
+            v=$(curl -s -m 30 "$API_URL/api/health" | sed -n 's/.*"version":"\([^"]*\)".*/\1/p')
+            if [ "$v" = "$SHA" ]; then echo "✅ backend $SHA live"; exit 0; fi
+            echo "waiting... (live: ${v:-unknown})"; sleep 10
+          done
+          echo "::error::15분 내에 새 버전이 뜨지 않음 — Render 대시보드 로그 확인"
+          exit 1
+
+  frontend:
+    needs: backend
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: ${{ env.WEB_URL }}
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SHA }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Check secrets
+        run: |
+          for k in VERCEL_ORG_ID VERCEL_PROJECT_ID VERCEL_TOKEN; do
+            [ -n "${!k}" ] || { echo "::error::$k secret이 없습니다"; exit 1; }
+          done
+      - run: npm i -g vercel@latest
+      - name: Pull Vercel production settings
+        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+      - name: Guard — API URL must be set (아니면 배포 사이트가 mock으로 동작)
+        run: |
+          f=$(ls .vercel/.env.production.local 2>/dev/null || ls frontend/.vercel/.env.production.local)
+          grep -Eq '^NEXT_PUBLIC_API_BASE_URL="?https?://' "$f" || {
+            echo "::error::Vercel Production 환경변수 NEXT_PUBLIC_API_BASE_URL이 비어 있습니다"; exit 1; }
+      - run: vercel build --prod --token="$VERCEL_TOKEN"
+      - run: vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+
+  smoke:
+    needs: frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SHA }}
+      - run: scripts/smoke.sh "$SHA"

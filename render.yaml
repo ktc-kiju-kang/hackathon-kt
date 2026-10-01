@@ -1,5 +1,5 @@
 # Render Blueprint — https://render.com/docs/blueprint-spec
-# main 머지 + CI 통과 시 자동 배포.
+# 배포는 GitHub Actions(.github/workflows/deploy.yml)가 Deploy Hook으로 트리거한다.
 services:
   - type: web
     name: hackathon-kt-api
@@ -11,7 +11,7 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /api/health
-    autoDeployTrigger: checksPass
+    autoDeployTrigger: off
     envVars:
       - key: PYTHON_VERSION
         value: 3.13.5

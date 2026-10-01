@@ -8,7 +8,7 @@ description: 최신 origin/main을 현재 브랜치에 rebase. 작업 시작 전
 4. 반영된 main 변경 중 다음이 있으면 요약해서 알린다:
    - `docs/contracts/` (계약 변경 → 내 기능 영향 확인)
    - `frontend/package.json`, `backend/requirements*.txt` (의존성 변경 → `npm install` / `pip install -r requirements-dev.txt` 안내)
-   - `database/migrations/` (새 마이그레이션 → 공유 DB 적용 여부 확인)
+   - `database/migrations/` (새 마이그레이션 → 내 번호와 겹치면 내 파일 번호를 올린다)
    - `.env.example` (새 환경변수 → 로컬 `.env`에 추가 안내)
    - `CLAUDE.md`, `.claude/` (규칙 변경)
 5. rebase 후 이미 push된 브랜치라면 `git push --force-with-lease`가 필요하다고 안내하고, 실행은 사용자 확인 후.

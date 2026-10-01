@@ -4,7 +4,7 @@ description: 작업 마무리 — 검증, reviewer 셀프리뷰, sync, `Closes #
 disable-model-invocation: true
 ---
 1. 브랜치명에서 이슈 번호를 확인하고(`feat/<번호>-...`) `gh issue view <번호>`의 완료 조건과 대조한다. 못 채운 항목이 있으면 알린다.
-2. `git diff --stat origin/main...HEAD`로 변경 범위를 확인한다. 다른 기능의 파일이나 공용 파일 변경, `database/migrations/` 추가가 있으면 표시한다. 마이그레이션이 있으면 공유 DB 적용 여부를 사용자에게 확인한다.
+2. `git diff --stat origin/main...HEAD`로 변경 범위를 확인한다. 다른 기능의 파일이나 공용 파일 변경, `database/migrations/` 추가가 있으면 표시한다. 마이그레이션이 있으면 머지 시 공유 DB에 자동 적용된다고 알리고, 이전 버전 backend와 호환되는지(drop/rename 없음) 확인한다.
 3. 변경한 쪽의 검증을 실행하고 모두 통과시킨다:
    - `frontend/` 변경: `cd frontend && npm run lint && npm run build`
    - `backend/` 변경: `cd backend && .venv/bin/ruff check . && .venv/bin/ruff format --check . && .venv/bin/pytest`
