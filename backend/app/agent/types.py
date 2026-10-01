@@ -79,5 +79,5 @@ ProviderEvent = TextDelta | TurnComplete
 
 # --- 루프 → 클라이언트(SSE) 이벤트. docs/contracts/chat.md 와 일치 ---
 class AgentEvent(BaseModel):
-    type: Literal["text", "tool_call", "tool_result", "message", "done", "error"]
+    type: Literal["text", "tool_call", "tool_result", "message", "retry", "done", "error"]
     data: dict[str, Any] = Field(default_factory=dict)

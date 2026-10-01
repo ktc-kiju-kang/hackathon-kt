@@ -11,6 +11,7 @@ from collections.abc import AsyncIterator
 
 from pydantic import ValidationError
 
+from app.agent.errors import classify
 from app.agent.prompts import SYSTEM_PROMPT
 from app.agent.providers import LLMProvider, get_provider
 from app.agent.tools import Tool, get_tools
@@ -57,16 +58,35 @@ async def run_agent(
 
     for _ in range(settings.agent_max_turns):
         turn: TurnComplete | None = None
-        try:
-            async for ev in provider.stream_turn(system=system, history=history, tools=list(tools)):
-                if isinstance(ev, TextDelta):
-                    yield AgentEvent(type="text", data={"text": ev.text})
-                else:
-                    turn = ev
-        except Exception as e:
-            log.exception("LLM call failed")
-            yield AgentEvent(type="error", data={"message": f"LLM 호출 실패: {type(e).__name__}"})
-            return
+        for attempt in range(settings.agent_llm_retries + 1):
+            emitted = False
+            try:
+                async for ev in provider.stream_turn(
+                    system=system, history=history, tools=list(tools)
+                ):
+                    if isinstance(ev, TextDelta):
+                        emitted = True
+                        yield AgentEvent(type="text", data={"text": ev.text})
+                    else:
+                        turn = ev
+                break
+            except Exception as e:
+                err = classify(e)
+                log.warning("LLM call failed (%s, attempt %d): %r", err.code, attempt + 1, e)
+                # 이미 글자를 내보냈으면 다시 시도하면 중복되므로 멈춘다
+                if err.retryable and not emitted and attempt < settings.agent_llm_retries:
+                    wait = min(
+                        err.retry_after or settings.agent_retry_delay * (2**attempt),
+                        settings.agent_retry_max_delay,
+                    )
+                    yield AgentEvent(
+                        type="retry",
+                        data={"code": err.code, "wait_seconds": wait, "attempt": attempt + 1},
+                    )
+                    await asyncio.sleep(wait)
+                    continue
+                yield AgentEvent(type="error", data={"code": err.code, "message": err.message})
+                return
         if turn is None:
             yield AgentEvent(type="error", data={"message": "LLM이 턴을 끝내지 않았습니다"})
             return

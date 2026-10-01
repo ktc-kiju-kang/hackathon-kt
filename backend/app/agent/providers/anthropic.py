@@ -87,7 +87,7 @@ class AnthropicProvider:
     def __init__(self) -> None:
         # 키: settings(.env 포함) → 없으면 SDK 기본 자격증명 탐색(ANTHROPIC_API_KEY 등)
         self.client = anthropic.AsyncAnthropic(
-            api_key=settings.anthropic_api_key or None, max_retries=2
+            api_key=settings.anthropic_api_key or None, max_retries=1
         )
 
     async def stream_turn(

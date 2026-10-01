@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     llm_api_key: str = ""  # openai 호환 API 키 (LLM_PROVIDER=openai)
     agent_max_turns: int = 6  # 한 요청에서 LLM↔도구 왕복 최대 횟수
     agent_tool_timeout: float = 30.0
+    # LLM 일시 오류(한도 초과·5xx) 재시도: 글자를 내보내기 전에만, 대기는 retry-after 또는 지수 증가
+    agent_llm_retries: int = 2
+    agent_retry_delay: float = 4.0
+    agent_retry_max_delay: float = 20.0
     # 공개 API 남용 방지 (프로세스 메모리 기준 — 서버 재시작 시 초기화)
     chat_rate_per_ip: int = 20  # IP당 10분에 보낼 수 있는 메시지 수
     chat_daily_limit: int = 500  # 서버 전체 하루 메시지 수

@@ -190,3 +190,71 @@ def test_fallback_block_dumped_with_alias():
     raw = [b.model_dump(mode="json", by_alias=True, exclude_none=True) for b in msg.content]
     fb = next(b for b in raw if b["type"] == "fallback")
     assert "from" in fb and "from_" not in fb
+
+
+class _FlakyProvider:
+    """처음 n번은 지정한 예외, 이후 정상 답변."""
+
+    name = "flaky"
+
+    def __init__(self, exc, fails=1, emit_first=False):
+        self.exc, self.fails, self.emit_first, self.calls = exc, fails, emit_first, 0
+
+    async def stream_turn(self, *, system, history, tools):
+        self.calls += 1
+        if self.calls <= self.fails:
+            if self.emit_first:
+                yield TextDelta(text="부분")
+            raise self.exc
+        yield TextDelta(text="ok")
+        yield TurnComplete(message=Message(role="assistant", content="ok"), stop_reason="end_turn")
+
+
+class _StatusError(Exception):
+    def __init__(self, status, headers=None):
+        self.status_code = status
+        self.response = type("R", (), {"headers": headers or {}})()
+
+
+def _fast_retry(monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "agent_retry_delay", 0)
+    monkeypatch.setattr(settings, "agent_retry_max_delay", 0)
+
+
+def test_rate_limit_retried_then_success(monkeypatch):
+    _fast_retry(monkeypatch)
+    p = _FlakyProvider(_StatusError(429, {"retry-after": "7"}), fails=2)
+    events = collect([Message(role="user", content="q")], provider=p)
+    assert [e.type for e in events].count("retry") == 2
+    assert events[0].data["code"] == "rate_limit"
+    assert events[-1].type == "done" and p.calls == 3
+
+
+def test_gives_up_with_friendly_message(monkeypatch):
+    _fast_retry(monkeypatch)
+    p = _FlakyProvider(_StatusError(503), fails=10)
+    events = collect([Message(role="user", content="q")], provider=p)
+    err = events[-1]
+    assert err.type == "error" and err.data["code"] == "unavailable"
+    assert "다시 시도" in err.data["message"] and "Error" not in err.data["message"]
+    assert p.calls == 3  # 최초 1 + 재시도 2
+
+
+def test_no_retry_after_text_or_non_retryable(monkeypatch):
+    _fast_retry(monkeypatch)
+    p = _FlakyProvider(_StatusError(429), fails=1, emit_first=True)
+    events = collect([Message(role="user", content="q")], provider=p)
+    assert "retry" not in [e.type for e in events] and events[-1].type == "error" and p.calls == 1
+    p = _FlakyProvider(_StatusError(400), fails=1)
+    events = collect([Message(role="user", content="q")], provider=p)
+    assert events[-1].data["code"] == "bad_request" and p.calls == 1
+
+
+def test_classify_retry_after_and_auth():
+    from app.agent.errors import classify
+
+    assert classify(_StatusError(429, {"retry-after": "7"})).retry_after == 7.0
+    assert classify(_StatusError(401)).code == "auth"
+    assert classify(RuntimeError("x")).code == "internal"

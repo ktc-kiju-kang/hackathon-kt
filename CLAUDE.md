@@ -101,6 +101,7 @@ docs/decisions/                  ADR
 - OpenAI 호환이 아닌 LLM 추가: `providers/<name>.py`에 `LLMProvider`(`stream_turn`) 구현 + `providers/__init__.py` 등록. 응답 원본은 `Message.raw`에 그대로 보관·재전송(Claude thinking, Gemini thought signature 등). 루프·도구·저장·UI는 그대로.
 - `SYSTEM_PROMPT`(`agent/prompts.py`)에 날짜 등 바뀌는 값을 넣지 않는다 (프롬프트 캐시가 깨짐). 공용 파일이라 변경 시 리뷰 필요.
 - 대화 기록은 append-only (`raw`의 thinking 블록 유효성). 저장된 메시지를 수정·삭제하는 기능을 만들지 않는다.
+- **LLM 일시 오류**(한도 초과 429·5xx)는 루프가 글자를 보내기 전에만 대기 후 재시도한다(`AGENT_LLM_RETRIES`=2, retry-after 또는 4초→8초, 최대 20초). 오류 문구는 `app/agent/errors.py`에서 사용자용 한국어로 바꿔 SSE `error.message`로 보낸다 — 화면에 예외 이름을 노출하지 않는다.
 - **비용 보호** (공개 API): IP당 10분 20회, 서버 전체 하루 500회, 대화당 메시지 80개, 턴당 출력 8000토큰, 요청당 6턴 (`CHAT_*`, `LLM_MAX_TOKENS`, `AGENT_MAX_TURNS`). 메모리 기준이라 재시작 시 초기화 — **Anthropic Console에서 월 사용 한도도 설정**한다.
 - 대화가 길어져도 앞부분을 잘라 보내지 않는다 (기록 수정 → thinking 블록 무효·캐시 손실). 한도를 넘으면 409로 새 대화를 시작하게 한다.
 - 품질 확인: `cd backend && .venv/bin/python -m evals.run_eval` — **실제 API 비용 발생**, 실행 전 사용자 확인. `--provider mock`은 무료(흐름만).

@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useRef, useState } from 'react'
-import { toast } from 'sonner'
 import { createConversation, sendMessage, type ChatEvent, type ChatMessage } from './api'
 
 export type ToolActivity = {
@@ -15,7 +14,14 @@ export type ToolActivity = {
 /** 화면에 그릴 한 줄: 사용자 말풍선 / 에이전트 말풍선(텍스트 + 도구 실행 기록) */
 export type ChatItem =
   | { kind: 'user'; text: string }
-  | { kind: 'agent'; text: string; tools: ToolActivity[]; streaming: boolean }
+  | {
+      kind: 'agent'
+      text: string
+      tools: ToolActivity[]
+      streaming: boolean
+      status?: string // 재시도 대기 등 진행 상태 (글자가 오면 지움)
+      error?: string // 실패 사유 (말풍선 안에 표시)
+    }
 
 export function toItems(messages: ChatMessage[]): ChatItem[] {
   const items: ChatItem[] = []
@@ -59,7 +65,10 @@ export function useChat() {
   const onEvent = useCallback((ev: ChatEvent) => {
     switch (ev.type) {
       case 'text':
-        updateAgent((a) => void (a.text += ev.data.text))
+        updateAgent((a) => {
+          a.text += ev.data.text
+          a.status = undefined
+        })
         break
       case 'message':
         // 턴 경계: 스트리밍된 텍스트 뒤에 다음 턴 텍스트가 이어지도록 줄바꿈
@@ -74,8 +83,18 @@ export function useChat() {
           if (i >= 0) a.tools[i] = { ...a.tools[i], result: ev.data.content, isError: ev.data.is_error }
         })
         break
+      case 'retry': {
+        const why = ev.data.code === 'rate_limit' ? '사용량 한도' : '일시 오류'
+        updateAgent((a) => {
+          a.status = `${why}로 ${Math.round(ev.data.wait_seconds)}초 후 다시 시도합니다… (${ev.data.attempt}회)`
+        })
+        break
+      }
       case 'error':
-        toast.error(ev.data.message)
+        updateAgent((a) => {
+          a.error = ev.data.message
+          a.status = undefined
+        })
         break
     }
   }, [])
@@ -98,7 +117,10 @@ export function useChat() {
         }
         await sendMessage(id, text, onEvent, abortRef.current.signal)
       } catch (e) {
-        if ((e as Error).name !== 'AbortError') toast.error((e as Error).message)
+        if ((e as Error).name !== 'AbortError') {
+          const message = (e as Error).message
+          updateAgent((a) => void (a.error = message))
+        }
       } finally {
         updateAgent((a) => void (a.streaming = false))
         setBusy(false)

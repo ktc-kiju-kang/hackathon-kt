@@ -20,7 +20,8 @@ export type ChatEvent =
   | { type: 'tool_result'; data: { tool_call_id: string; content: string; is_error: boolean } }
   | { type: 'message'; data: { message: ChatMessage } }
   | { type: 'done'; data: { stop_reason: string; usage?: Record<string, number> } }
-  | { type: 'error'; data: { message: string } }
+  | { type: 'retry'; data: { code: string; wait_seconds: number; attempt: number } }
+  | { type: 'error'; data: { message: string; code?: string } }
 
 // 로그인 없는 소유권: 브라우저별 임의 ID (docs/contracts/chat.md)
 let memoryClientId: string | null = null // localStorage를 못 쓰면 탭 단위 임의 ID
