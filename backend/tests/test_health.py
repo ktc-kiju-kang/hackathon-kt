@@ -44,3 +44,32 @@ def test_check_db_error(monkeypatch):
 
     monkeypatch.setattr(health, "get_supabase", boom)
     assert health.check_db() == "error"
+
+
+def _jwt(role: str) -> str:
+    import base64
+    import json
+
+    body = base64.urlsafe_b64encode(json.dumps({"role": role}).encode()).decode().rstrip("=")
+    return f"eyJhbGciOiJIUzI1NiJ9.{body}.sig"
+
+
+def test_key_role_detection():
+    from app.services.health import key_role
+
+    assert key_role(_jwt("service_role")) == "service_role"
+    assert key_role(_jwt("anon")) == "anon"
+    assert key_role("sb_secret_abc") == "service_role"
+    assert key_role("sb_publishable_abc") == "anon"
+    assert key_role("garbage") is None
+
+
+def test_check_db_rejects_anon_key(monkeypatch):
+    from app.config import settings
+    from app.services import health
+
+    monkeypatch.setattr(settings, "supabase_url", "https://example.supabase.co")
+    for key in (_jwt("anon"), "sb_publishable_x"):
+        monkeypatch.setattr(settings, "supabase_service_role_key", key)
+        monkeypatch.setattr(health, "get_supabase", lambda: (_ for _ in ()).throw(AssertionError))
+        assert health.check_db() == "error"  # DB 조회 전에 걸러진다
