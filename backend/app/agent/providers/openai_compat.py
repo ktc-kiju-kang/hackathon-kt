@@ -87,9 +87,21 @@ def to_openai_messages(system: str, history: list[Message], provider_name: str) 
     return out
 
 
-def _merge_tool_delta(acc: dict[int, dict[str, Any]], delta: dict[str, Any]) -> None:
-    """스트리밍 tool_call 조각을 index별로 합친다. 알 수 없는 필드도 보존한다."""
-    slot = acc.setdefault(delta.get("index", 0), {"type": "function", "function": {}})
+def _merge_tool_delta(
+    slots: list[dict[str, Any]], by_index: dict[int, int], delta: dict[str, Any]
+) -> None:
+    """스트리밍 tool_call 조각을 호출별로 합친다. 알 수 없는 필드도 보존한다.
+
+    OpenAI는 호출마다 index가 다르지만, Gemini는 병렬 호출을 **같은 index**로 보낸다.
+    그래서 index가 같아도 새 id가 오면 새 호출로 본다.
+    """
+    idx = delta.get("index", 0)
+    pos = by_index.get(idx)
+    new_id = delta.get("id")
+    if pos is None or (new_id and slots[pos].get("id") and slots[pos]["id"] != new_id):
+        slots.append({"type": "function", "function": {}})
+        pos = by_index[idx] = len(slots) - 1
+    slot = slots[pos]
     for k, v in delta.items():
         if k == "index":
             continue
@@ -141,7 +153,8 @@ class OpenAICompatProvider:
             params["reasoning_effort"] = settings.llm_effort
 
         text_parts: list[str] = []
-        calls: dict[int, dict[str, Any]] = {}
+        slots: list[dict[str, Any]] = []
+        by_index: dict[int, int] = {}
         finish: str | None = None
         usage: dict[str, int] = {}
         stream = await self.client.chat.completions.create(**params)
@@ -159,12 +172,12 @@ class OpenAICompatProvider:
                 text_parts.append(delta.content)
                 yield TextDelta(text=delta.content)
             for tc in delta.tool_calls or []:
-                _merge_tool_delta(calls, tc.model_dump(exclude_none=True))
+                _merge_tool_delta(slots, by_index, tc.model_dump(exclude_none=True))
             if choice.finish_reason:
                 finish = choice.finish_reason
 
         text = "".join(text_parts)
-        raw_calls = [calls[i] for i in sorted(calls)]
+        raw_calls = slots
         tool_calls = []
         for i, c in enumerate(raw_calls):
             c.setdefault("id", f"call_{i}")
