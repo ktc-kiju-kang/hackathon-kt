@@ -29,3 +29,6 @@ Errors: 404 { "detail": "..." }
 ## 목록
 - [health](health.md) — 서버 상태 확인
 - [chat](chat.md) — AI 에이전트 대화 (SSE 스트리밍)
+- [trends](trends.md) — OpenAI Signals 트렌드 지표 (#22)
+- [radar](radar.md) — 그룹사 + Opportunity 생성 (SSE, #23)
+- [product](product.md) — Product Card·PoC 생성 (SSE, #24)
