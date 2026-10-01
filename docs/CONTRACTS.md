@@ -4,6 +4,14 @@
 > 변경 시: 버전 올리고, 변경 이력에 기록, 영향받는 owner에게 알림.
 
 ## API
+- Base: 로컬 `http://localhost:8000`, 모든 경로는 `/api` 접두사
+- 자동 문서: `http://localhost:8000/api/docs` (FastAPI). 구현 기준 스키마는 `api/app/schemas.py`
+- 에러 응답 공통 형식: `{ "detail": string }` (FastAPI 기본)
+
+### GET /api/health  (owner: b, consumer: a) — v1
+Response 200: `{ "status": "ok", "time": string(ISO 8601) }`
+(프론트 mock 응답은 `status: "mock"`)
+
 <!-- 예시
 ### POST /api/v1/login  (owner: b, consumer: a)
 Request:  { "email": string, "password": string }
@@ -18,3 +26,4 @@ Errors:   401 { "error": "INVALID_CREDENTIALS" }
 ## 변경 이력
 | 날짜 | 변경 | 작성자 |
 |---|---|---|
+| 2026-10-01 | GET /api/health 추가 | b |

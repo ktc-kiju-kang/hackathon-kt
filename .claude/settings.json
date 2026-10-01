@@ -10,7 +10,11 @@
       "Bash(git worktree list:*)",
       "Bash(scripts/sync.sh)",
       "Bash(scripts/new-worktree.sh:*)",
-      "Bash(scripts/session-context.sh)"
+      "Bash(scripts/session-context.sh)",
+      "Bash(npm run lint:*)",
+      "Bash(npm run build:*)",
+      "Bash(.venv/bin/pytest:*)",
+      "Bash(.venv/bin/ruff:*)"
     ],
     "deny": [
       "Bash(git push --force:*)",

@@ -14,7 +14,13 @@
   - 검증: `cd web && npm run lint && npm run build` (CI가 PR마다 동일하게 실행)
   - API 호출은 `web/src/api/client.ts`에 모은다. `VITE_API_BASE_URL`이 비면 mock으로 동작
   - 배포: main 머지 시 GitHub Pages 자동 배포 → https://kiju-kang.github.io/hackathon-kt/
-- 백엔드/기타: _TBD_ (확정되면 여기 + `docs/decisions/`에 기록)
+- 백엔드: `api/` — FastAPI (Python 3.11+)
+  - 셋업: `cd api && python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt`
+  - 실행: `cd api && .venv/bin/fastapi dev app/main.py` (http://localhost:8000, 문서 `/api/docs`)
+  - 검증: `cd api && .venv/bin/ruff check . && .venv/bin/ruff format --check . && .venv/bin/pytest` (CI 동일)
+  - 라우터는 `app/routers/`에 추가하고 `app/main.py`에서 `/api` prefix로 등록. 요청/응답 모델은 `app/schemas.py`
+  - 프론트와 연동: `web/.env`에 `VITE_API_BASE_URL=http://localhost:8000`
+  - 배포: _TBD_
 
 ## 팀 & 소유 영역
 상세는 `docs/TEAM.md`. 작업 전 **자기 소유 영역 밖 파일을 수정해야 하면 먼저 팀에 알린다.**

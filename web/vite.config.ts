@@ -10,8 +10,4 @@ export default defineConfig(({ command }) => ({
   resolve: {
     alias: { '@': path.resolve(import.meta.dirname, './src') },
   },
-  server: {
-    // 백엔드 붙이면 /api 요청을 로컬 서버로 프록시
-    proxy: { '/api': 'http://localhost:8000' },
-  },
 }))
