@@ -5,7 +5,7 @@
 
 from functools import lru_cache
 
-from supabase import Client, create_client
+from supabase import Client, ClientOptions, create_client
 
 from app.config import settings
 
@@ -14,4 +14,11 @@ from app.config import settings
 def get_supabase() -> Client:
     if not settings.supabase_url or not settings.supabase_service_role_key:
         raise RuntimeError("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY 환경변수가 필요합니다")
-    return create_client(settings.supabase_url, settings.supabase_service_role_key)
+    return create_client(
+        settings.supabase_url,
+        settings.supabase_service_role_key,
+        # 서버용: 세션 저장·토큰 갱신 끔, DB 요청 타임아웃 10초
+        options=ClientOptions(
+            persist_session=False, auto_refresh_token=False, postgrest_client_timeout=10
+        ),
+    )
