@@ -14,10 +14,11 @@
 - 공용 영역(`CLAUDE.md`, `.claude/`, `.github/`, `render.yaml`, `frontend/src/app/layout.tsx`, `frontend/src/lib/api-client.ts`, `backend/app/main.py`, `backend/app/config.py`, `backend/app/db.py`, `database/`)은 변경 시 다른 1명 이상 리뷰.
 
 ## 칸반 (GitHub Projects)
+- 보드: https://github.com/users/ktc-kiju-kang/projects/1 (팀원 모두 Write 권한)
 - 컬럼: Todo → In Progress → In Review → Done
 - 카드 = 이슈 (템플릿: 기능 / 버그). 작업 시작 시 본인 assign + In Progress
 - PR에 `Closes #번호` → 머지 시 이슈 닫힘 → Done
-- 권장 Project 자동화(Workflows): Item added → Todo, PR linked → In Review, Item closed → Done
+- Project 자동화(Workflows, 보드 ⋯ → Workflows): Auto-add to project(repo 이슈) → Todo, Item closed → Done, Pull request merged → Done
 
 ## 권한
 - main 보호: PR + CI(`frontend`, `backend`) + 1명 승인. 관리자(owner `ktc-kiju-kang`)만 우회 가능

@@ -6,7 +6,7 @@
 ## 개요
 - 주제: _TBD_
 - 저장소: https://github.com/ktc-kiju-kang/hackathon-kt
-- 칸반: GitHub Projects (_URL TBD_) — 카드 = 이슈
+- 칸반: https://github.com/users/ktc-kiju-kang/projects/1 (GitHub Projects "KT 해커톤") — 카드 = 이슈
 - 프론트(배포): https://hackathon-kt.vercel.app (Vercel, PR마다 프리뷰 URL)
 - API(배포): https://hackathon-kt-api.onrender.com/api/docs
 - DB: Supabase (팀 공유 클라우드 프로젝트 1개)

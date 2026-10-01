@@ -12,5 +12,5 @@ argument-hint: <기능 설명>
 3. 기존 이슈와 중복·의존 관계를 `gh issue list --state open`으로 확인한다.
 4. 초안을 사용자에게 보여주고 확인받은 뒤 생성한다:
    `gh issue create --title "..." --body "..." --label feature` (담당자가 정해졌으면 `--assignee <id>`)
-   - 칸반 Project가 있으면 `--project "<Project 이름>"`도 붙인다 (이름은 CLAUDE.md 개요 참고).
+   - 칸반에 올리기 위해 `--project "KT 해커톤"`을 붙인다. `project` 권한 오류가 나면 `gh auth refresh -h github.com -s project`를 안내한다.
 5. 생성된 이슈 번호와 URL을 알려주고, 바로 시작하려면 `/start-task <번호>`를 안내한다.
