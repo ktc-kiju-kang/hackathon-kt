@@ -2,7 +2,16 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Bot, Home, MessageSquare, Rocket } from 'lucide-react'
+import {
+  AppWindow,
+  Bot,
+  FileText,
+  Home,
+  LayoutDashboard,
+  MessageSquare,
+  Rocket,
+  Table2,
+} from 'lucide-react'
 import {
   Sidebar,
   SidebarContent,
@@ -16,11 +25,25 @@ import {
   SidebarRail,
 } from '@/components/ui/sidebar'
 
-// 메뉴 추가: 이 배열에 항목만 추가하면 된다.
-const MENUS = [
-  { title: '홈', href: '/', icon: Home },
-  { title: '채팅', href: '/chat', icon: MessageSquare },
-  { title: 'AI 에이전트', href: '/agent', icon: Bot },
+// 메뉴 추가: 해당 그룹의 items 배열에 항목만 추가하면 된다.
+const MENU_GROUPS = [
+  {
+    label: '메뉴',
+    items: [
+      { title: '홈', href: '/', icon: Home },
+      { title: '채팅', href: '/chat', icon: MessageSquare },
+      { title: 'AI 에이전트', href: '/agent', icon: Bot },
+    ],
+  },
+  {
+    label: '샘플',
+    items: [
+      { title: '텍스트 에디터', href: '/samples/editor', icon: FileText },
+      { title: '테이블', href: '/samples/table', icon: Table2 },
+      { title: '복합 화면', href: '/samples/dashboard', icon: LayoutDashboard },
+      { title: '모달', href: '/samples/modals', icon: AppWindow },
+    ],
+  },
 ]
 
 export function AppSidebar() {
@@ -43,23 +66,25 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>메뉴</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {MENUS.map(({ title, href, icon: Icon }) => (
-                <SidebarMenuItem key={href}>
-                  <SidebarMenuButton asChild tooltip={title} isActive={pathname === href}>
-                    <Link href={href}>
-                      <Icon />
-                      <span>{title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {MENU_GROUPS.map((group) => (
+          <SidebarGroup key={group.label}>
+            <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {group.items.map(({ title, href, icon: Icon }) => (
+                  <SidebarMenuItem key={href}>
+                    <SidebarMenuButton asChild tooltip={title} isActive={pathname === href}>
+                      <Link href={href}>
+                        <Icon />
+                        <span>{title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
       </SidebarContent>
       <SidebarRail />
     </Sidebar>
