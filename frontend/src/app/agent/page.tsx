@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { ChatView } from '@/features/chat/ChatView'
+import { ChatView } from '@/features/agent/ChatView'
 
 export const metadata: Metadata = { title: 'AI 에이전트 · KT 해커톤' }
 
