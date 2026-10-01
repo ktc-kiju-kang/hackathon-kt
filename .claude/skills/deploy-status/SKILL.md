@@ -11,5 +11,7 @@ description: 배포 상태 확인 — Deploy 워크플로(마이그레이션→b
      - smoke: 아래 3번 결과 참고. `DB 연결 이상: error` → Render의 `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY` 오타·만료 (Render 로그에 `db health check failed`) 또는 **anon/publishable 키를 넣음** (로그 `is not a service_role key`, 증상: 대화 생성 500 `row-level security`), `unconfigured` → Render에 두 값이 없음
 2. 수동 재배포가 필요하면 사용자 확인 후 `gh workflow run deploy.yml`.
 3. 운영 상태: `scripts/smoke.sh $(git rev-parse origin/main)` — API health·version(=main SHA)·db(Supabase)·화면 200·CORS.
+   - health의 `llm`도 본다: 운영에서 `mock`이면 Render에 LLM 키가 없거나 키 저장 후 재배포를 안 한 것 (Render 환경변수는 재배포해야 반영 → Manual Deploy). 의도한 공급자(anthropic/gemini)인지 확인.
+   - 에이전트 답변이 `사용량 한도` 오류로 끝나면 LLM 무료 등급 한도(429) — 데모 전엔 유료 등급/다른 키로 바꾸라고 안내.
    - version 불일치는 backend가 아직 이전 커밋이라는 뜻. Render free는 잠들어 있으면 첫 응답 ~1분.
 4. 결과를 단계별 정상/이상으로 요약한다.
