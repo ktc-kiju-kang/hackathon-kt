@@ -7,7 +7,7 @@
 - 주제: _TBD_
 - 저장소: https://github.com/ktc-kiju-kang/hackathon-kt
 - 칸반: GitHub Projects (_URL TBD_) — 카드 = 이슈
-- 프론트(배포): Vercel (_URL TBD_)
+- 프론트(배포): https://hackathon-kt.vercel.app (Vercel, PR마다 프리뷰 URL)
 - API(배포): https://hackathon-kt-api.onrender.com/api/docs
 - DB: Supabase (팀 공유 클라우드 프로젝트 1개)
 
@@ -89,7 +89,7 @@ docs/decisions/                  ADR
 
 - 전체 키 목록은 루트 `.env.example`. 로컬 값은 `frontend/.env.local`, `backend/.env` (커밋 금지).
 - `NEXT_PUBLIC_*`는 브라우저 번들에 노출된다. 비밀값 금지. **`SUPABASE_SERVICE_ROLE_KEY`는 백엔드에만.**
-- CORS: `localhost:3000` + `https://hackathon-kt*.vercel.app`(프리뷰 포함) 허용.
+- CORS: `https://hackathon-kt.vercel.app`, `localhost:3000`, Vercel 프리뷰(`hackathon-*-ktc-kiju-kang.vercel.app`) 허용.
 - Render free는 15분 미사용 시 잠든다(첫 요청 ~1분). 데모 직전에 `/api/health`를 호출해 깨운다.
 
 ## Claude 작업 방식

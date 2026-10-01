@@ -1,6 +1,6 @@
 # KT 해커톤
 
-API: https://hackathon-kt-api.onrender.com/api/docs · 프론트: Vercel (_URL TBD_)
+프론트: https://hackathon-kt.vercel.app · API: https://hackathon-kt-api.onrender.com/api/docs
 
 ## 시작하기 (팀원 각자)
 ```bash
