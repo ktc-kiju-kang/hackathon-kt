@@ -1,5 +1,5 @@
 # trends (OpenAI Signals 트렌드)
-- 담당: (#22 담당자) · 이슈: #22 · 계약: #21
+- 담당: @ktc-kiju-kang · 이슈: #22 · 계약: #21
 - 사용처: frontend `/trends` (`features/trends`), radar·product의 근거(Evidence) 채우기 (`app.services.trends.resolve_evidence`), 에이전트 도구 `tools/get_ai_usage_trends.py`
 - 데이터: DB를 쓰지 않는다. 공개된 읽기 전용 데이터라 `backend/data/signals/`의 원본 CSV 9개를 서버 메모리에 읽는다 (약 2MB). 원본 `https://cdn.openai.com/signals/data-download-csv.zip`, 설명은 `docs/PROJECT.md`
 - 스키마: `backend/app/schemas/trends.py` (#21에서 만듦)
