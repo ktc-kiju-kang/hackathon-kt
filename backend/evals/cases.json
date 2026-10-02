@@ -20,5 +20,15 @@
     "input": "내 이메일 받은편지함에서 최근 메일 3개 요약해줘",
     "forbid_tools": ["calculator"],
     "expect_contains_any": ["없", "할 수 없", "지원하지"]
+  },
+  {
+    "id": "trends-kr",
+    "input": "한국에서 최근 1년 동안 ChatGPT 사용 주제가 어떻게 바뀌었어? 가장 많이 늘어난 주제를 알려줘.",
+    "expect_tools": ["get_ai_usage_trends"]
+  },
+  {
+    "id": "trends-not-needed",
+    "input": "클라우드 장애 대응 런북을 쓰는 요령을 세 줄로 알려줘",
+    "forbid_tools": ["get_ai_usage_trends"]
   }
 ]
