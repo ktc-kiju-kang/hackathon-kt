@@ -5,10 +5,10 @@ from fastapi.responses import StreamingResponse
 
 from app.agent.providers import LLMProvider
 from app.agent.stages import llm_provider
+from app.core.quota import client_ip
 from app.schemas.product import ProductRequest, ProductSnapshot
 from app.services import product as service
 from app.services import snapshot
-from app.services.rate_limit import client_ip
 
 router = APIRouter(prefix="/product", tags=["product"])
 

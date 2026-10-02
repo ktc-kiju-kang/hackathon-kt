@@ -9,7 +9,7 @@ from functools import lru_cache
 from typing import Any, Protocol
 
 from app.agent.types import Message
-from app.config import settings
+from app.core.config import settings
 
 
 class ChatStore(Protocol):
@@ -59,7 +59,7 @@ class MemoryChatStore:
 
 class SupabaseChatStore:
     def __init__(self) -> None:
-        from app.db import get_supabase
+        from app.core.db import get_supabase
 
         self.db = get_supabase()
 

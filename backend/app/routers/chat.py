@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Header, Request
 from fastapi.responses import StreamingResponse
 
+from app.core.quota import client_ip
 from app.schemas.chat import ChatMessage, ChatMessageIn, Conversation, ConversationCreate
 from app.services import chat as service
-from app.services.rate_limit import client_ip
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 

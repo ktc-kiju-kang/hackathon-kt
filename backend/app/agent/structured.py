@@ -16,7 +16,7 @@ from app.agent.errors import classify
 from app.agent.providers import LLMProvider, get_provider
 from app.agent.tools import Tool
 from app.agent.types import Message, TurnComplete
-from app.config import settings
+from app.core.config import settings
 
 log = logging.getLogger(__name__)
 

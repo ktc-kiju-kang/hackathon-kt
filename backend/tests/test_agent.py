@@ -217,7 +217,7 @@ class _StatusError(Exception):
 
 
 def _fast_retry(monkeypatch):
-    from app.config import settings
+    from app.core.config import settings
 
     monkeypatch.setattr(settings, "agent_retry_delay", 0)
     monkeypatch.setattr(settings, "agent_retry_max_delay", 0)

@@ -6,7 +6,7 @@ client = TestClient(app)
 
 
 def test_health(monkeypatch):
-    from app.config import settings
+    from app.core.config import settings
 
     monkeypatch.setattr(settings, "supabase_url", "")  # 로컬 .env와 무관하게
     res = client.get("/api/health")
@@ -19,7 +19,7 @@ def test_health(monkeypatch):
 
 
 def test_health_version(monkeypatch):
-    from app.config import settings
+    from app.core.config import settings
 
     monkeypatch.setattr(settings, "render_git_commit", "abc123")
     assert client.get("/api/health").json()["version"] == "abc123"
@@ -33,7 +33,7 @@ def test_health_db_ok(monkeypatch):
 
 
 def test_check_db_error(monkeypatch):
-    from app.config import settings
+    from app.core.config import settings
     from app.services import health
 
     monkeypatch.setattr(settings, "supabase_url", "https://example.supabase.co")
@@ -65,7 +65,7 @@ def test_key_role_detection():
 
 
 def test_check_db_rejects_anon_key(monkeypatch):
-    from app.config import settings
+    from app.core.config import settings
     from app.services import health
 
     monkeypatch.setattr(settings, "supabase_url", "https://example.supabase.co")

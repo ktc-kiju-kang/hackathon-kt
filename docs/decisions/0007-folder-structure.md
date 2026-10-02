@@ -21,7 +21,7 @@
 backend/app/
   main.py
   core/                    공용 — 변경은 별도 PR, 리뷰 권장
-    config.py  db.py  quota.py        (quota = 현재 services/rate_limit.py)
+    config.py  db.py  quota.py        (이동 완료 — 이슈 #45, quota = 옛 services/rate_limit.py)
   agent/                   AI 엔진 — 공용
     loop.py  providers/  prompts.py  types.py  errors.py
     (단계 실행 module — 이슈 #35 결과물)
@@ -58,7 +58,7 @@ frontend/src/
 
 폴더 이동 순서 (진행 중 이슈와의 충돌 회피 — "큰 변경은 별도 PR로 먼저 머지"):
 1. 이 문서(규칙 정의) — 코드 이동 없음.
-2. 열린 이슈(#33·#34·#35 등) 머지 후: chat↔agent 이름 정리 → `core/` 분리(`config`·`db`·`rate_limit`→`quota`).
+2. 열린 이슈(#33·#34·#35 등) 머지 후: chat↔agent 이름 정리(**완료, #44**) → `core/` 분리(`config`·`db`·`rate_limit`→`quota`, **완료, #45**).
 3. 마지막에 한 PR로: `features/<feature>/`로 기능 폴더 이동 + 자동 등록 스캔 경로 변경. 팀에 공지하고 이동 중에는 해당 파일 수정 금지. `/add-endpoint`·`/add-agent-tool`·reviewer·CLAUDE.md·ADR 0002의 경로 표기를 같은 PR에서 고친다.
 
 ## 대안

@@ -16,7 +16,7 @@ from app.agent.prompts import SYSTEM_PROMPT
 from app.agent.providers import LLMProvider, get_provider
 from app.agent.tools import Tool, get_tools
 from app.agent.types import AgentEvent, Message, TextDelta, ToolCall, TurnComplete
-from app.config import settings
+from app.core.config import settings
 
 log = logging.getLogger(__name__)
 

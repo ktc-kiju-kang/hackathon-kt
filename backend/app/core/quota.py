@@ -10,7 +10,7 @@ from datetime import UTC, datetime
 
 from fastapi import HTTPException, Request
 
-from app.config import settings
+from app.core.config import settings
 
 _WINDOW = 600.0
 _hits: dict[str, deque[float]] = defaultdict(deque)
@@ -60,7 +60,7 @@ def _sweep(now: float) -> None:
         del _hits[key]
 
 
-def check_chat_quota(ip: str) -> None:
+def check_quota(ip: str) -> None:
     now = time.monotonic()
     if len(_hits) > _SWEEP_AT:
         _sweep(now)

@@ -45,7 +45,7 @@ def test_snapshot_missing_is_404(demo_dir):
 
 
 def test_snapshot_does_not_use_quota(demo_dir, monkeypatch):
-    from app.config import settings
+    from app.core.config import settings
 
     snapshot.save(asyncio.run(build("kt-cloud", 3, MockProvider())))
     monkeypatch.setattr(settings, "chat_rate_per_ip", 0)  # 생성 API라면 바로 429

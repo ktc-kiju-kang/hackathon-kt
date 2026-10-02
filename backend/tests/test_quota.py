@@ -6,8 +6,8 @@ from fastapi.testclient import TestClient
 from starlette.requests import Request
 
 from app.agent.providers.mock import MockProvider
+from app.core.quota import client_ip
 from app.main import app
-from app.services.rate_limit import client_ip
 
 client = TestClient(app)
 
@@ -39,32 +39,32 @@ def test_client_ip(headers, expected):
 
 
 def test_ipv6_grouped_by_64(monkeypatch):
-    from app.config import settings
-    from app.services import rate_limit
+    from app.core import quota
+    from app.core.config import settings
 
     monkeypatch.setattr(settings, "chat_rate_per_ip", 2)
-    rate_limit.check_chat_quota("2001:db8:1:2::1")
-    rate_limit.check_chat_quota("2001:db8:1:2::ffff")
+    quota.check_quota("2001:db8:1:2::1")
+    quota.check_quota("2001:db8:1:2::ffff")
     with pytest.raises(HTTPException):
-        rate_limit.check_chat_quota("2001:db8:1:2:abcd::9")  # 같은 /64
-    rate_limit.check_chat_quota("2001:db8:1:3::1")  # 다른 /64
+        quota.check_quota("2001:db8:1:2:abcd::9")  # 같은 /64
+    quota.check_quota("2001:db8:1:3::1")  # 다른 /64
 
 
 def test_stale_keys_are_swept(monkeypatch):
-    from app.services import rate_limit
+    from app.core import quota
 
-    monkeypatch.setattr(rate_limit, "_SWEEP_AT", 3)
+    monkeypatch.setattr(quota, "_SWEEP_AT", 3)
     now = [1000.0]
-    monkeypatch.setattr(rate_limit.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(quota.time, "monotonic", lambda: now[0])
     for i in range(4):
-        rate_limit.check_chat_quota(f"1.1.1.{i}")
-    now[0] += rate_limit._WINDOW + 1
-    rate_limit.check_chat_quota("2.2.2.2")
-    assert set(rate_limit._hits) == {"2.2.2.2"}
+        quota.check_quota(f"1.1.1.{i}")
+    now[0] += quota._WINDOW + 1
+    quota.check_quota("2.2.2.2")
+    assert set(quota._hits) == {"2.2.2.2"}
 
 
 def test_spoofed_forwarded_for_does_not_bypass_quota(monkeypatch, use_provider):
-    from app.config import settings
+    from app.core.config import settings
 
     monkeypatch.setattr(settings, "chat_rate_per_ip", 2)
     use_provider(MockProvider())
