@@ -1,6 +1,7 @@
 // 계약: docs/contracts/product.md (Opportunity·Evidence는 radar 계약)
 import { apiUrl, isMock } from '@/lib/api-client'
 import type { Evidence, Opportunity } from '@/features/radar/api'
+import { postSse } from '@/lib/sse'
 
 export type ProductCard = {
   id: string
@@ -44,37 +45,8 @@ export async function generateProduct(
   signal?: AbortSignal,
 ): Promise<void> {
   if (isMock) return mockStream(body.opportunity, onEvent, signal)
-  const res = await fetch(apiUrl('/api/product/generate'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-    signal,
-  })
-  if (!res.ok || !res.body) {
-    // 422·429 등은 서버 메시지(한국어)를 그대로 보여준다
-    const detail = await res.json().then((b) => b?.detail, () => null)
-    throw new Error(typeof detail === 'string' ? detail : `${res.status} ${res.statusText}`)
-  }
-
-  const reader = res.body.pipeThrough(new TextDecoderStream()).getReader()
-  let buf = ''
-  let finished = false // done·error 없이 스트림이 끝나면 연결이 끊긴 것
-  for (;;) {
-    const { value, done } = await reader.read()
-    if (done) break
-    buf += value
-    let sep: number
-    while ((sep = buf.indexOf('\n\n')) >= 0) {
-      const chunk = buf.slice(0, sep)
-      buf = buf.slice(sep + 2)
-      const event = /^event: (.+)$/m.exec(chunk)?.[1]
-      const data = /^data: (.+)$/m.exec(chunk)?.[1]
-      if (!event || !data) continue
-      if (event === 'done' || event === 'error') finished = true
-      onEvent({ type: event, data: JSON.parse(data) } as ProductEvent)
-    }
-  }
-  if (!finished) throw new Error('서버 연결이 끊겼습니다. 다시 시도해 주세요.')
+  // 422·429 등은 서버 메시지(한국어)가 Error로 던져진다. done·error 없이 끊기면 연결 끊김 오류
+  return postSse<ProductEvent>(apiUrl('/api/product/generate'), body, onEvent, { signal })
 }
 
 /** 발표·공유용 Markdown. 데이터 근거 출처를 함께 적는다. */

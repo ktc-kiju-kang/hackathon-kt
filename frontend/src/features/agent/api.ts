@@ -1,5 +1,6 @@
 // 계약: docs/contracts/chat.md
 import { apiUrl, isMock, request } from '@/lib/api-client'
+import { postSse } from '@/lib/sse'
 
 export type ToolCall = { id: string; name: string; input: Record<string, unknown> }
 
@@ -66,33 +67,11 @@ export async function sendMessage(
   signal?: AbortSignal,
 ): Promise<void> {
   if (isMock) return mockStream(content, onEvent)
-  const res = await fetch(apiUrl(`/api/chat/conversations/${id}/messages`), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...headers() },
-    body: JSON.stringify({ content }),
+  // 429(사용량 한도)·409(대화 길이) 등은 서버 메시지가 Error로 던져진다
+  return postSse<ChatEvent>(apiUrl(`/api/chat/conversations/${id}/messages`), { content }, onEvent, {
+    headers: headers(),
     signal,
   })
-  if (!res.ok || !res.body) {
-    // 429(사용량 한도)·409(대화 길이) 등은 서버 메시지를 그대로 보여준다
-    const detail = await res.json().then((b) => b?.detail, () => null)
-    throw new Error(typeof detail === 'string' ? detail : `${res.status} ${res.statusText}`)
-  }
-
-  const reader = res.body.pipeThrough(new TextDecoderStream()).getReader()
-  let buf = ''
-  for (;;) {
-    const { value, done } = await reader.read()
-    if (done) break
-    buf += value
-    let sep: number
-    while ((sep = buf.indexOf('\n\n')) >= 0) {
-      const chunk = buf.slice(0, sep)
-      buf = buf.slice(sep + 2)
-      const event = /^event: (.+)$/m.exec(chunk)?.[1]
-      const data = /^data: (.+)$/m.exec(chunk)?.[1]
-      if (event && data) onEvent({ type: event, data: JSON.parse(data) } as ChatEvent)
-    }
-  }
 }
 
 async function mockStream(content: string, onEvent: (ev: ChatEvent) => void) {
