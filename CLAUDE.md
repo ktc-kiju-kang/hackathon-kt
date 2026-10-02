@@ -56,11 +56,11 @@ docs/decisions/                  ADR
 
 ## 협업 규칙 (Claude도 반드시 따를 것)
 1. **이슈 없이 기능 작업을 시작하지 않는다.** 칸반 카드(이슈)를 먼저 만들고 assign한다. (`/new-issue`)
-2. **main 직접 커밋·push 금지.** main 보호: PR + CI 통과 + 1명 승인.
+2. **main 직접 커밋·push 금지.** main 보호: PR + CI 통과. **승인은 필수가 아니다** — CI가 통과하면 작성자가 직접 머지할 수 있다.
    - 브랜치: `<type>/<이슈번호>-<짧은설명>` (예: `feat/12-login-page`, `fix/20-cors`). type: feat/fix/refactor/docs/chore
    - 이슈 없는 인프라·문서 작업만 `<type>/<설명>` 허용
    - PR 본문에 `Closes #<이슈번호>` → 머지 시 이슈 닫힘·카드 Done. 머지된 브랜치는 자동 삭제
-   - **승인 후 새 커밋을 push하면 승인이 취소된다** → 리뷰 반영 후 리뷰어에게 재승인 요청
+   - 리뷰 권장(머지 전에 리뷰어 지정): 공용 파일(규칙 5), 남의 기능 파일(규칙 6), 다른 기능이 쓰는 계약(규칙 4), DB 마이그레이션. 리뷰를 요청했으면 답을 받고 머지한다
 3. **동시에 여러 이슈는 worktree로:** `scripts/new-worktree.sh <이슈번호> <설명>`
 4. **계약 우선:** 다른 기능·화면이 쓰는 API는 `docs/contracts/<feature>.md`에 먼저 정의한다. 남의 기능 계약을 바꾸면 그 담당자를 PR 리뷰어로 지정한다.
 5. **공용 파일은 최소한으로, 작게 고친다:** `layout.tsx`, `src/app/page.tsx`, `app-shell.tsx`, `app-sidebar.tsx`(메뉴 한 줄 추가는 OK), `api-client.ts`, `components/`, `config.py`, `db.py`, `app/agent/`(loop·providers·prompts·types — `tools/<name>.py` 제외), `requirements*.txt`, `package.json`, 루트 설정. 큰 변경은 별도 PR로 먼저 머지한다.

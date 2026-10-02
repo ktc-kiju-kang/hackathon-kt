@@ -29,7 +29,7 @@
 - 자동화 설정: 보드 ⋯ → Workflows (Status 옵션을 바꾸면 각 워크플로의 값이 풀리므로 다시 지정)
 
 ## 권한
-- main 보호: PR + CI(`frontend`, `backend`) + 1명 승인. **승인 후 새 push 시 승인 자동 취소**. 최신 main 반영은 필수 아님(대신 `/pr-check`). 관리자(owner `ktc-kiju-kang`)만 우회 가능
+- main 보호: PR + CI(`frontend`, `backend`) 통과. **승인은 필수 아님** → CI가 통과하면 작성자가 직접 머지한다. 공용 파일·남의 기능·계약·마이그레이션을 바꾸는 PR은 리뷰를 요청하고 답을 받은 뒤 머지한다. main 직접 push·force push·브랜치 삭제는 막혀 있다. 최신 main 반영은 필수 아님(대신 `/pr-check`)
 - 이전 저장소 `kiju-kang/hackathon-kt`(PR #1~#5 기록)는 더 이상 사용하지 않는다
 - 저장소 설정은 관리자만 변경. Vercel·Render·Supabase 대시보드 접근 권한은 _TBD_
 
