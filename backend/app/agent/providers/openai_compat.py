@@ -39,9 +39,20 @@ _STOP = {"stop": "end_turn", "tool_calls": "tool_use", "length": "max_tokens"}
 
 
 def _strip_titles(schema: Any) -> Any:
-    """pydantic 스키마의 title 키 제거 (일부 호환 API가 JSON Schema 부분집합만 받는다)."""
+    """pydantic 스키마의 title 키 제거 (일부 호환 API가 JSON Schema 부분집합만 받는다).
+
+    `properties` 안의 키는 필드 이름이므로 지우지 않는다 (필드 이름이 title인 경우).
+    """
     if isinstance(schema, dict):
-        return {k: _strip_titles(v) for k, v in schema.items() if k != "title"}
+        return {
+            k: (
+                {name: _strip_titles(sub) for name, sub in v.items()}
+                if k == "properties" and isinstance(v, dict)
+                else _strip_titles(v)
+            )
+            for k, v in schema.items()
+            if k != "title"
+        }
     if isinstance(schema, list):
         return [_strip_titles(v) for v in schema]
     return schema
