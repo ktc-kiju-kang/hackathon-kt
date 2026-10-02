@@ -47,6 +47,7 @@ database/                        Supabase Postgres
   seed.sql
 docs/contracts/<feature>.md      기능별 API 계약
 docs/decisions/                  ADR (0006: 정적 데이터·구조화 생성, 0007: 폴더 구조)
+docs/worklog/YYYY-MM-DD.md       날짜별 작업 기록 (머지된 PR, 결정, 겪은 문제·교훈, 남은 일)
 ```
 
 ### 목표 구조와 분업 규칙 (ADR 0007 — 폴더 이동 전까지 위 "현재 구조"가 코드의 실제 모양)
