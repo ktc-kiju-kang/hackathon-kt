@@ -10,7 +10,6 @@ import {
   Home,
   Lightbulb,
   LayoutDashboard,
-  MessageSquare,
   Radar,
   Rocket,
   Table2,
@@ -34,7 +33,6 @@ const MENU_GROUPS = [
     label: '메뉴',
     items: [
       { title: '홈', href: '/', icon: Home },
-      { title: '채팅', href: '/chat', icon: MessageSquare },
       { title: 'AI 에이전트', href: '/agent', icon: Bot },
       { title: 'AI 활용 트렌드', href: '/trends', icon: ChartLine },
       { title: 'Opportunity Radar', href: '/radar', icon: Radar },

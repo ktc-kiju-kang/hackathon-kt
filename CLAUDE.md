@@ -11,7 +11,7 @@
 - API(배포): https://hackathon-kt-api.onrender.com/api/docs
 - DB: Supabase 팀 공유 프로젝트 1개 — `https://atirjbxwroqkbopnqybz.supabase.co` (ap-southeast-1, Render와 같은 리전)
 - 상태 확인: `/api/health` → `version`(배포 커밋), `db`(Supabase 연결·service_role 키: ok/error/unconfigured), `llm`(anthropic/gemini/openai/mock), `client_ip`(사용량 한도에 쓰는 내 IP)
-- 화면: `/` 홈 · `/trends` AI 활용 트렌드 · `/radar` Opportunity Radar · `/product` Product Generator · `/agent` AI 에이전트 · `/chat` 채팅(임시 UI) · `/samples/*` UI 샘플 (메뉴: `components/app-sidebar.tsx`)
+- 화면: `/` 홈 · `/trends` AI 활용 트렌드 · `/radar` Opportunity Radar · `/product` Product Generator · `/agent` AI 에이전트 · `/samples/*` UI 샘플 (메뉴: `components/app-sidebar.tsx`)
 - 데모 흐름: `/trends`(Signals 지표) → `/radar`(그룹사 선택 → 근거 있는 사업 기회) → `/product`(Product Card·PoC, Markdown 내보내기). 계약: `docs/contracts/{trends,radar,product}.md`
 
 ## 작업 방식: 기능 단위 담당
@@ -62,7 +62,7 @@ frontend/src/
   components/, lib/   공용
 ```
 - **지금 backend 새 기능은 현재 구조(`routers`·`services`·`schemas`)로 만든다.** 라우터 자동 등록이 `routers/`만 스캔해서 `app/features/`에 만들면 등록되지 않는다. 이동은 후속 이슈(진행 중 PR과 충돌하므로 열린 이슈 머지 후, 한 PR로).
-- **이름 규칙**: 기능 이름은 backend 폴더·frontend `features/`·`docs/contracts/`·`tests/test_<f>.py`·API 경로에서 모두 같다. 한 개념에 이름 둘, 다른 개념에 같은 이름을 쓰지 않는다. (현재 어긋남: backend `chat` ↔ frontend `agent`, 임시 mock `features/chat` — ADR 0007 미결 2)
+- **이름 규칙**: 기능 이름은 backend 폴더·frontend `features/`·`docs/contracts/`·`tests/test_<f>.py`·API 경로에서 모두 같다. 한 개념에 이름 둘, 다른 개념에 같은 이름을 쓰지 않는다. (chat은 정리됨: backend `chat` = frontend `features/chat`, 화면 URL만 `/agent` — ADR 0007)
 - **import 방향**: `features → core, agent`만. `core`는 다른 폴더를 import하지 않는다. `agent`는 `core`만 import한다 (단 `agent/tools/<name>.py`는 기능을 호출하는 도구라 해당 기능의 service를 import할 수 있다). **features끼리 직접 import 금지.** 알려진 예외(잠정): backend radar·product → `trends`(service와 schemas 모두), 도구 `get_ai_usage_trends` → `trends`, frontend product → radar(`Opportunity` 타입·선택 저장). 새 예외가 필요하면 만들기 전에 계약·ADR에 이유를 적고 리뷰를 요청한다.
 - **새 공용 코드를 기능 폴더에 두지 않는다.** 둘 이상의 기능이 쓰면 공용 영역(`core`·`agent`·`components`·`lib`)에 별도 PR로 먼저 올린다. 이름도 실제 사용처를 따른다 (예: 여러 기능이 쓰는 한도를 `chat_*`라 부르지 않는다).
 
@@ -105,7 +105,7 @@ frontend/src/
 - effect 본문에서 setState를 동기 호출하지 않는다 (lint 에러). 비동기 콜백(`.then`)에서 호출한다. effect 콜백은 값을 반환하지 않게 `{ }`로 감싼다.
   - 선택이 바뀔 때마다 다시 불러오는 effect는 cleanup에서 이전 요청을 무시한다 (`let cancelled = false` → `return () => { cancelled = true }`). 늦게 온 이전 응답이 최신 결과를 덮지 않게.
   - `sessionStorage`·`localStorage`는 브라우저에서만 → effect 안에서 비동기로 읽고, 읽기·쓰기는 try/catch (예: `features/radar/api.ts`의 `saveSelectedOpportunity`).
-- **SSE를 읽는 클라이언트**(`features/agent|radar|product/api.ts`): `done`·`error` 없이 스트림이 끝나면 연결 끊김으로 보고 오류를 던진다. 중지·오류 시 진행 중 표시(스피너)를 끈다. `AbortController`로 취소한다.
+- **SSE를 읽는 클라이언트**(`features/chat|radar|product/api.ts`): `done`·`error` 없이 스트림이 끝나면 연결 끊김으로 보고 오류를 던진다. 중지·오류 시 진행 중 표시(스피너)를 끈다. `AbortController`로 취소한다.
 - LLM이 만든 문자열을 React `key`로 쓸 때는 순번을 붙인다 (`${i}-${text}`). 같은 문구가 두 번 나올 수 있다.
 - **새 화면 = 라우트 + 기능 폴더 + 메뉴 한 줄** (`/add-page`). 모든 화면은 `AppShell`(사이드바 + 상단 헤더 `h-12`) 안에 그려진다.
   - 화면 전체 높이를 쓰는 페이지(채팅 등)는 루트를 `h-[calc(100svh-3rem)]`로, 스크롤은 페이지가 아니라 내부 목록(`min-h-0 flex-1 overflow-y-auto`)에서.
