@@ -69,6 +69,8 @@ OpenAI Signals 데이터 → Trend 분석 → KT 그룹사 사업 매칭 → Opp
 KT Cloud 선택 → 관련 트렌드(Technical help·업무 활용 등) 추출 → KT Cloud 사업과 매칭 → "Cloud 장애 대응 자동화" 등의 Opportunity 제안 → 하나 선택 → CloudOps Agent Product Card와 PoC 생성
 
 ## 데모 준비
+시연 당일 체크리스트·순서·문제 대응은 **`docs/DEMO.md`**.
+
 - **LLM**: Groq 무료(`openai/gpt-oss-120b`)를 쓴다. 하루 1,000회·20만 토큰이라 리허설 포함 수십 회 가능하다. 분당 8,000토큰이라 **radar·product를 연달아 누르면 수십 초씩 기다린다** (화면에 재시도 안내가 나온다). 시연 중 다른 사람이 같은 키로 eval을 돌리지 않는다.
   - Render 대시보드: `LLM_PROVIDER=openai`, `LLM_BASE_URL=https://api.groq.com/openai/v1`, `LLM_MODEL=openai/gpt-oss-120b`, `LLM_API_KEY=<Groq 키>`. 반영 뒤 `/api/health`의 `llm`이 `openai`인지 확인
   - Gemini 무료(하루 20회)는 예비. GitHub Models는 종료됐고, Anthropic 키는 쓰기 어렵다
