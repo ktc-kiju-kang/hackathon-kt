@@ -3,14 +3,9 @@ from fastapi.responses import StreamingResponse
 
 from app.schemas.radar import Company, OpportunityRequest
 from app.services import radar as service
+from app.services.rate_limit import client_ip
 
 router = APIRouter(prefix="/radar", tags=["radar"])
-
-
-def _ip(request: Request) -> str:
-    # Render 프록시 뒤: 실제 클라이언트 IP는 X-Forwarded-For 첫 값
-    fwd = request.headers.get("x-forwarded-for", "")
-    return fwd.split(",")[0].strip() or (request.client.host if request.client else "unknown")
 
 
 @router.get("/companies", response_model=list[Company])
@@ -21,7 +16,7 @@ def list_companies() -> list[Company]:
 @router.post("/opportunities")
 def create_opportunities(body: OpportunityRequest, request: Request) -> StreamingResponse:
     """SSE: stage → opportunity × N → done (형식: docs/contracts/radar.md)"""
-    stream = service.stream_opportunities(body, _ip(request))
+    stream = service.stream_opportunities(body, client_ip(request))
     return StreamingResponse(
         stream,
         media_type="text/event-stream",
