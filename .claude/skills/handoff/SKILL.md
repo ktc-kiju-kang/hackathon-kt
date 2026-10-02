@@ -3,7 +3,7 @@ name: handoff
 description: 작업 마무리 — 검증, reviewer 셀프리뷰, sync, `Closes #이슈` PR 생성. 작업이 끝났거나 PR을 올리려 할 때 사용.
 disable-model-invocation: true
 ---
-1. 브랜치명에서 이슈 번호를 확인하고(`feat/<번호>-...`) `gh issue view <번호>`의 완료 조건과 대조한다. 못 채운 항목이 있으면 알린다.
+1. 브랜치명에서 이슈 번호를 확인하고(`feat/<번호>-...`) `gh issue view <번호>`의 완료 조건과 대조한다. 못 채운 항목이 있으면 알린다. 구현이 완료 조건과 달라졌으면(예: DB 대신 정적 파일) 이슈 본문을 고칠지 묻는다.
 2. `git diff --stat origin/main...HEAD`로 변경 범위를 확인한다. 다른 기능의 파일이나 공용 파일 변경, `database/migrations/` 추가가 있으면 표시한다. 마이그레이션이 있으면 머지 시 공유 DB에 자동 적용된다고 알리고, 이전 버전 backend와 호환되는지(drop/rename 없음) 확인한다.
 3. 변경한 쪽의 검증을 실행하고 모두 통과시킨다:
    - `frontend/` 변경: `cd frontend && npm run lint && npm run build`
@@ -11,5 +11,6 @@ disable-model-invocation: true
 4. `reviewer` 서브에이전트로 셀프 리뷰하고 지적사항을 처리한다.
 5. 커밋 후 **`/pr-check`(충돌 검사)** → ❌가 있으면 해결. 이어서 `scripts/sync.sh`로 main 반영하고 검증을 다시 돌린 뒤 `scripts/check-conflicts.sh`를 한 번 더 실행해 ❌ 0개를 확인한다.
 6. `.github/pull_request_template.md` 형식으로 PR 본문 초안을 보여준다. 첫 줄 `Closes #<번호>`. 계약 변경·남의 기능/공용 파일 변경이 있으면 관련 담당자(이슈 assignee)를 리뷰어로 제안한다.
-7. 사용자 확인 후 `git push -u origin <branch>` → `gh pr create` (리뷰어는 `--reviewer`). 머지는 사람이 한다.
+7. 사용자 확인 후 `git push -u origin <branch>` → `gh pr create` (리뷰어는 `--reviewer`). PR 본문에 공용 파일 변경, 실제 LLM 확인 여부(미확인이면 이유)를 적는다.
+   - main 보호는 PR + CI 통과뿐이다 (승인 불필요). CI가 통과하면 작성자가 머지한다. 공용 파일·남의 기능·계약·마이그레이션 변경이면 리뷰 답을 받고 머지하자고 안내한다. Claude는 머지하지 않는다.
 8. 칸반은 자동으로 움직인다: PR 연결 → In Review, 머지 → Done. PR 본문에 `Closes #<번호>`가 없으면 연결되지 않으니 꼭 확인한다.

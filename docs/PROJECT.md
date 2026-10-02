@@ -17,7 +17,7 @@ OpenAI Signals 데이터 → Trend 분석 → KT 그룹사 사업 매칭 → Opp
 | 출처 | https://openai.com/signals/data-download/ (페이지는 봇 차단, 파일은 CDN에서 직접 받을 수 있음) |
 | 파일 | `https://cdn.openai.com/signals/data-download-csv.zip` (CSV 25개, ~1.2MB), 데이터 사전 `https://cdn.openai.com/signals/data-dictionary.pdf` |
 | 라이선스 | **CC BY 4.0**: 상업적 이용 가능, 화면·자료에 출처 표기 필수 ("OpenAI Signals v2.0", Chatterji et al.) |
-| 범위 | 2024-07 ~ 2026-06 월별, 135개국 (`KR` 포함), 매월 개인 계정 메시지 30만 건 표본, 차등 프라이버시 노이즈 적용 |
+| 범위 | 2024-07 ~ 2026-06 월별, 파일에 따라 125~150개국, 매월 개인 계정 메시지 30만 건 표본, 차등 프라이버시 노이즈 적용. **앱이 지원하는 국가는 67개** (업무 메시지 데이터까지 24개월이 모두 있는 국가, `KR`·`US` 포함) |
 | 제외 | **기업(Enterprise) 계정은 제외** → 업무 활용이 과소 집계됨. Codex 사용분도 없음 |
 
 **주요 차원** (값은 모두 `share_of_messages` 0~1이거나 `rank`)
@@ -38,7 +38,7 @@ OpenAI Signals 데이터 → Trend 분석 → KT 그룹사 사업 매칭 → Opp
 
 ## KT 그룹사 데이터
 
-공개 자료(IR·홈페이지)를 요약해 정적 seed로 넣는다: 그룹사 5개(KT, KT Cloud, KT DS, BC카드, KT Skylife) × 사업 영역·고객·보유 자산. 내부 데이터는 쓰지 않는다 (공개 저장소).
+공개 자료(IR·홈페이지)를 요약한 `backend/data/companies.json`: 그룹사 5개(KT, KT Cloud, KT DS, BC카드, KT Skylife) × 사업 영역·고객·보유 자산. 내부 데이터는 쓰지 않는다 (공개 저장소). 개인 결제·통화 기록 같은 개인정보를 쓰는 기회는 제안하지 않게 프롬프트에 적어 두었다.
 
 ## MVP 화면
 
@@ -46,11 +46,32 @@ OpenAI Signals 데이터 → Trend 분석 → KT 그룹사 사업 매칭 → Opp
 2. **Opportunity Radar**: 그룹사를 선택하면 트렌드와 사업을 매칭해 Opportunity 카드 목록을 보여줌 (근거 지표 + 추론)
 3. **Product Generator**: Opportunity 하나를 골라 Product Card와 PoC 계획을 생성 (문제·타깃·가치·핵심 기능·Flow·데이터·아키텍처·MVP 범위)
 
-단계별 에이전트(Trend → Matching → Opportunity → Product Designer)는 `app/agent/tools/`의 도구나 structured output 호출로 나눠 만든다. 각 단계의 진행 상황이 화면에 보이게 한다.
+단계별 에이전트는 **단계마다 LLM 1회씩 구조화 출력**으로 만든다 (`app/agent/structured.py`, ADR 0006). 각 단계의 진행이 SSE로 화면에 보인다.
+- Radar: trend → match → opportunity (요청당 LLM 최대 6회)
+- Product: design → poc (요청당 LLM 최대 3회)
+
+## 구현 상태 (2026-10-02)
+
+| 화면 | 이슈·PR | 상태 |
+|---|---|---|
+| `/trends` Trend Dashboard | #22 · #26 | 운영 배포 |
+| `/radar` Opportunity Radar | #23 · #27 | 운영 배포, **실제 LLM 미확인** |
+| `/product` Product Generator | #24 · #29 | 운영 배포, **실제 LLM 미확인** |
+
+- `/agent` 채팅에서도 `get_ai_usage_trends` 도구로 트렌드를 물어볼 수 있다.
+- 남은 일:
+  - 실제 LLM으로 `evals.run_radar_eval`·`run_product_eval` 확인 (Gemini 무료 일일 한도 소진으로 보류)
+  - 데모용 LLM 키 결정 (아래 "데모 준비")
+  - 사용량 한도의 IP 판별 (`X-Forwarded-For` 첫 값은 클라이언트가 바꿀 수 있음)
 
 ## 데모 시나리오
 
 KT Cloud 선택 → 관련 트렌드(Technical help·업무 활용 등) 추출 → KT Cloud 사업과 매칭 → "Cloud 장애 대응 자동화" 등의 Opportunity 제안 → 하나 선택 → CloudOps Agent Product Card와 PoC 생성
+
+## 데모 준비
+- **LLM 한도**: Gemini 무료(`gemini-3.8-flash`)는 프로젝트당 하루 20회다. radar 1회 = 3회, product 1회 = 2회라 전체 흐름을 4번쯤 돌리면 끝난다. 리허설 횟수까지 생각해 유료 키(Anthropic, Console에서 월 한도 설정)로 바꿀지 정한다. 바꾸면 Render 대시보드에서 `ANTHROPIC_API_KEY`를 넣거나 `LLM_PROVIDER`를 지정한다.
+- **Render 깨우기**: 무료 플랜은 15분 미사용 시 잠든다. 시연 1~2분 전에 `/api/health`를 호출한다.
+- **예비안**: 한도에 걸리면 `/product`의 "샘플로 보기"와 `/trends`(LLM 없음)로 흐름을 보여줄 수 있다.
 
 ## 주의
 

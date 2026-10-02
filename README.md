@@ -13,7 +13,8 @@ cd frontend && npm install && cp .env.example .env.local && npm run dev
 cd backend && python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
 cp .env.example .env && .venv/bin/fastapi dev app/main.py
 
-# AI 에이전트: http://localhost:3000/agent  (backend/.env에 GEMINI_API_KEY(무료) 또는 ANTHROPIC_API_KEY, 없으면 mock LLM)
+# AI 기능(/agent·/radar·/product): backend/.env에 GEMINI_API_KEY(무료, 하루 한도 작음) 또는 ANTHROPIC_API_KEY, 없으면 mock LLM
+# 키가 있어도 mock으로 띄우려면: LLM_PROVIDER=mock .venv/bin/fastapi dev app/main.py
 
 claude   # 세션 시작 시 내 이슈·열린 PR 표시
 ```
@@ -45,6 +46,9 @@ claude   # 세션 시작 시 내 이슈·열린 PR 표시
 | 경로 | 내용 | 기능 폴더 |
 |---|---|---|
 | `/` | 홈 (API·DB 상태) | `features/health` |
+| `/trends` | AI 활용 트렌드 (OpenAI Signals 지표 대시보드) | `features/trends` ↔ `/api/trends` |
+| `/radar` | Opportunity Radar (그룹사 선택 → 근거 있는 AI 사업 기회) | `features/radar` ↔ `/api/radar` |
+| `/product` | Product Generator (기회 → Product Card·PoC, Markdown 내보내기) | `features/product` ↔ `/api/product` |
 | `/agent` | AI 에이전트 (스트리밍 채팅 + 도구) | `features/agent` ↔ `/api/chat` |
 | `/chat` | 채팅 (임시 UI, 백엔드 미연결) | `features/chat` |
 | `/samples/*` | UI 샘플: 에디터·테이블·복합 화면·모달 | `features/samples` |
@@ -55,7 +59,7 @@ claude   # 세션 시작 시 내 이슈·열린 PR 표시
 1. [칸반](https://github.com/users/ktc-kiju-kang/projects/1)에서 Todo 카드 선택 또는 `/new-issue`로 생성
 2. `/start-task <이슈번호>` → 본인 assign + `feat/<번호>-<설명>` 브랜치
 3. 기능 파일만 만들어 구현 (`/add-endpoint`로 계약 → backend → frontend)
-4. `/handoff` → 충돌 검사(`/pr-check`) → `Closes #번호` PR → CI 통과 + 리뷰 1명 → 머지 → 카드 Done, 자동 배포
+4. `/handoff` → 충돌 검사(`/pr-check`) → `Closes #번호` PR → CI 통과 → 작성자가 머지 (공용 파일·계약·마이그레이션 변경은 리뷰 요청 후) → 카드 Done, 자동 배포
 
 ## 구조
 ```
@@ -64,7 +68,8 @@ frontend/                 Next.js + TS + Tailwind + shadcn/ui   → Vercel
   src/features/<feature>/   기능별 컴포넌트 + API client(api.ts)
 backend/                  FastAPI                               → Render
   app/routers|services|schemas/<feature>.py
-  app/agent/                AI 에이전트 (LLM 어댑터·도구·루프), evals/ 평가
+  app/agent/                AI 에이전트 (LLM 어댑터·도구·루프·구조화 출력), evals/ 평가
+  data/                     공개 정적 데이터 (OpenAI Signals CSV, 그룹사 JSON)
 database/                 Supabase 마이그레이션·seed
 docs/contracts/           기능별 API 계약
 docs/decisions/           기술 결정 기록(ADR)

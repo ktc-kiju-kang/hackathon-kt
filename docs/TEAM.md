@@ -11,7 +11,7 @@
 ## 담당 방식
 - 고정 역할·디렉터리 담당 없음. **기능(이슈) 단위**로 assignee가 frontend + backend + DB를 끝까지 맡는다.
 - 누가 무엇을 하는지는 칸반(GitHub Projects)이 단일 진실. 이 문서에 따로 적지 않는다.
-- 공용 영역(`CLAUDE.md`, `.claude/`, `.github/`, `render.yaml`, `scripts/`, `frontend/src/app/layout.tsx`, `frontend/src/components/app-shell.tsx`·`app-sidebar.tsx`, `frontend/src/lib/api-client.ts`, `backend/app/main.py`·`config.py`·`db.py`, `backend/app/agent/`(도구 파일 제외), `database/`)은 변경 시 다른 1명 이상 리뷰. 사이드바 메뉴 한 줄 추가는 예외적으로 가볍게 봐도 된다.
+- 공용 영역(`CLAUDE.md`, `.claude/`, `.github/`, `render.yaml`, `scripts/`, `frontend/src/app/layout.tsx`, `frontend/src/components/app-shell.tsx`·`app-sidebar.tsx`, `frontend/src/lib/api-client.ts`, `backend/app/main.py`·`config.py`·`db.py`, `backend/app/agent/`(도구 파일 제외), `database/`)은 변경 시 리뷰를 요청하고 답을 받은 뒤 머지한다 (승인은 필수 아님). 사이드바 메뉴 한 줄 추가는 예외적으로 가볍게 봐도 된다.
 
 ## 칸반 (GitHub Projects)
 - 보드: https://github.com/users/ktc-kiju-kang/projects/1 (팀원 모두 Write 권한)
