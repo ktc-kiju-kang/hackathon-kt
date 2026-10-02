@@ -72,5 +72,5 @@ frontend/src/
 
 ## 미결 (정해지면 이 문서를 고친다)
 1. **`trends` 처리**: radar·product·도구가 모두 쓰는 데이터 제공 기능이다. 공용 데이터 module로 승격할지(예: `app/data/trends`), 위 예외로 계속 둘지.
-2. **chat ↔ agent 이름**: API 경로 `/api/chat/...`는 계약·프론트에 박혀 있어 유지하는 쪽이 싸다. frontend 폴더 이름을 backend와 맞출지(`features/agent` → `features/chat`), 반대로 backend 폴더를 `agent`로 할지. 임시 mock 화면(`features/chat`·`/chat`·메뉴 "채팅")은 삭제 대상이다.
+2. ~~**chat ↔ agent 이름**~~ — **결정·반영됨 (2026-10-02, 이슈 #44)**: API 경로 `/api/chat/...`와 화면 URL `/agent`는 유지하고, frontend `features/agent`를 `features/chat`으로 바꿔 backend 기능 이름 `chat`과 맞췄다. backend `app/agent/`(엔진)와의 이름 혼동도 없어졌다. 임시 mock 화면(`features/chat/ChatPanel`·`/chat`·메뉴 "채팅")은 삭제했다.
 3. **quota 설정 이름**: `chat_rate_per_ip` 등 `CHAT_*` 환경변수가 radar·product도 제한한다. 이름을 `quota_*`로 바꾸려면 Render 대시보드 값 변경이 필요하다.

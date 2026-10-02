@@ -1,6 +1,6 @@
 # chat (AI 에이전트 대화)
 - 담당: @ktc-kiju-kang
-- 사용처: frontend `/agent` (`features/agent`). `/chat`의 `features/chat/ChatPanel`은 별도 임시 화면
+- 사용처: frontend `/agent` (`features/chat`)
 - DB: `conversations`, `messages` — `database/migrations/0002_chat.sql`
 
 ## 인증 (해커톤용)

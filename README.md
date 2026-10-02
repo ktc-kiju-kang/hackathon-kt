@@ -49,8 +49,7 @@ claude   # 세션 시작 시 내 이슈·열린 PR 표시
 | `/trends` | AI 활용 트렌드 (OpenAI Signals 지표 대시보드) | `features/trends` ↔ `/api/trends` |
 | `/radar` | Opportunity Radar (그룹사 선택 → 근거 있는 AI 사업 기회) | `features/radar` ↔ `/api/radar` |
 | `/product` | Product Generator (기회 → Product Card·PoC, Markdown 내보내기) | `features/product` ↔ `/api/product` |
-| `/agent` | AI 에이전트 (스트리밍 채팅 + 도구) | `features/agent` ↔ `/api/chat` |
-| `/chat` | 채팅 (임시 UI, 백엔드 미연결) | `features/chat` |
+| `/agent` | AI 에이전트 (스트리밍 채팅 + 도구) | `features/chat` ↔ `/api/chat` |
 | `/samples/*` | UI 샘플: 에디터·테이블·복합 화면·모달 | `features/samples` |
 
 새 화면은 `/add-page` (라우트 + 기능 폴더 + 사이드바 메뉴).
