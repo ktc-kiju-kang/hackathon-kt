@@ -10,6 +10,7 @@ import {
   Home,
   LayoutDashboard,
   MessageSquare,
+  Radar,
   Rocket,
   Table2,
 } from 'lucide-react'
@@ -35,6 +36,7 @@ const MENU_GROUPS = [
       { title: '채팅', href: '/chat', icon: MessageSquare },
       { title: 'AI 에이전트', href: '/agent', icon: Bot },
       { title: 'AI 활용 트렌드', href: '/trends', icon: ChartLine },
+      { title: 'Opportunity Radar', href: '/radar', icon: Radar },
     ],
   },
   {

@@ -1,7 +1,7 @@
 # radar (그룹사 선택 + AI Opportunity Radar)
 - 담당: (#23 담당자) · 이슈: #23 · 계약: #21
 - 사용처: frontend `/radar` (`features/radar`). `Opportunity` 타입은 product (#24)가 입력으로 쓴다
-- DB: `companies` (#23에서 마이그레이션 + `seed.sql`). Opportunity는 v1에서 저장하지 않는다 (요청마다 생성해 스트리밍)
+- 데이터: `backend/data/companies.json` (DB 없음, 아래 "그룹사 데이터"). Opportunity는 v1에서 저장하지 않는다 (요청마다 생성해 스트리밍)
 - 스키마: `backend/app/schemas/radar.py` (#21에서 만듦)
 - 의존: trends `summary`·`resolve_evidence` (#22). 구현 전에는 같은 형태의 mock을 쓴다
 
@@ -58,6 +58,13 @@ N이 0이면 `stage(opportunity,done)` 대신 `error`(`no_result`)를 보낸다.
 - 도구를 호출하지 않았거나 입력이 검증에 실패하면 1회 다시 요청한다. 그래도 실패하면 `error`(`bad_output`)를 보낸다.
 - `get_provider().name == "mock"`이면 LLM을 부르지 않고 **고정 샘플 결과**를 같은 이벤트 순서로 보낸다. 키 없이 UI를 개발하기 위해서다.
 
+## 화면 간 전달 (frontend)
+`/radar`에서 "프로덕트 설계"를 누르면 고른 `Opportunity`를 `sessionStorage`의 `radar:selected-opportunity` 키(JSON)에 저장하고 `/product`로 이동한다.
+`features/radar/api.ts`의 `saveSelectedOpportunity` · `loadSelectedOpportunity`를 쓴다. 저장소를 못 쓰면 탭 메모리 값을 쓴다.
+
+## 그룹사 데이터
+v1은 DB 대신 `backend/data/companies.json`(공개 자료 요약)을 읽는다. 공개 읽기 전용이고 5개뿐이라서다.
+
 ## 타입
 ```ts
 Company = {
@@ -90,3 +97,4 @@ Opportunity = {
 | 날짜 | 변경 | 작성자 |
 |---|---|---|
 | 2026-10-01 | 추가 | ktc-kiju-kang |
+| 2026-10-02 | 그룹사 데이터를 DB에서 JSON 파일로 변경, 화면 간 전달 방식 추가 (API 형태는 그대로) | ktc-kiju-kang |

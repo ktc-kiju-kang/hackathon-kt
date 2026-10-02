@@ -264,3 +264,22 @@ def test_parallel_calls_distinct_index_openai_style():
         ("calculator", {"expression": "1+1"}),
         ("get_current_time", {}),
     ]
+
+
+def test_strip_titles_keeps_field_named_title():
+    # 실제 Gemini API에서 드러남: 필드 이름 title까지 지우면 required와 어긋나 400
+    # ("schema at properties.trends.items requires unspecified property 'title'")
+    from pydantic import BaseModel
+
+    from app.agent.providers.openai_compat import _strip_titles
+
+    class Item(BaseModel):
+        title: str
+
+    class Out(BaseModel):
+        items: list[Item]
+
+    schema = _strip_titles(Out.model_json_schema())
+    assert "title" not in schema and "title" not in schema["$defs"]["Item"]
+    assert schema["$defs"]["Item"]["properties"]["title"] == {"type": "string"}
+    assert schema["$defs"]["Item"]["required"] == ["title"]

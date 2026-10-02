@@ -1,0 +1,52 @@
+[
+  {
+    "id": "kt",
+    "name": "KT",
+    "name_en": "KT Corporation",
+    "summary": "국내 대표 유무선 통신사. 통신·미디어 고객 기반 위에 기업 대상 AI 전환(AX) 사업을 키우고 있다.",
+    "business_areas": ["유무선 통신(모바일·인터넷)", "IPTV·미디어", "기업 통신·B2B AX", "AI 컨택센터(AICC)"],
+    "customers": ["개인 통신 가입자", "중소·중견 기업", "공공기관", "대기업"],
+    "assets": ["전국 유무선 통신망", "대규모 고객센터 운영 경험", "개인·기업 고객 기반", "그룹사 AI·클라우드 역량"],
+    "sources": ["https://corp.kt.com/"]
+  },
+  {
+    "id": "kt-cloud",
+    "name": "KT Cloud",
+    "name_en": "kt cloud",
+    "summary": "KT 그룹의 클라우드·데이터센터 사업자. 퍼블릭·공공 클라우드와 AI용 GPU 인프라를 제공한다.",
+    "business_areas": ["퍼블릭 클라우드", "공공 클라우드", "데이터센터(IDC)", "AI 인프라(GPU 클라우드)"],
+    "customers": ["공공기관", "엔터프라이즈", "스타트업", "AI 개발 기업"],
+    "assets": ["전국 데이터센터", "GPU 클라우드 인프라", "클라우드 운영 조직", "공공 클라우드 보안 인증 경험"],
+    "sources": ["https://www.ktcloud.com/"]
+  },
+  {
+    "id": "kt-ds",
+    "name": "KT DS",
+    "name_en": "KT DS",
+    "summary": "KT 그룹의 IT 서비스 기업. 시스템 구축·운영과 클라우드 전환, AI·데이터 솔루션을 제공한다.",
+    "business_areas": ["IT 시스템 구축·운영(SI/SM)", "클라우드 전환·운영(MSP)", "AI·데이터 솔루션", "그룹사 IT 운영"],
+    "customers": ["KT 그룹사", "금융·공공 기관", "엔터프라이즈"],
+    "assets": ["대규모 IT 운영 인력", "그룹사 시스템 운영 경험", "개발·테스트 자동화 역량"],
+    "sources": ["https://www.ktds.com/"]
+  },
+  {
+    "id": "bccard",
+    "name": "BC카드",
+    "name_en": "BC Card",
+    "summary": "카드 결제 처리와 가맹점 네트워크를 운영하는 결제 인프라 기업. 결제 데이터 기반 사업을 한다.",
+    "business_areas": ["카드 결제 처리(프로세싱)", "가맹점 네트워크", "결제 데이터 분석", "간편결제·결제 앱"],
+    "customers": ["카드 회원사(금융사)", "가맹점·소상공인", "개인 카드 이용자"],
+    "assets": ["대규모 결제 처리 시스템", "전국 가맹점 네트워크", "결제 데이터", "금융권 보안 운영 경험"],
+    "sources": ["https://www.bccard.com/"]
+  },
+  {
+    "id": "kt-skylife",
+    "name": "KT Skylife",
+    "name_en": "KT Skylife",
+    "summary": "위성방송 사업자. 위성 유료방송을 중심으로 인터넷·모바일 결합 상품과 방송 콘텐츠 사업을 한다.",
+    "business_areas": ["위성 유료방송", "인터넷·모바일 결합 상품", "방송 채널·콘텐츠"],
+    "customers": ["유료방송 가입자", "도서·산간 지역 가구", "숙박·상업 시설"],
+    "assets": ["전국 위성방송망", "유료방송 가입자 기반", "방송 콘텐츠·채널 운영 경험"],
+    "sources": ["https://www.skylife.co.kr/"]
+  }
+]
