@@ -62,7 +62,7 @@ export function RadarView() {
   const [opps, setOpps] = useState<Opportunity[]>([])
   const [notice, setNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [fallback, setFallback] = useState<RadarSnapshot | null>(null) // 실패 시 보여줄 수 있는 저장된 결과
+  const [snapshot, setSnapshot] = useState<RadarSnapshot | null>(null) // 고른 그룹사의 저장된 결과 (데모 예비안)
   const [saved, setSaved] = useState<SnapshotInfo | null>(null) // 지금 저장된 결과를 보여주는 중
   const abortRef = useRef<AbortController | null>(null)
 
@@ -73,7 +73,19 @@ export function RadarView() {
     return () => abortRef.current?.abort()
   }, [])
 
+  // 그룹사를 고를 때마다 저장된 결과가 있는지 미리 확인한다 (있으면 언제든 볼 수 있다)
+  useEffect(() => {
+    let cancelled = false
+    getRadarSnapshot(companyId).then((snap) => {
+      if (!cancelled) setSnapshot(snap && snap.opportunities.length > 0 ? snap : null)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [companyId])
+
   const company = companies?.find((c) => c.id === companyId)
+  const available = snapshot?.company_id === companyId ? snapshot : null
 
   async function run() {
     abortRef.current?.abort()
@@ -84,7 +96,6 @@ export function RadarView() {
     setOpps([])
     setError(null)
     setNotice(null)
-    setFallback(null)
     setSaved(null)
     try {
       await streamOpportunities(
@@ -101,7 +112,6 @@ export function RadarView() {
           } else if (ev.type === 'error') {
             setError(ev.data.message)
             setStages(halt)
-            offerFallback(companyId, controller)
           }
         },
         controller.signal,
@@ -110,19 +120,10 @@ export function RadarView() {
       if ((e as Error).name !== 'AbortError') {
         setError((e as Error).message || '요청에 실패했습니다')
         setStages(halt)
-        offerFallback(companyId, controller)
       }
     } finally {
       if (abortRef.current === controller) setRunning(false)
     }
-  }
-
-  // 실시간 생성이 실패하면 저장된 결과가 있는지 확인한다 (있을 때만 버튼이 보인다)
-  function offerFallback(id: string, controller: AbortController) {
-    getRadarSnapshot(id).then((snap) => {
-      // 그 사이 새로 실행했으면 이전 실행의 예비안은 버린다
-      if (abortRef.current === controller && snap && snap.opportunities.length > 0) setFallback(snap)
-    })
   }
 
   function showSaved(snap: RadarSnapshot) {
@@ -131,7 +132,7 @@ export function RadarView() {
     setOpps(snap.opportunities)
     setSaved(snap.snapshot)
     setError(null)
-    setFallback(null)
+    setNotice(null)
   }
 
   function stop() {
@@ -195,9 +196,17 @@ export function RadarView() {
                 <SquareIcon /> 중지
               </Button>
             ) : (
-              <Button onClick={run} disabled={!company}>
-                <RadarIcon /> 기회 찾기
-              </Button>
+              <>
+                <Button onClick={run} disabled={!company}>
+                  <RadarIcon /> 기회 찾기
+                </Button>
+                {available && (
+                  // 데모 예비안: 실시간 생성 대신 미리 만든 결과 (product 단계에서 막혔을 때도 여기로 돌아온다)
+                  <Button variant="ghost" onClick={() => showSaved(available)}>
+                    <ArchiveIcon /> 저장된 결과
+                  </Button>
+                )}
+              </>
             )}
           </div>
         </CardContent>
@@ -233,8 +242,8 @@ export function RadarView() {
         <Card className="border-destructive/50">
           <CardContent className="flex items-center gap-2 text-sm text-destructive">
             <CircleAlertIcon className="size-4 shrink-0" /> {error}
-            {fallback && fallback.company_id === companyId && (
-              <Button variant="outline" size="sm" className="ml-auto" onClick={() => showSaved(fallback)}>
+            {available && (
+              <Button variant="outline" size="sm" className="ml-auto" onClick={() => showSaved(available)}>
                 <ArchiveIcon /> 저장된 결과 보기
               </Button>
             )}

@@ -70,6 +70,7 @@ RadarSnapshot = { company_id: string, country: string, snapshot: SnapshotInfo, o
 ```
 - 저장 위치: `backend/data/demo/<company_id>.json` (`python -m evals.make_demo_snapshot --company <id>`로 생성, 실제 LLM 호출)
 - 화면은 실시간 결과로 오해하지 않게 "{날짜}에 {모델}로 미리 만든 결과"라고 표시한다.
+- `/radar`는 그룹사를 고를 때 이 API로 스냅샷이 있는지 미리 확인한다. 있으면 "기회 찾기" 옆과 오류 카드에 "저장된 결과" 버튼을 보인다. product 단계에서 막혔을 때도 radar로 돌아와 저장된 기회부터 다시 갈 수 있다.
 
 ## 화면 간 전달 (frontend)
 `/radar`에서 "프로덕트 설계"를 누르면 고른 `Opportunity`를 `sessionStorage`의 `radar:selected-opportunity` 키(JSON)에 저장하고 `/product`로 이동한다.
