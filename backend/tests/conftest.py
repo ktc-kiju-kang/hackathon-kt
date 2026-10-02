@@ -1,5 +1,6 @@
 import pytest
 
+from app.agent.providers import get_provider
 from app.agent.providers.mock import MockProvider
 from app.config import settings
 from app.services import rate_limit
@@ -11,12 +12,19 @@ def isolate_external(monkeypatch):
     """로컬 .env에 실제 키가 있어도 테스트는 실제 LLM·DB에 붙지 않는다."""
     monkeypatch.setattr(settings, "anthropic_api_key", "")
     monkeypatch.setattr(settings, "gemini_api_key", "")
+    # LLM_PROVIDER=openai 등 OpenAI 호환 설정도 비운다 (아니면 get_provider가 실제 공급자를 고른다)
+    monkeypatch.setattr(settings, "llm_provider", "")
+    monkeypatch.setattr(settings, "llm_api_key", "")
+    monkeypatch.setattr(settings, "llm_base_url", "")
+    monkeypatch.setattr(settings, "llm_model", "")
     monkeypatch.setattr(settings, "supabase_url", "")
+    get_provider.cache_clear()  # 로컬 .env로 이미 만들어진 공급자를 버린다
     monkeypatch.setattr("app.agent.loop.get_provider", lambda: MockProvider())
     rate_limit.reset()
     store = MemoryChatStore()
     monkeypatch.setattr("app.services.chat.get_chat_store", lambda: store)
-    return store
+    yield store
+    get_provider.cache_clear()
 
 
 @pytest.fixture
