@@ -2,6 +2,7 @@
 
 - 상태: 채택
 - 날짜: 2026-10-01
+- 관련: [0007](0007-folder-structure.md) — 폴더 구조(기능 폴더 `features/<feature>/`)가 이동 완료되면 아래 "routers/services/schemas 계층" 표기를 대체한다.
 
 ## 배경
 AI/데이터 연동 가능성이 높고, 프론트와 API 계약을 빠르게 공유해야 한다.

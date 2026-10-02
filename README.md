@@ -67,7 +67,7 @@ frontend/                 Next.js + TS + Tailwind + shadcn/ui   → Vercel
   src/app/<route>/          화면
   src/features/<feature>/   기능별 컴포넌트 + API client(api.ts)
 backend/                  FastAPI                               → Render
-  app/routers|services|schemas/<feature>.py
+  app/routers|services|schemas/<feature>.py   (목표: app/features/<feature>/ — docs/decisions/0007)
   app/agent/                AI 에이전트 (LLM 어댑터·도구·루프·구조화 출력), evals/ 평가
   data/                     공개 정적 데이터 (OpenAI Signals CSV, 그룹사 JSON)
 database/                 Supabase 마이그레이션·seed
