@@ -7,7 +7,7 @@ from functools import lru_cache
 
 from supabase import Client, ClientOptions, create_client
 
-from app.config import settings
+from app.core.config import settings
 
 
 @lru_cache

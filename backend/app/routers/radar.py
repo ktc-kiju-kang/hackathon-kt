@@ -5,10 +5,10 @@ from fastapi.responses import StreamingResponse
 
 from app.agent.providers import LLMProvider
 from app.agent.stages import llm_provider
+from app.core.quota import client_ip
 from app.schemas.radar import Company, OpportunityRequest, RadarSnapshot
 from app.services import radar as service
 from app.services import snapshot
-from app.services.rate_limit import client_ip
 
 router = APIRouter(prefix="/radar", tags=["radar"])
 

@@ -18,7 +18,7 @@ argument-hint: <도구 이름> <설명>
    ```
    - 입력은 LLM이 만든 **신뢰할 수 없는 값**: 길이 제한, 허용값(`Literal`), 경로·URL·SQL 직접 실행 금지. `eval()` 금지.
    - 실패는 예외로 던진다 → 루프가 `is_error` 결과로 LLM에 돌려준다 (LLM이 고쳐서 재시도).
-   - 외부 API는 `httpx2`/SDK로 타임아웃 지정, 키는 `app/config.py` Settings → `.env.example`·`render.yaml`에 이름 추가.
+   - 외부 API는 `httpx2`/SDK로 타임아웃 지정, 키는 `app/core/config.py` Settings → `.env.example`·`render.yaml`에 이름 추가.
    - DB는 service처럼 `get_supabase()`. 사용자별 데이터면 대화 소유자 확인이 필요 — 도구에 client_id를 넘기는 구조는 아직 없으니 먼저 상의.
    - 등록은 자동 (파일만 추가). `loop.py`·`main.py`는 고치지 않는다. **모든 채팅 대화(`/agent`·`/chat`)에 바로 보이게 된다**는 점을 PR에 적는다.
    - 입력 모델 필드 이름은 자유지만, 어댑터가 스키마를 바꿔 보내므로(`openai_compat._strip_titles`) 새 형태의 스키마면 실제 API로 한 번 확인한다.

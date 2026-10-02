@@ -155,7 +155,7 @@ def test_submit_schema_has_no_refs():
 
 
 def test_quota_checked_before_stream(mock_llm, monkeypatch):
-    from app.config import settings
+    from app.core.config import settings
 
     monkeypatch.setattr(settings, "chat_rate_per_ip", 0)
     assert post().status_code == 429

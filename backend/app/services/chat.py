@@ -7,10 +7,10 @@ from fastapi import HTTPException
 
 from app.agent.loop import run_agent
 from app.agent.types import AgentEvent, Message
-from app.config import settings
+from app.core.config import settings
+from app.core.quota import check_quota
 from app.schemas.chat import ChatMessage, Conversation
 from app.services.chat_store import get_chat_store
-from app.services.rate_limit import check_chat_quota
 
 PING_INTERVAL = 15.0  # 모델 생각·도구 실행 중에도 연결이 끊기지 않게 SSE 주석을 보낸다
 
@@ -77,7 +77,7 @@ async def send_message(
     if len(history) >= settings.chat_max_messages:
         # 앞부분을 잘라 보내면 LLM 쪽 기록이 '수정'된 것이 되므로, 새 대화를 시작하게 한다
         raise HTTPException(status_code=409, detail="대화가 너무 깁니다. 새 대화를 시작하세요")
-    check_chat_quota(ip)
+    check_quota(ip)
 
     store = get_chat_store()
     user_msg = Message(role="user", content=content)

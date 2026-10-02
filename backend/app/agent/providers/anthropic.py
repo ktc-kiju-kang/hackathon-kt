@@ -20,7 +20,7 @@ from app.agent.types import (
     TurnComplete,
     close_orphan_tool_calls,
 )
-from app.config import settings
+from app.core.config import settings
 
 log = logging.getLogger(__name__)
 

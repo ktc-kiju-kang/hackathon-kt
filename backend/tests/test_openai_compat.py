@@ -171,7 +171,7 @@ def test_history_from_other_provider_and_orphans():
 
 def test_auto_select_gemini(monkeypatch):
     from app.agent import providers
-    from app.config import settings
+    from app.core.config import settings
 
     providers.get_provider.cache_clear()
     monkeypatch.setattr(settings, "llm_provider", "")

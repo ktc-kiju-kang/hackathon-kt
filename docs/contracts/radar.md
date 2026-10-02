@@ -19,7 +19,7 @@ Request:
 → 200 `text/event-stream`
 · 404: company_id나 country가 없음
 · 422
-· **429**: chat과 같은 한도(`check_chat_quota`). 요청 1번이 1회로 집계된다
+· **429**: chat과 같은 한도(`check_quota`). 요청 1번이 1회로 집계된다
 
 권한·한도 확인은 스트림 시작 전에 한다.
 

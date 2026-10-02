@@ -70,7 +70,7 @@ async def main() -> int:
     ap.add_argument("--provider", help="mock 이면 LLM 없이 흐름만")
     args = ap.parse_args()
     if args.provider:
-        from app.config import settings
+        from app.core.config import settings
 
         settings.llm_provider = args.provider
         get_provider.cache_clear()

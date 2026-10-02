@@ -18,7 +18,7 @@ argument-hint: <feature> <METHOD> <path> <설명>
    - 계약과 같은 TS 타입, `@/lib/api-client`의 `request`로 호출하는 함수
    - `isMock`이면 계약 형태의 mock 반환 (`features/health/api.ts` 패턴)
 5. **LLM이 결과를 만드는 API면** (단발 생성, 대화 아님) — `app/agent/stages.py`의 `StageRunner.run`(단계 선언) + `stream_stages`(진입)를 쓴다 — 내부는 `structured.py`의 `call_structured`·`CallBudget`·`sse_stream` (`services/radar.py`·`product.py` 패턴, 계약은 radar.md "스트림 형식"을 참조):
-   - 단계마다 결과 제출 도구 하나, 요청당 LLM 호출 상한을 계약에 적는다. 404·422·429(`check_chat_quota`)는 스트림 전에.
+   - 단계마다 결과 제출 도구 하나, 요청당 LLM 호출 상한을 계약에 적는다. 404·422·429(`check_quota`)는 스트림 전에.
    - 단계마다 `mock=` 결과를 준다 (키 없이 UI 개발, mock 분기는 `StageRunner` 안쪽). 숫자·근거는 LLM이 만들지 않게 서버가 채운다.
    - 클라이언트 입력은 프롬프트에서 태그로 감싸고 꺾쇠를 치환하며, 크기 상한을 둔다.
    - 테스트: `tests/test_radar.py`의 `FakeProvider`처럼 도구 이름별 출력을 정해 두고, `conftest.py`의 `use_provider(fake)` fixture로 고정 (라우터가 `Depends(llm_provider)`로 provider를 받으므로 모듈을 패치하지 않는다). 순서·`bad_output`·`limit`·입력 제한을 확인한다.

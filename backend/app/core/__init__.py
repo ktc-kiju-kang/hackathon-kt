@@ -1,0 +1,3 @@
+"""공용(platform) 코드 — 설정·DB 연결·사용량 한도. 기능 폴더가 import한다 (반대 방향 금지).
+변경은 작게, 별도 PR로 먼저 머지한다 (docs/decisions/0007-folder-structure.md).
+"""

@@ -11,7 +11,7 @@ Request:
 { opportunity: Opportunity,   // radar에서 받은 객체 그대로 (서버는 저장된 값을 찾지 않는다)
   notes?: string }            // (≤500자) 추가 요구사항. 예: "3주 안에 PoC 가능해야 함"
 ```
-→ 200 `text/event-stream` · 422 (`notes` 500자 초과, `opportunity` JSON 8000자 초과 등) · **429** (chat과 같은 한도 `check_chat_quota`)
+→ 200 `text/event-stream` · 422 (`notes` 500자 초과, `opportunity` JSON 8000자 초과 등) · **429** (chat과 같은 한도 `check_quota`)
 
 이벤트는 [radar 스트림 형식](radar.md#스트림-형식-radarproduct-공통)과 같다. 구조화 출력은 [radar의 방법](radar.md#구조화-출력-방법-radarproduct-공통)과 같다.
 

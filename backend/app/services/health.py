@@ -4,8 +4,8 @@ import logging
 from datetime import UTC, datetime
 
 from app.agent.providers import get_provider
-from app.config import settings
-from app.db import get_supabase
+from app.core.config import settings
+from app.core.db import get_supabase
 from app.schemas.health import Health
 
 log = logging.getLogger(__name__)

@@ -161,7 +161,7 @@ def test_input_limits(mock_llm, monkeypatch):
     big = {**OPPORTUNITY, "problem": "x" * (product.MAX_INPUT_CHARS + 1)}
     res = client.post("/api/product/generate", json={"opportunity": big})
     assert res.status_code == 422
-    from app.config import settings
+    from app.core.config import settings
 
     monkeypatch.setattr(settings, "chat_rate_per_ip", 0)
     assert post().status_code == 429

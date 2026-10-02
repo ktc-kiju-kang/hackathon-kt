@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 
 from app.agent.providers import LLMProvider
 from app.agent.stages import StageRunner, stream_stages
+from app.core.quota import check_quota
 from app.schemas.product import (
     ApiSpec,
     Architecture,
@@ -30,7 +31,6 @@ from app.schemas.product import (
 )
 from app.schemas.trends import Evidence, EvidenceRef
 from app.services import trends
-from app.services.rate_limit import check_chat_quota
 
 MAX_CALLS = 3  # 계약: 요청당 LLM 호출 최대 3회
 MAX_INPUT_CHARS = 8000  # 입력 Opportunity(JSON) 크기 상한 — 비용 보호
@@ -159,7 +159,7 @@ def stream_product(
     """검증·한도 확인은 스트림 시작 전에 한다 (스트림 도중엔 상태코드를 바꿀 수 없음)."""
     if len(req.opportunity.model_dump_json()) > MAX_INPUT_CHARS:
         raise HTTPException(status_code=422, detail="입력한 사업 기회 내용이 너무 깁니다")
-    check_chat_quota(ip)
+    check_quota(ip)
     return stream_stages(
         lambda runner: _run(req, runner), system=SYSTEM, max_calls=MAX_CALLS, provider=provider
     )

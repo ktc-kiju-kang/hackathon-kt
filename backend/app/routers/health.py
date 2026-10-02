@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Request, Response
 
+from app.core.quota import client_ip
 from app.schemas.health import Health
 from app.services import health as service
-from app.services.rate_limit import client_ip
 
 router = APIRouter(prefix="/health", tags=["health"])
 

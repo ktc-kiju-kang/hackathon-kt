@@ -16,10 +16,10 @@ from pydantic import BaseModel, Field
 from app.agent.providers import LLMProvider
 from app.agent.stages import StageRunner, stream_stages
 from app.agent.structured import StructuredError
+from app.core.quota import check_quota
 from app.schemas.radar import Company, Opportunity, OpportunityRequest, OpportunityScore
 from app.schemas.trends import Evidence, EvidenceRef
 from app.services import trends
-from app.services.rate_limit import check_chat_quota
 
 COMPANIES_FILE = Path(__file__).resolve().parents[2] / "data" / "companies.json"
 
@@ -251,7 +251,7 @@ def stream_opportunities(
     """검증·한도 확인은 스트림 시작 전에 한다 (스트림 도중엔 상태코드를 바꿀 수 없음)."""
     company = get_company(req.company_id)
     trends.get_summary(req.country, trends.EVIDENCE_MONTHS)  # 지원하지 않는 국가면 404
-    check_chat_quota(ip)
+    check_quota(ip)
     return stream_stages(
         lambda runner: _run(req, company, runner), system=SYSTEM, provider=provider
     )

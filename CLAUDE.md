@@ -35,7 +35,8 @@ backend/                         FastAPI
   app/routers/<feature>.py         엔드포인트 (자동 등록) — 기능 담당자
   app/services/<feature>.py        비즈니스 로직·DB 접근 — 기능 담당자
   app/schemas/<feature>.py         Pydantic 요청/응답 모델 — 기능 담당자
-  app/main.py, config.py, db.py    공용 (main.py는 수정 불필요)
+  app/main.py                      공용 (수정 불필요)
+  app/core/                        공용 — config.py(설정), db.py(Supabase), quota.py(사용량 한도·client_ip)
   app/agent/                       AI 에이전트 엔진 (공용) — providers/ 어댑터, tools/<name>.py 도구(기능 담당자), loop.py,
                                    structured.py(구조화 출력·SSE)·stages.py(단계 실행: radar·product가 사용)
   data/                            공개 읽기 전용 정적 데이터 (Signals CSV·그룹사 JSON, 출처·라이선스 README 포함)
@@ -50,10 +51,10 @@ docs/decisions/                  ADR (0006: 정적 데이터·구조화 생성, 
 docs/worklog/YYYY-MM-DD.md       날짜별 작업 기록 (머지된 PR, 결정, 겪은 문제·교훈, 남은 일)
 ```
 
-### 목표 구조와 분업 규칙 (ADR 0007 — 폴더 이동 전까지 위 "현재 구조"가 코드의 실제 모양)
+### 목표 구조와 분업 규칙 (ADR 0007 — `core/` 이동은 완료, `features/` 이동 전까지 위 "현재 구조"가 코드의 실제 모양)
 ```
 backend/app/
-  core/               공용 — config, db, quota(현 services/rate_limit.py)
+  core/               공용 — config, db, quota (이동 완료, 이슈 #45)
   agent/              AI 엔진 — 공용 (tools/<name>.py 도구만 기능 담당자)
   features/<feature>/ 기능 담당자만 — router.py, service.py, schemas.py
 frontend/src/
@@ -83,7 +84,7 @@ frontend/src/
    - 리뷰 권장(머지 전에 리뷰어 지정): 공용 파일(규칙 5), 남의 기능 파일(규칙 6), 다른 기능이 쓰는 계약(규칙 4), DB 마이그레이션. 리뷰를 요청했으면 답을 받고 머지한다
 3. **동시에 여러 이슈는 worktree로:** `scripts/new-worktree.sh <이슈번호> <설명>`
 4. **계약 우선:** 다른 기능·화면이 쓰는 API는 `docs/contracts/<feature>.md`에 먼저 정의한다. 남의 기능 계약을 바꾸면 그 담당자를 PR 리뷰어로 지정한다.
-5. **공용 파일은 최소한으로, 작게 고친다:** `layout.tsx`, `src/app/page.tsx`, `app-shell.tsx`, `app-sidebar.tsx`(메뉴 한 줄 추가는 OK), `api-client.ts`, `components/`, `config.py`, `db.py`, `app/agent/`(loop·providers·prompts·types·structured — `tools/<name>.py` 제외), `requirements*.txt`, `package.json`, 루트 설정. 큰 변경은 별도 PR로 먼저 머지한다.
+5. **공용 파일은 최소한으로, 작게 고친다:** `layout.tsx`, `src/app/page.tsx`, `app-shell.tsx`, `app-sidebar.tsx`(메뉴 한 줄 추가는 OK), `api-client.ts`, `components/`, `app/core/`, `app/agent/`(loop·providers·prompts·types·structured — `tools/<name>.py` 제외), `requirements*.txt`, `package.json`, 루트 설정. 큰 변경은 별도 PR로 먼저 머지한다.
 6. **남의 기능 파일은 직접 고치지 않는다.** 필요하면 담당자에게 요청하거나, 사용자 확인 후 수정하고 담당자를 리뷰어로 지정한다.
 7. **DB 마이그레이션은 main 머지 시 공유 DB에 자동 적용된다.** 번호는 머지 직전에 확정. 마이그레이션은 backend 배포보다 먼저 적용되므로 **이전 버전 코드와도 호환**되게 쓴다(컬럼 추가 OK, drop/rename은 2단계로). 파괴적 변경은 팀에 먼저 알린다.
 8. **작게, 자주 머지.** 작업 시작 전과 PR 전에 `scripts/sync.sh`로 main 반영. **PR 전에는 `scripts/check-conflicts.sh`(`/pr-check`)로 충돌 검사** — git이 아직 모르는 충돌(같은 화면 경로를 두 사람이 만듦, 마이그레이션 번호 중복, 다른 열린 PR과 같은 파일)까지 찾는다.
@@ -114,10 +115,10 @@ frontend/src/
 - 기능 = `routers/<feature>.py` + `services/<feature>.py` + `schemas/<feature>.py`.
   - `router = APIRouter(prefix="/<feature>", tags=["<feature>"])`를 정의하면 자동 등록 → `/api/<feature>/...`
   - router는 얇게(검증·응답), 로직·DB 접근은 service에. `response_model` 항상 지정.
-- DB는 `app.db.get_supabase()`로 service에서만 접근. 설정·비밀값은 `app/config.py`의 `Settings`로만 읽는다.
+- DB는 `app.core.db.get_supabase()`로 service에서만 접근. 설정·비밀값은 `app/core/config.py`의 `Settings`로만 읽는다.
 - DB 사용 예 (service):
   ```python
-  from app.db import get_supabase
+  from app.core.db import get_supabase
   rows = get_supabase().table("items").select("*").eq("owner", uid).execute().data
   ```
   `service_role` 키라 RLS를 우회한다 → **권한 체크(누가 어떤 행에 접근 가능한지)는 service 코드에서** 한다.
@@ -141,7 +142,7 @@ frontend/src/
 - `SYSTEM_PROMPT`(`agent/prompts.py`)에 날짜 등 바뀌는 값을 넣지 않는다 (프롬프트 캐시가 깨짐). 공용 파일이라 변경 시 리뷰 필요.
 - 대화 기록은 append-only (`raw`의 thinking 블록 유효성). 저장된 메시지를 수정·삭제하는 기능을 만들지 않는다.
 - **LLM 일시 오류**(한도 초과 429·5xx)는 루프가 글자를 보내기 전에만 대기 후 재시도한다(`AGENT_LLM_RETRIES`=2, retry-after 또는 4초→8초, 최대 20초). 오류 문구는 `app/agent/errors.py`에서 사용자용 한국어로 바꿔 SSE `error.message`로 보낸다 — 화면에 예외 이름을 노출하지 않는다.
-- **비용 보호** (공개 API): IP당 10분 20회(IP는 `rate_limit.client_ip`: Cloudflare `CF-Connecting-IP` → `X-Forwarded-For` 마지막 값. XFF 첫 값·`True-Client-IP`는 클라이언트가 넣을 수 있어 쓰지 않는다. IPv6는 /64로 묶는다), 서버 전체 하루 500회, 대화당 메시지 80개, 턴당 출력 8000토큰, 요청당 6턴 (`CHAT_*`, `LLM_MAX_TOKENS`, `AGENT_MAX_TURNS`). 메모리 기준이라 재시작 시 초기화 — **Anthropic Console에서 월 사용 한도도 설정**한다.
+- **비용 보호** (공개 API): IP당 10분 20회(IP는 `core/quota.py`의 `client_ip`: Cloudflare `CF-Connecting-IP` → `X-Forwarded-For` 마지막 값. XFF 첫 값·`True-Client-IP`는 클라이언트가 넣을 수 있어 쓰지 않는다. IPv6는 /64로 묶는다), 서버 전체 하루 500회, 대화당 메시지 80개, 턴당 출력 8000토큰, 요청당 6턴 (`CHAT_*`, `LLM_MAX_TOKENS`, `AGENT_MAX_TURNS`). 메모리 기준이라 재시작 시 초기화 — **Anthropic Console에서 월 사용 한도도 설정**한다.
 - 대화가 길어져도 앞부분을 잘라 보내지 않는다 (기록 수정 → thinking 블록 무효·캐시 손실). 한도를 넘으면 409로 새 대화를 시작하게 한다.
 - **LLM이 결과 객체를 만드는 API**(대화가 아닌 단발 생성, 예: radar·product): 단계는 `app/agent/stages.py`의 `StageRunner.run`으로 **선언**하고(이름·제출 도구·출력 모델·프롬프트·mock 결과·요약), 진입은 `stream_stages`로 한다. 내부는 `structured.py`(`call_structured`·`CallBudget`·`sse_stream`). 규칙은 `docs/contracts/radar.md`의 "스트림 형식"·"구조화 출력 방법".
   - 결과 제출용 도구 하나만 넘겨 호출하게 하고, 그 입력(pydantic)을 결과로 쓴다 (`call_structured`). 도구 스키마의 `$ref`는 펼쳐서 보낸다 (Gemini).

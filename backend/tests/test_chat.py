@@ -54,7 +54,7 @@ def test_requires_client_id_and_valid_id():
 
 
 def test_rate_limit(monkeypatch):
-    from app.config import settings
+    from app.core.config import settings
 
     monkeypatch.setattr(settings, "chat_rate_per_ip", 2)
     conv = client.post("/api/chat/conversations", json={}, headers=H).json()
@@ -64,7 +64,7 @@ def test_rate_limit(monkeypatch):
 
 
 def test_conversation_length_cap(monkeypatch):
-    from app.config import settings
+    from app.core.config import settings
 
     monkeypatch.setattr(settings, "chat_max_messages", 2)
     conv = client.post("/api/chat/conversations", json={}, headers=H).json()
