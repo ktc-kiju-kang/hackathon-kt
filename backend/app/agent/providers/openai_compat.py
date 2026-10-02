@@ -1,4 +1,4 @@
-"""OpenAI 호환 Chat Completions 어댑터. Gemini가 기본 프리셋이며 Groq·GitHub Models·OpenRouter·
+"""OpenAI 호환 Chat Completions 어댑터. Gemini가 기본 프리셋이며 Groq·OpenRouter·
 Ollama 등 OpenAI 호환 API는 LLM_BASE_URL·LLM_MODEL·LLM_API_KEY만 바꿔 같은 코드로 쓴다.
 
 - assistant 응답 원본(tool_calls의 알 수 없는 필드 포함)을 raw로 보관해 그대로 재전송한다.
