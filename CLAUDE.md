@@ -45,8 +45,23 @@ database/                        Supabase Postgres
   migrations/NNNN_<설명>.sql       스키마 변경 (규칙: database/README.md)
   seed.sql
 docs/contracts/<feature>.md      기능별 API 계약
-docs/decisions/                  ADR (0006: 정적 데이터·구조화 생성)
+docs/decisions/                  ADR (0006: 정적 데이터·구조화 생성, 0007: 폴더 구조)
 ```
+
+### 목표 구조와 분업 규칙 (ADR 0007 — 폴더 이동 전까지 위 "현재 구조"가 코드의 실제 모양)
+```
+backend/app/
+  core/               공용 — config, db, quota(현 services/rate_limit.py)
+  agent/              AI 엔진 — 공용 (tools/<name>.py 도구만 기능 담당자)
+  features/<feature>/ 기능 담당자만 — router.py, service.py, schemas.py
+frontend/src/
+  features/<feature>/ 기능 담당자만 (이미 이 모양)
+  components/, lib/   공용
+```
+- **지금 backend 새 기능은 현재 구조(`routers`·`services`·`schemas`)로 만든다.** 라우터 자동 등록이 `routers/`만 스캔해서 `app/features/`에 만들면 등록되지 않는다. 이동은 후속 이슈(진행 중 PR과 충돌하므로 열린 이슈 머지 후, 한 PR로).
+- **이름 규칙**: 기능 이름은 backend 폴더·frontend `features/`·`docs/contracts/`·`tests/test_<f>.py`·API 경로에서 모두 같다. 한 개념에 이름 둘, 다른 개념에 같은 이름을 쓰지 않는다. (현재 어긋남: backend `chat` ↔ frontend `agent`, 임시 mock `features/chat` — ADR 0007 미결 2)
+- **import 방향**: `features → core, agent`만. `core`는 다른 폴더를 import하지 않는다. `agent`는 `core`만 import한다 (단 `agent/tools/<name>.py`는 기능을 호출하는 도구라 해당 기능의 service를 import할 수 있다). **features끼리 직접 import 금지.** 알려진 예외(잠정): backend radar·product → `trends`(service와 schemas 모두), 도구 `get_ai_usage_trends` → `trends`, frontend product → radar(`Opportunity` 타입·선택 저장). 새 예외가 필요하면 만들기 전에 계약·ADR에 이유를 적고 리뷰를 요청한다.
+- **새 공용 코드를 기능 폴더에 두지 않는다.** 둘 이상의 기능이 쓰면 공용 영역(`core`·`agent`·`components`·`lib`)에 별도 PR로 먼저 올린다. 이름도 실제 사용처를 따른다 (예: 여러 기능이 쓰는 한도를 `chat_*`라 부르지 않는다).
 
 ## 명령
 | | frontend (`cd frontend`) | backend (`cd backend`) |

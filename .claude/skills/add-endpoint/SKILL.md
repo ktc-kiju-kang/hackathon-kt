@@ -9,7 +9,7 @@ argument-hint: <feature> <METHOD> <path> <설명>
    - 다른 기능 담당자가 이 API를 쓰거나 남의 계약을 바꾸는 경우, 계약만 먼저 작은 PR로 올리자고 제안한다.
 2. **데이터 저장 위치** — 공개된 읽기 전용 데이터(공개 통계·고정 목록)면 DB 대신 `backend/data/` 파일 + 메모리 로드 (CLAUDE.md backend 규칙, 출처·라이선스 README). 사용자가 만드는 데이터면 DB:
    **DB (필요 시)** — `database/migrations/NNNN_<설명>.sql` 새 파일 (규칙: `database/README.md` — RLS 켜기, 기본 컬럼, 번호는 머지 직전 확정). 계약 문서의 "DB" 항목에도 적는다. **공유 DB에는 직접 적용하지 않는다** — main 머지 시 배포 파이프라인이 자동 적용. 이전 버전 backend와 호환되게 쓰고, Docker Postgres로 로컬 검증 (`database/README.md`).
-3. **backend** (`backend/app/`)
+3. **backend** (`backend/app/`) — 아래는 **현재 구조**다. 목표 구조(`app/features/<feature>/{router,service,schemas}.py`, ADR 0007)로 이동하기 전까지 새 기능도 이 구조로 만든다 (라우터 자동 등록이 `routers/`만 스캔). 이동 PR이 이 문서의 경로도 같이 고친다. 기능 이름은 backend·frontend `features/`·계약·테스트·API 경로에서 모두 같게 쓴다.
    - `schemas/<feature>.py`: Pydantic 모델 (계약과 필드명·타입 일치)
    - `services/<feature>.py`: 로직·DB 접근 (`get_supabase().table("<table>")...execute().data`). service_role이라 RLS를 우회하므로 **행 접근 권한 체크를 service에서** 한다
    - `routers/<feature>.py`: `router = APIRouter(prefix="/<feature>", tags=["<feature>"])`, 핸들러는 service 호출만, `response_model` 지정. `main.py`는 자동 등록이라 고치지 않는다.
