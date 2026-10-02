@@ -18,6 +18,9 @@ import sys
 import time
 from pathlib import Path
 
+from app.agent.providers import get_provider
+from app.agent.stages import StageRunner
+from app.agent.structured import CallBudget
 from app.schemas.radar import OpportunityRequest
 from app.services import radar
 
@@ -33,7 +36,8 @@ async def run_case(case: dict) -> dict:
     t0 = time.monotonic()
     fails = []
     try:
-        await radar._run(req, company, emit)
+        runner = StageRunner(emit, CallBudget(), get_provider(), radar.SYSTEM)
+        await radar._run(req, company, runner)
     except Exception as e:  # StructuredError 등
         fails.append(f"error: {getattr(e, 'code', type(e).__name__)} {e}")
     opps = [d["opportunity"] for e, d in events if e == "opportunity"]
@@ -65,7 +69,7 @@ async def main() -> int:
         from app.config import settings
 
         settings.llm_provider = args.provider
-        radar.get_provider.cache_clear()
+        get_provider.cache_clear()
 
     cases = json.loads(Path(args.cases).read_text("utf-8"))
     if args.only:
