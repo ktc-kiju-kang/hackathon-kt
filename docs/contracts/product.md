@@ -1,5 +1,5 @@
 # product (Opportunity → Product Card·PoC 생성)
-- 담당: (#24 담당자) · 이슈: #24 · 계약: #21
+- 담당: @ktc-kiju-kang · 이슈: #24 · 계약: #21
 - 사용처: frontend `/product` (`features/product`). 입력은 `/radar`에서 고른 `Opportunity`
 - DB: 직접 쓰는 표 없음 (v1은 저장하지 않음. 결과 내보내기는 프론트에서 Markdown으로)
 - 스키마: `backend/app/schemas/product.py` (#21에서 만듦). `Opportunity`는 `app.schemas.radar`에서, `Evidence`는 `app.schemas.trends`에서 import
@@ -11,7 +11,7 @@ Request:
 { opportunity: Opportunity,   // radar에서 받은 객체 그대로 (서버는 저장된 값을 찾지 않는다)
   notes?: string }            // (≤500자) 추가 요구사항. 예: "3주 안에 PoC 가능해야 함"
 ```
-→ 200 `text/event-stream` · 422 · **429** (chat과 같은 한도 `check_chat_quota`)
+→ 200 `text/event-stream` · 422 (`notes` 500자 초과, `opportunity` JSON 8000자 초과 등) · **429** (chat과 같은 한도 `check_chat_quota`)
 
 이벤트는 [radar 스트림 형식](radar.md#스트림-형식-radarproduct-공통)과 같다. 구조화 출력은 [radar의 방법](radar.md#구조화-출력-방법-radarproduct-공통)과 같다.
 
@@ -42,7 +42,7 @@ ProductCard = {
   apis: { method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", path: string, description: string }[],
   architecture: {
     components: { id: string, name: string, role: string }[],
-    edges: { from: string, to: string, label?: string }[]   // components.id 참조. 프론트가 간단한 다이어그램으로 그린다
+    edges: { from: string, to: string, label: string | null }[]   // components.id 참조 (없는 id를 가리키면 서버가 버림). 프론트가 간단한 다이어그램으로 그린다
   },
   mvp_scope: { in: string[], out: string[] },
   poc_plan: {
@@ -59,3 +59,4 @@ ProductCard = {
 | 날짜 | 변경 | 작성자 |
 |---|---|---|
 | 2026-10-01 | 추가 | ktc-kiju-kang |
+| 2026-10-02 | 구현 반영: edge `label`은 null 가능, 잘못된 edge 제거, 입력 크기 상한 8000자(422) | ktc-kiju-kang |

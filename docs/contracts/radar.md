@@ -1,5 +1,5 @@
 # radar (그룹사 선택 + AI Opportunity Radar)
-- 담당: (#23 담당자) · 이슈: #23 · 계약: #21
+- 담당: @ktc-kiju-kang · 이슈: #23 · 계약: #21
 - 사용처: frontend `/radar` (`features/radar`). `Opportunity` 타입은 product (#24)가 입력으로 쓴다
 - 데이터: `backend/data/companies.json` (DB 없음, 아래 "그룹사 데이터"). Opportunity는 v1에서 저장하지 않는다 (요청마다 생성해 스트리밍)
 - 스키마: `backend/app/schemas/radar.py` (#21에서 만듦)

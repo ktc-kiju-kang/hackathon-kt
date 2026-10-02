@@ -8,6 +8,7 @@ import {
   ChartLine,
   FileText,
   Home,
+  Lightbulb,
   LayoutDashboard,
   MessageSquare,
   Radar,
@@ -37,6 +38,7 @@ const MENU_GROUPS = [
       { title: 'AI 에이전트', href: '/agent', icon: Bot },
       { title: 'AI 활용 트렌드', href: '/trends', icon: ChartLine },
       { title: 'Opportunity Radar', href: '/radar', icon: Radar },
+      { title: 'Product Generator', href: '/product', icon: Lightbulb },
     ],
   },
   {

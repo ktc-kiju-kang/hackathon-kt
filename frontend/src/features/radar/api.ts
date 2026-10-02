@@ -155,10 +155,14 @@ async function mockStream(body: OpportunityRequest, onEvent: (ev: RadarEvent) =>
   const wait = (ms: number) =>
     new Promise<void>((resolve, reject) => {
       const t = setTimeout(resolve, ms)
-      signal?.addEventListener('abort', () => {
-        clearTimeout(t)
-        reject(new DOMException('aborted', 'AbortError'))
-      })
+      signal?.addEventListener(
+        'abort',
+        () => {
+          clearTimeout(t)
+          reject(new DOMException('aborted', 'AbortError'))
+        },
+        { once: true },
+      )
     })
   const company = MOCK_COMPANIES.find((c) => c.id === body.company_id) ?? MOCK_COMPANIES[0]
   const stages: [Stage, string][] = [
