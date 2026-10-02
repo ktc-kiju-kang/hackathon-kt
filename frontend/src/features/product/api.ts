@@ -1,6 +1,6 @@
 // 계약: docs/contracts/product.md (Opportunity·Evidence는 radar 계약)
-import { apiUrl, isMock } from '@/lib/api-client'
-import type { Evidence, Opportunity } from '@/features/radar/api'
+import { apiUrl, isMock, request } from '@/lib/api-client'
+import type { Evidence, Opportunity, SnapshotInfo } from '@/features/radar/api'
 import { postSse } from '@/lib/sse'
 
 export type ProductCard = {
@@ -37,6 +37,15 @@ export type ProductEvent =
   | { type: 'retry'; data: { code: string; wait_seconds: number; attempt: number } }
   | { type: 'done'; data: { stop_reason: string; usage?: Record<string, number> } }
   | { type: 'error'; data: { message: string; code?: string } }
+
+// 데모 예비안: radar 스냅샷의 기회에 대해 미리 만든 Product Card (계약 product.md "snapshot")
+export type ProductSnapshot = { snapshot: SnapshotInfo; product: ProductCard }
+
+/** 저장된 결과. 없거나 불러오지 못하면 null. */
+export const getProductSnapshot = (opportunityId: string): Promise<ProductSnapshot | null> =>
+  isMock
+    ? Promise.resolve(null)
+    : request<ProductSnapshot>(`/api/product/snapshot/${encodeURIComponent(opportunityId)}`).catch(() => null)
 
 /** Product Card 생성을 요청하고 SSE 이벤트를 하나씩 onEvent로 넘긴다. */
 export async function generateProduct(

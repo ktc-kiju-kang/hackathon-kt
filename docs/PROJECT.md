@@ -61,7 +61,7 @@ OpenAI Signals 데이터 → Trend 분석 → KT 그룹사 사업 매칭 → Opp
 - `/agent` 채팅에서도 `get_ai_usage_trends` 도구로 트렌드를 물어볼 수 있다.
 - 남은 일:
   - 운영 Render의 LLM을 Groq로 전환 (#32, 아래 "데모 준비")
-  - 한도 보험: 같은 요청 결과 캐시, 데모 스냅샷 예비안 (#32)
+  - 리허설 1회 (#32). 같은 요청 결과 캐시는 Groq 한도가 넉넉해 보류
 - 실제 LLM 확인 결과 (2026-10-02, Groq `openai/gpt-oss-120b`): eval radar 2/2, product 1/1. 화면과 같은 SSE로 radar(KT Cloud) 20초 → product 48초. 분당 토큰 제한 429는 자동 재시도로 통과
 
 ## 데모 시나리오
@@ -73,7 +73,9 @@ KT Cloud 선택 → 관련 트렌드(Technical help·업무 활용 등) 추출 �
   - Render 대시보드: `LLM_PROVIDER=openai`, `LLM_BASE_URL=https://api.groq.com/openai/v1`, `LLM_MODEL=openai/gpt-oss-120b`, `LLM_API_KEY=<Groq 키>`. 반영 뒤 `/api/health`의 `llm`이 `openai`인지 확인
   - Gemini 무료(하루 20회)는 예비. GitHub Models는 종료됐고, Anthropic 키는 쓰기 어렵다
 - **Render 깨우기**: 무료 플랜은 15분 미사용 시 잠든다. 시연 1~2분 전에 `/api/health`를 호출한다.
-- **예비안**: 한도에 걸리면 `/product`의 "샘플로 보기"와 `/trends`(LLM 없음)로 흐름을 보여줄 수 있다.
+- **예비안 (데모 스냅샷)**: Groq 장애·한도로 실시간 생성이 실패하면 `/radar`·`/product`의 오류 카드에 **"저장된 결과 보기"** 버튼이 나온다. 미리 실제 LLM으로 만든 KT Cloud 결과(기회 3건 + Product Card 3건, `backend/data/demo/kt-cloud.json`)를 "{날짜}에 {모델}로 미리 만든 결과"라는 안내와 함께 보여준다. 시연 시나리오는 이 스냅샷과 같은 **KT Cloud**로 한다.
+  - 다시 만들기: `cd backend && .venv/bin/python -m evals.make_demo_snapshot --company kt-cloud --count 3` (실제 LLM 약 9회·3분, 커밋 전 내용 확인)
+  - 그 밖의 예비: `/product`의 "샘플로 보기", `/trends`(LLM 없음)
 
 ## 주의
 

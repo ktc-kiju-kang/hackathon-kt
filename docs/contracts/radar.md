@@ -60,6 +60,17 @@ N이 0이면 `stage(opportunity,done)` 대신 `error`(`no_result`)를 보낸다.
 - 구현: `app/agent/stages.py`의 `StageRunner`(단계 start/done·mock 폴백·예산)와 `stream_stages`. 내부는 `app/agent/structured.py`의 `call_structured`(제출 도구 스키마의 `$ref`를 펼쳐 보낸다), `CallBudget`, `sse_stream`.
 - provider가 mock이면 LLM을 부르지 않고 **고정 샘플 결과**를 같은 이벤트 순서로 보낸다. 키 없이 UI를 개발하기 위해서다.
 
+## GET /api/radar/snapshot/{company_id} — v1 (데모 예비안)
+미리 실제 LLM으로 만들어 둔 결과. LLM을 부르지 않고 한도도 쓰지 않는다. 실시간 생성이 실패했을 때(한도·장애) 화면이 "저장된 결과"로 보여준다.
+→ 200 `RadarSnapshot` · 404 (그 그룹사의 스냅샷 없음)
+
+```ts
+SnapshotInfo  = { created_at: string, model: string }      // 언제·어떤 모델로 만들었는지 (화면에 표시)
+RadarSnapshot = { company_id: string, country: string, snapshot: SnapshotInfo, opportunities: Opportunity[] }
+```
+- 저장 위치: `backend/data/demo/<company_id>.json` (`python -m evals.make_demo_snapshot --company <id>`로 생성, 실제 LLM 호출)
+- 화면은 실시간 결과로 오해하지 않게 "{날짜}에 {모델}로 미리 만든 결과"라고 표시한다.
+
 ## 화면 간 전달 (frontend)
 `/radar`에서 "프로덕트 설계"를 누르면 고른 `Opportunity`를 `sessionStorage`의 `radar:selected-opportunity` 키(JSON)에 저장하고 `/product`로 이동한다.
 `features/radar/api.ts`의 `saveSelectedOpportunity` · `loadSelectedOpportunity`를 쓴다. 저장소를 못 쓰면 탭 메모리 값을 쓴다.
@@ -100,3 +111,4 @@ Opportunity = {
 |---|---|---|
 | 2026-10-01 | 추가 | ktc-kiju-kang |
 | 2026-10-02 | 그룹사 데이터를 DB에서 JSON 파일로 변경, 화면 간 전달 방식 추가 (API 형태는 그대로) | ktc-kiju-kang |
+| 2026-10-02 | `GET /api/radar/snapshot/{company_id}` 추가 (데모 예비안, #32) | ktc-kiju-kang |
