@@ -7,6 +7,7 @@ export type Health = {
   version?: string | null
   db?: 'ok' | 'error' | 'unconfigured'
   llm?: string | null
+  client_ip?: string | null
 }
 
 export const getHealth = (): Promise<Health> =>
