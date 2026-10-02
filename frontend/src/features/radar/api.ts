@@ -74,6 +74,7 @@ export async function streamOpportunities(
 
   const reader = res.body.pipeThrough(new TextDecoderStream()).getReader()
   let buf = ''
+  let finished = false // done·error 없이 스트림이 끝나면 연결이 끊긴 것
   for (;;) {
     const { value, done } = await reader.read()
     if (done) break
@@ -84,9 +85,12 @@ export async function streamOpportunities(
       buf = buf.slice(sep + 2)
       const event = /^event: (.+)$/m.exec(chunk)?.[1]
       const data = /^data: (.+)$/m.exec(chunk)?.[1]
-      if (event && data) onEvent({ type: event, data: JSON.parse(data) } as RadarEvent)
+      if (!event || !data) continue
+      if (event === 'done' || event === 'error') finished = true
+      onEvent({ type: event, data: JSON.parse(data) } as RadarEvent)
     }
   }
+  if (!finished) throw new Error('서버 연결이 끊겼습니다. 다시 시도해 주세요.')
 }
 
 // ---- 화면 간 전달: /radar에서 고른 Opportunity를 /product가 읽는다 (계약 radar.md) ----
@@ -115,27 +119,24 @@ export function loadSelectedOpportunity(): Opportunity | null {
 
 // ---- mock (백엔드 없이 화면 개발용, 계약 형태) ----
 
+const mockCompany = (id: string, name: string, areas: string[], customers: string[], assets: string[]): Company => ({
+  id,
+  name,
+  name_en: name,
+  summary: `[mock] ${name} 공개 자료 요약`,
+  business_areas: areas,
+  customers,
+  assets,
+  sources: [],
+})
+
+// 계약: 고정 5개
 const MOCK_COMPANIES: Company[] = [
-  {
-    id: 'kt-cloud',
-    name: 'KT Cloud',
-    name_en: 'kt cloud',
-    summary: '[mock] KT 그룹의 클라우드·데이터센터 사업자.',
-    business_areas: ['퍼블릭 클라우드', '데이터센터(IDC)', 'AI 인프라(GPU 클라우드)'],
-    customers: ['공공기관', '엔터프라이즈'],
-    assets: ['전국 데이터센터', '클라우드 운영 조직'],
-    sources: ['https://www.ktcloud.com/'],
-  },
-  {
-    id: 'kt',
-    name: 'KT',
-    name_en: 'KT Corporation',
-    summary: '[mock] 국내 대표 유무선 통신사.',
-    business_areas: ['유무선 통신(모바일·인터넷)', 'AI 컨택센터(AICC)'],
-    customers: ['개인 통신 가입자', '기업'],
-    assets: ['전국 유무선 통신망', '대규모 고객센터 운영 경험'],
-    sources: ['https://corp.kt.com/'],
-  },
+  mockCompany('kt', 'KT', ['유무선 통신(모바일·인터넷)', 'AI 컨택센터(AICC)'], ['개인 통신 가입자', '기업'], ['전국 유무선 통신망']),
+  mockCompany('kt-cloud', 'KT Cloud', ['퍼블릭 클라우드', '데이터센터(IDC)'], ['공공기관', '엔터프라이즈'], ['전국 데이터센터']),
+  mockCompany('kt-ds', 'KT DS', ['IT 시스템 구축·운영(SI/SM)', '클라우드 전환·운영(MSP)'], ['KT 그룹사'], ['대규모 IT 운영 인력']),
+  mockCompany('bccard', 'BC카드', ['카드 결제 처리(프로세싱)', '가맹점 네트워크'], ['가맹점·소상공인'], ['전국 가맹점 네트워크']),
+  mockCompany('kt-skylife', 'KT Skylife', ['위성 유료방송', '방송 채널·콘텐츠'], ['유료방송 가입자'], ['전국 위성방송망']),
 ]
 
 const MOCK_EVIDENCE: Evidence = {
@@ -194,5 +195,5 @@ async function mockStream(body: OpportunityRequest, onEvent: (ev: RadarEvent) =>
     })
   }
   onEvent({ type: 'stage', data: { stage: 'opportunity', status: 'done', summary: `[mock] 기회 ${count}건` } })
-  onEvent({ type: 'done', data: { stop_reason: 'end' } })
+  onEvent({ type: 'done', data: { stop_reason: 'end', usage: {} } })
 }

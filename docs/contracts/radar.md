@@ -28,7 +28,7 @@ Request:
 2. `match`: 회사의 사업·자산과 연결한다.
 3. `opportunity`: 기회를 만든다.
 
-LLM 호출은 요청당 최대 `AGENT_MAX_TURNS`(6)회다.
+LLM 호출은 요청당 최대 `AGENT_MAX_TURNS`(6)회다. 일시 오류 재시도와 형식 오류 재시도를 모두 세고, 세 단계가 이 예산을 함께 쓴다. 넘으면 `error`(`limit`)를 보낸다.
 
 **Evidence 규칙**: LLM은 `evidence_refs`(EvidenceRef)만 낸다. 서버가 `resolve_evidence`로 숫자와 label을 채운다. 허용 국가는 요청 국가와 `null`이다. 해석된 근거가 0개인 Opportunity는 보내지 않는다. 그래서 실제로 오는 개수 N은 `count` 이하이다.
 
@@ -42,7 +42,7 @@ LLM 호출은 요청당 최대 `AGENT_MAX_TURNS`(6)회다.
 | `product` | `{ "product": ProductCard }` | (product) 설계 완성 |
 | `retry` | chat과 같음 | LLM 일시 오류로 대기 후 재시도 |
 | `done` | `{ "stop_reason": "end", "usage": object }` | 정상 종료 (마지막 이벤트). chat 파서와 호환되게 `stop_reason`을 넣는다 |
-| `error` | chat과 같음 `{ "message", "code"? }` | 오류 종료 (마지막 이벤트). 이 기능에서 추가된 code: `bad_output`(LLM 출력이 스키마와 맞지 않음), `no_result`(근거 있는 기회가 0개) |
+| `error` | chat과 같음 `{ "message", "code"? }` | 오류 종료 (마지막 이벤트). 이 기능에서 추가된 code: `bad_output`(LLM 출력이 스키마와 맞지 않거나 길이 제한에 걸려 잘림), `no_result`(근거 있는 기회가 0개), `limit`(요청당 LLM 호출 한도 초과) |
 
 **radar 순서**: 모든 단계는 `start`와 `done`을 한 번씩 보낸다. `opportunity` 이벤트는 해당 단계의 start와 done 사이에 온다.
 ```
@@ -55,7 +55,9 @@ N이 0이면 `stage(opportunity,done)` 대신 `error`(`no_result`)를 보낸다.
 `LLMProvider`에는 structured output API가 없다. 그래서 다음 방법으로 통일한다.
 - **결과 제출용 도구 하나**(예: `submit_opportunities`)만 넘긴다. 시스템 프롬프트로 그 도구를 호출하게 한다.
 - 도구 입력(pydantic)을 결과로 쓴다.
-- 도구를 호출하지 않았거나 입력이 검증에 실패하면 1회 다시 요청한다. 그래도 실패하면 `error`(`bad_output`)를 보낸다.
+- 도구를 호출하지 않았거나 입력이 검증에 실패하면, 실패 이유를 덧붙여 1회 다시 요청한다. 그래도 실패하면 `error`(`bad_output`)를 보낸다.
+- 출력이 길이 제한(`max_tokens`)에 걸리면 같은 요청을 반복해도 잘리므로 다시 요청하지 않고 바로 `bad_output`을 보낸다.
+- 구현: `app/agent/structured.py`의 `call_structured`(제출 도구 스키마의 `$ref`를 펼쳐 보낸다), `CallBudget`, `sse_stream`.
 - `get_provider().name == "mock"`이면 LLM을 부르지 않고 **고정 샘플 결과**를 같은 이벤트 순서로 보낸다. 키 없이 UI를 개발하기 위해서다.
 
 ## 화면 간 전달 (frontend)

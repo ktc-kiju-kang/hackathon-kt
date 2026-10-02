@@ -14,7 +14,7 @@ from fastapi import HTTPException
 from pydantic import BaseModel, Field
 
 from app.agent.providers import get_provider
-from app.agent.structured import Emit, StructuredError, call_structured, sse_stream
+from app.agent.structured import CallBudget, Emit, StructuredError, call_structured, sse_stream
 from app.schemas.radar import Company, Opportunity, OpportunityRequest, OpportunityScore
 from app.schemas.trends import Evidence, EvidenceRef
 from app.services import trends
@@ -29,6 +29,8 @@ SYSTEM = """\
 - 데이터는 개인 ChatGPT 사용 통계(OpenAI Signals)입니다. 기업 계정은 포함되지 않으므로,
   데이터가 직접 말하는 것(사용 패턴 변화)과 당신의 추론(사업 기회)을 구분합니다.
 - 회사 정보는 공개 자료 요약입니다. 없는 사업·자산을 지어내지 않습니다.
+- 고객 개인정보(개인별 결제·통화·위치 기록 등)를 그대로 활용하는 기회는 제안하지 않습니다.
+  데이터가 필요하면 비식별·통계 데이터로 씁니다.
 """
 
 
@@ -131,7 +133,7 @@ def _company_text(company: Company, focus: str | None) -> str:
     return text + (f"\n\n사용자가 관심 있는 방향: {focus}" if focus else "")
 
 
-async def _trend_stage(company, focus, cands, emit) -> TrendsOut:
+async def _trend_stage(company, focus, cands, emit, budget) -> TrendsOut:
     if get_provider().name == "mock":
         return _mock_trends(cands)
     prompt = (
@@ -147,10 +149,11 @@ async def _trend_stage(company, focus, cands, emit) -> TrendsOut:
         description="고른 AI 활용 트렌드를 제출한다.",
         model=TrendsOut,
         emit=emit,
+        budget=budget,
     )
 
 
-async def _match_stage(company, focus, picked: TrendsOut, emit) -> MatchesOut:
+async def _match_stage(company, focus, picked: TrendsOut, emit, budget) -> MatchesOut:
     if get_provider().name == "mock":
         return _mock_matches(company, picked)
     prompt = (
@@ -166,10 +169,11 @@ async def _match_stage(company, focus, picked: TrendsOut, emit) -> MatchesOut:
         description="트렌드와 회사 사업의 연결을 제출한다.",
         model=MatchesOut,
         emit=emit,
+        budget=budget,
     )
 
 
-async def _opportunity_stage(company, focus, cands, picked, matches, count, emit):
+async def _opportunity_stage(company, focus, cands, picked, matches, count, emit, budget):
     if get_provider().name == "mock":
         return _mock_opportunities(company, picked, matches, count)
     prompt = (
@@ -177,7 +181,8 @@ async def _opportunity_stage(company, focus, cands, picked, matches, count, emit
         f"고른 트렌드:\n{json.dumps(picked.model_dump(), ensure_ascii=False, indent=1)}\n\n"
         f"사업 연결:\n{json.dumps(matches.model_dump(), ensure_ascii=False, indent=1)}\n\n"
         f"이 회사가 만들 수 있는 AI 사업 기회 {count}개를 제안하세요. 서로 겹치지 않게, "
-        "실제 고객과 문제가 분명하게 씁니다. kt_assets는 회사 정보의 assets 문구 그대로, "
+        "실제 고객과 문제가 분명하게, 각 항목은 1~2문장으로 짧게 씁니다. "
+        "kt_assets는 회사 정보의 assets 문구 그대로, "
         "evidence_ids는 근거 후보 id로 씁니다. impact·feasibility는 1~5점입니다."
     )
     return await call_structured(
@@ -187,6 +192,7 @@ async def _opportunity_stage(company, focus, cands, picked, matches, count, emit
         description="AI 사업 기회 목록을 제출한다.",
         model=OpportunitiesOut,
         emit=emit,
+        budget=budget,
     )
 
 
@@ -214,20 +220,23 @@ def _to_opportunity(
 
 async def _run(req: OpportunityRequest, company: Company, emit: Emit) -> None:
     cands = _candidates(req.country)
+    budget = CallBudget()  # 세 단계가 요청당 LLM 호출 한도를 함께 쓴다
 
     await emit("stage", {"stage": "trend", "status": "start"})
-    picked = await _trend_stage(company, req.focus, cands, emit)
+    picked = await _trend_stage(company, req.focus, cands, emit, budget)
     summary = " · ".join(t.title for t in picked.trends)
     await emit("stage", {"stage": "trend", "status": "done", "summary": summary})
 
     await emit("stage", {"stage": "match", "status": "start"})
-    matches = await _match_stage(company, req.focus, picked, emit)
+    matches = await _match_stage(company, req.focus, picked, emit, budget)
     areas = sorted({m.business_area for m in matches.matches})
     summary = f"{len(matches.matches)}건 연결: {', '.join(areas)}"
     await emit("stage", {"stage": "match", "status": "done", "summary": summary})
 
     await emit("stage", {"stage": "opportunity", "status": "start"})
-    out = await _opportunity_stage(company, req.focus, cands, picked, matches, req.count, emit)
+    out = await _opportunity_stage(
+        company, req.focus, cands, picked, matches, req.count, emit, budget
+    )
     sent = 0
     for draft in out.opportunities[: req.count]:
         if (opp := _to_opportunity(draft, company, req.country, cands)) is not None:

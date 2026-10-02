@@ -19,7 +19,7 @@ Request:
 ```
 stage(design,start) → stage(design,done) → stage(poc,start) → stage(poc,done) → product → done
 ```
-LLM 호출은 요청당 최대 3회다 (`bad_output` 재시도 포함). 오류가 나면 그 시점에 `error`를 보내고 끝난다.
+LLM 호출은 요청당 최대 3회다 (`CallBudget(limit=3)`, 일시 오류·`bad_output` 재시도 포함). 오류가 나면 그 시점에 `error`를 보내고 끝난다.
 
 **Evidence 재검증**: 요청의 `opportunity`는 클라이언트가 보낸 값이라 그대로 믿지 않는다.
 - 서버는 `opportunity.evidence`에서 `(metric, key, country)`만 꺼낸다.

@@ -163,3 +163,110 @@ def test_no_evidence_at_all_is_no_result(monkeypatch):
 def test_submit_schema_has_no_refs():
     schema = json.dumps(_submit_model(radar.OpportunitiesOut).model_json_schema())
     assert "$ref" not in schema and "$defs" not in schema
+
+
+def test_quota_checked_before_stream(mock_llm, monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "chat_rate_per_ip", 0)
+    assert post().status_code == 429
+
+
+class ScriptedProvider:
+    """호출마다 정해진 동작: 예외를 던지거나 TurnComplete를 돌려준다."""
+
+    name = "scripted"
+
+    def __init__(self, script):
+        self.script = list(script)
+        self.calls = 0
+
+    async def stream_turn(self, *, system, history, tools):
+        self.calls += 1
+        step = self.script.pop(0)
+        if isinstance(step, Exception):
+            raise step
+        name = tools[0].name
+        calls = [ToolCall(id="c", name=name, input=step[1])] if step[1] else []
+        yield TurnComplete(message=Message(role="assistant", tool_calls=calls), stop_reason=step[0])
+
+
+class RateLimited(Exception):
+    status_code = 429
+
+
+def run_structured(provider, budget=None):
+    import asyncio
+
+    from app.agent.structured import CallBudget, call_structured
+
+    events = []
+
+    async def emit(event, data):
+        events.append((event, data))
+
+    async def go():
+        return await call_structured(
+            system="s",
+            prompt="p",
+            tool_name="submit_trends",
+            description="d",
+            model=radar.TrendsOut,
+            emit=emit,
+            budget=budget or CallBudget(),
+            provider=provider,
+        )
+
+    return asyncio.run(go()), events
+
+
+def test_transient_error_retries_with_event(monkeypatch):
+    monkeypatch.setattr("app.agent.structured.asyncio.sleep", _no_sleep)
+    provider = ScriptedProvider([RateLimited("429"), ("tool_use", TRENDS)])
+    out, events = run_structured(provider)
+    assert len(out.trends) == 2 and provider.calls == 2
+    assert events == [("retry", {"code": "rate_limit", "wait_seconds": 4.0, "attempt": 1})]
+
+
+def test_unparseable_tool_json_counts_as_bad_output_retry():
+    provider = ScriptedProvider([ValueError("bad json"), ("tool_use", TRENDS)])
+    out, _ = run_structured(provider)
+    assert len(out.trends) == 2 and provider.calls == 2
+
+
+def test_max_tokens_stops_without_repeating():
+    from app.agent.structured import StructuredError
+
+    provider = ScriptedProvider([("max_tokens", None), ("tool_use", TRENDS)])
+    with pytest.raises(StructuredError) as e:
+        run_structured(provider)
+    assert e.value.code == "bad_output" and provider.calls == 1
+
+
+def test_call_budget_caps_llm_calls():
+    from app.agent.structured import CallBudget, StructuredError
+
+    provider = ScriptedProvider([("end_turn", None)] * 5)
+    with pytest.raises(StructuredError) as e:
+        run_structured(provider, CallBudget(limit=1))
+    assert e.value.code == "limit" and provider.calls == 1
+
+
+def test_inline_refs_keeps_sibling_description():
+    from pydantic import BaseModel, Field
+
+    from app.agent.structured import _inline_refs
+
+    class Inner(BaseModel):
+        x: int
+
+    class Outer(BaseModel):
+        inner: Inner = Field(description="안쪽")
+
+    schema = _inline_refs(Outer.model_json_schema())
+    assert schema["properties"]["inner"]["description"] == "안쪽"
+    assert schema["properties"]["inner"]["properties"]["x"]["type"] == "integer"
+
+
+async def _no_sleep(_):
+    return None

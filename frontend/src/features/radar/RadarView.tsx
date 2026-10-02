@@ -41,6 +41,12 @@ const IDLE: Record<Stage, StageState> = {
   opportunity: { status: 'idle' },
 }
 
+// 중지·오류 시 진행 중이던 단계의 스피너를 멈춘다
+const halt = (s: Record<Stage, StageState>) =>
+  Object.fromEntries(
+    Object.entries(s).map(([k, v]) => [k, v.status === 'running' ? { status: 'idle', summary: '중단됨' } : v]),
+  ) as Record<Stage, StageState>
+
 export function RadarView() {
   const router = useRouter()
   const [companies, setCompanies] = useState<Company[] | null>(null)
@@ -85,12 +91,16 @@ export function RadarView() {
             setNotice(`AI 서버가 바빠서 ${ev.data.wait_seconds}초 뒤 다시 시도합니다`)
           } else if (ev.type === 'error') {
             setError(ev.data.message)
+            setStages(halt)
           }
         },
         controller.signal,
       )
     } catch (e) {
-      if ((e as Error).name !== 'AbortError') setError((e as Error).message || '요청에 실패했습니다')
+      if ((e as Error).name !== 'AbortError') {
+        setError((e as Error).message || '요청에 실패했습니다')
+        setStages(halt)
+      }
     } finally {
       if (abortRef.current === controller) setRunning(false)
     }
@@ -99,6 +109,7 @@ export function RadarView() {
   function stop() {
     abortRef.current?.abort()
     setRunning(false)
+    setStages(halt)
   }
 
   function design(opp: Opportunity) {
