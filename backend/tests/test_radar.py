@@ -5,7 +5,6 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
-from app.agent.providers.mock import MockProvider
 from app.agent.structured import _submit_model
 from app.agent.types import Message, ToolCall, TurnComplete
 from app.main import app
@@ -42,16 +41,6 @@ class FakeProvider:
             message=Message(role="assistant", content="", tool_calls=calls),
             stop_reason="tool_use" if calls else "end_turn",
         )
-
-
-@pytest.fixture
-def mock_llm(monkeypatch):
-    monkeypatch.setattr(radar, "get_provider", lambda: MockProvider())
-
-
-def use(monkeypatch, provider) -> None:
-    monkeypatch.setattr(radar, "get_provider", lambda: provider)
-    monkeypatch.setattr("app.agent.structured.get_provider", lambda: provider)
 
 
 def post(**body):
@@ -114,7 +103,7 @@ def draft(**over):
     return {**base, **over}
 
 
-def test_llm_output_is_checked_against_data_and_company(monkeypatch):
+def test_llm_output_is_checked_against_data_and_company(use_provider):
     fake = FakeProvider(
         {
             "submit_trends": TRENDS,
@@ -124,7 +113,7 @@ def test_llm_output_is_checked_against_data_and_company(monkeypatch):
             },
         }
     )
-    use(monkeypatch, fake)
+    use_provider(fake)
     events = parse_sse(post(count=3).text)
     opps = [d["opportunity"] for e, d in events if e == "opportunity"]
     assert [o["title"] for o in opps] == ["Cloud 장애 대응 자동화"]  # 근거 없는 기회는 버림
@@ -135,9 +124,9 @@ def test_llm_output_is_checked_against_data_and_company(monkeypatch):
     assert events[-1][0] == "done"
 
 
-def test_no_tool_call_retries_once_then_bad_output(monkeypatch):
+def test_no_tool_call_retries_once_then_bad_output(use_provider):
     fake = FakeProvider({"submit_trends": None})
-    use(monkeypatch, fake)
+    use_provider(fake)
     events = parse_sse(post().text)
     assert events[-1] == (
         "error",
@@ -146,7 +135,7 @@ def test_no_tool_call_retries_once_then_bad_output(monkeypatch):
     assert fake.calls == ["submit_trends", "submit_trends"]
 
 
-def test_no_evidence_at_all_is_no_result(monkeypatch):
+def test_no_evidence_at_all_is_no_result(use_provider):
     fake = FakeProvider(
         {
             "submit_trends": TRENDS,
@@ -154,7 +143,7 @@ def test_no_evidence_at_all_is_no_result(monkeypatch):
             "submit_opportunities": {"opportunities": [draft(evidence_ids=["e999"])]},
         }
     )
-    use(monkeypatch, fake)
+    use_provider(fake)
     events = parse_sse(post().text)
     assert events[-1][0] == "error" and events[-1][1]["code"] == "no_result"
     assert ("opportunity", "done") not in [(d.get("stage"), d.get("status")) for _, d in events]

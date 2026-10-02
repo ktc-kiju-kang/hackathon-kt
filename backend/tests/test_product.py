@@ -2,10 +2,8 @@
 
 import json
 
-import pytest
 from fastapi.testclient import TestClient
 
-from app.agent.providers.mock import MockProvider
 from app.agent.types import Message, ToolCall, TurnComplete
 from app.main import app
 from app.services import product
@@ -54,11 +52,6 @@ def post(**body):
     return client.post("/api/product/generate", json={"opportunity": OPPORTUNITY, **body})
 
 
-@pytest.fixture
-def mock_llm(monkeypatch):
-    monkeypatch.setattr(product, "get_provider", lambda: MockProvider())
-
-
 class FakeProvider:
     name = "fake"
 
@@ -75,11 +68,6 @@ class FakeProvider:
             message=Message(role="assistant", tool_calls=calls),
             stop_reason="tool_use" if calls else "end_turn",
         )
-
-
-def use(monkeypatch, provider):
-    monkeypatch.setattr(product, "get_provider", lambda: provider)
-    monkeypatch.setattr("app.agent.structured.get_provider", lambda: provider)
 
 
 DESIGN = {
@@ -131,9 +119,9 @@ def test_mock_stream_order_and_evidence_reresolved(mock_llm):
     assert ev["label"].startswith("KR 메시지 중 Practical Guidance")
 
 
-def test_llm_path_two_calls_and_architecture_cleanup(monkeypatch):
+def test_llm_path_two_calls_and_architecture_cleanup(use_provider):
     fake = FakeProvider({"submit_product_design": DESIGN, "submit_poc_plan": POC})
-    use(monkeypatch, fake)
+    use_provider(fake)
     events = parse_sse(post(notes="3주 안에 PoC").text)
     card = next(d["product"] for e, d in events if e == "product")
     assert card["name"] == "KT CloudOps Agent"
@@ -142,15 +130,15 @@ def test_llm_path_two_calls_and_architecture_cleanup(monkeypatch):
     assert fake.calls == ["submit_product_design", "submit_poc_plan"]
 
 
-def test_bad_output_within_budget(monkeypatch):
+def test_bad_output_within_budget(use_provider):
     fake = FakeProvider({"submit_product_design": None})
-    use(monkeypatch, fake)
+    use_provider(fake)
     events = parse_sse(post().text)
     assert events[-1][0] == "error" and events[-1][1]["code"] == "bad_output"
     assert len(fake.calls) == 2
 
 
-def test_budget_caps_total_calls(monkeypatch):
+def test_budget_caps_total_calls(use_provider):
     # design 2번째 시도에서 성공 → poc는 남은 1회뿐. poc가 실패하면 재시도 없이 limit
     class Flaky(FakeProvider):
         async def stream_turn(self, *, system, history, tools):
@@ -162,7 +150,7 @@ def test_budget_caps_total_calls(monkeypatch):
             yield TurnComplete(message=msg, stop_reason="end_turn")
 
     fake = Flaky({})
-    use(monkeypatch, fake)
+    use_provider(fake)
     events = parse_sse(post().text)
     assert events[-1][1]["code"] == "limit"
     assert len(fake.calls) == product.MAX_CALLS

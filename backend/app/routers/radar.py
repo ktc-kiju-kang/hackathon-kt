@@ -1,6 +1,10 @@
-from fastapi import APIRouter, Request
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 
+from app.agent.providers import LLMProvider
+from app.agent.stages import llm_provider
 from app.schemas.radar import Company, OpportunityRequest
 from app.services import radar as service
 from app.services.rate_limit import client_ip
@@ -14,9 +18,13 @@ def list_companies() -> list[Company]:
 
 
 @router.post("/opportunities")
-def create_opportunities(body: OpportunityRequest, request: Request) -> StreamingResponse:
+def create_opportunities(
+    body: OpportunityRequest,
+    request: Request,
+    provider: Annotated[LLMProvider, Depends(llm_provider)],
+) -> StreamingResponse:
     """SSE: stage → opportunity × N → done (형식: docs/contracts/radar.md)"""
-    stream = service.stream_opportunities(body, client_ip(request))
+    stream = service.stream_opportunities(body, client_ip(request), provider)
     return StreamingResponse(
         stream,
         media_type="text/event-stream",

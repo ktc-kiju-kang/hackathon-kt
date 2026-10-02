@@ -12,8 +12,8 @@ from collections.abc import AsyncIterator
 from fastapi import HTTPException
 from pydantic import BaseModel, Field
 
-from app.agent.providers import get_provider
-from app.agent.structured import CallBudget, Emit, call_structured, sse_stream
+from app.agent.providers import LLMProvider
+from app.agent.stages import StageRunner, stream_stages
 from app.schemas.product import (
     ApiSpec,
     Architecture,
@@ -89,43 +89,21 @@ def _input_text(req: ProductRequest, evidence: list[Evidence]) -> str:
     return text
 
 
-async def _design(req, evidence, emit, budget) -> DesignOut:
-    if get_provider().name == "mock":
-        return _mock_design(req)
-    prompt = (
+def _design_prompt(req: ProductRequest, evidence: list[Evidence]) -> str:
+    return (
         f"{_input_text(req, evidence)}\n\n"
         "이 사업 기회를 실제 프로덕트로 설계하세요: 이름, 한 줄 설명, 문제, 대상 사용자, 가치, "
         "핵심 기능(must/should/could), 사용자 흐름, 필요한 데이터(public/internal/to_collect), "
         "API, 아키텍처(컴포넌트 3~6개와 연결)."
     )
-    return await call_structured(
-        system=SYSTEM,
-        prompt=prompt,
-        tool_name="submit_product_design",
-        description="프로덕트 설계를 제출한다.",
-        model=DesignOut,
-        emit=emit,
-        budget=budget,
-    )
 
 
-async def _poc(req, evidence, design: DesignOut, emit, budget) -> PocOut:
-    if get_provider().name == "mock":
-        return _mock_poc(design)
-    prompt = (
+def _poc_prompt(req: ProductRequest, evidence: list[Evidence], design: DesignOut) -> str:
+    return (
         f"{_input_text(req, evidence)}\n\n설계:\n"
         f"{json.dumps(design.model_dump(by_alias=True), ensure_ascii=False, indent=1)}\n\n"
         "이 설계로 MVP 범위(in/out)와 PoC 계획(기간 1~12주, 주차별 목표, 성공 지표, 위험)을 "
         "정하세요."
-    )
-    return await call_structured(
-        system=SYSTEM,
-        prompt=prompt,
-        tool_name="submit_poc_plan",
-        description="MVP 범위와 PoC 계획을 제출한다.",
-        model=PocOut,
-        emit=emit,
-        budget=budget,
     )
 
 
@@ -138,19 +116,29 @@ def _clean_architecture(arch: Architecture) -> Architecture:
     )
 
 
-async def _run(req: ProductRequest, emit: Emit) -> None:
+async def _run(req: ProductRequest, runner: StageRunner) -> None:
     evidence = _evidence(req)
-    budget = CallBudget(limit=MAX_CALLS)
 
-    await emit("stage", {"stage": "design", "status": "start"})
-    design = await _design(req, evidence, emit, budget)
-    summary = f"{design.name} — 기능 {len(design.features)}개"
-    await emit("stage", {"stage": "design", "status": "done", "summary": summary})
-
-    await emit("stage", {"stage": "poc", "status": "start"})
-    poc = await _poc(req, evidence, design, emit, budget)
-    summary = f"PoC {poc.poc_plan.duration_weeks}주 · 마일스톤 {len(poc.poc_plan.milestones)}개"
-    await emit("stage", {"stage": "poc", "status": "done", "summary": summary})
+    design = await runner.run(
+        "design",
+        tool_name="submit_product_design",
+        description="프로덕트 설계를 제출한다.",
+        output=DesignOut,
+        prompt=lambda: _design_prompt(req, evidence),
+        mock=lambda: _mock_design(req),
+        summary=lambda out: f"{out.name} — 기능 {len(out.features)}개",
+    )
+    poc = await runner.run(
+        "poc",
+        tool_name="submit_poc_plan",
+        description="MVP 범위와 PoC 계획을 제출한다.",
+        output=PocOut,
+        prompt=lambda: _poc_prompt(req, evidence, design),
+        mock=lambda: _mock_poc(design),
+        summary=lambda out: (
+            f"PoC {out.poc_plan.duration_weeks}주 · 마일스톤 {len(out.poc_plan.milestones)}개"
+        ),
+    )
 
     card = ProductCard(
         id=f"prd_{uuid.uuid4().hex[:12]}",
@@ -161,16 +149,20 @@ async def _run(req: ProductRequest, emit: Emit) -> None:
         poc_plan=poc.poc_plan,
         evidence=evidence,
     )
-    await emit("product", {"product": card.model_dump(by_alias=True)})
-    await emit("done", {"stop_reason": "end", "usage": {}})
+    await runner.emit("product", {"product": card.model_dump(by_alias=True)})
+    await runner.emit("done", {"stop_reason": "end", "usage": {}})
 
 
-def stream_product(req: ProductRequest, ip: str) -> AsyncIterator[str]:
+def stream_product(
+    req: ProductRequest, ip: str, provider: LLMProvider | None = None
+) -> AsyncIterator[str]:
     """검증·한도 확인은 스트림 시작 전에 한다 (스트림 도중엔 상태코드를 바꿀 수 없음)."""
     if len(req.opportunity.model_dump_json()) > MAX_INPUT_CHARS:
         raise HTTPException(status_code=422, detail="입력한 사업 기회 내용이 너무 깁니다")
     check_chat_quota(ip)
-    return sse_stream(lambda emit: _run(req, emit))
+    return stream_stages(
+        lambda runner: _run(req, runner), system=SYSTEM, max_calls=MAX_CALLS, provider=provider
+    )
 
 
 # ---- mock: 키 없이 UI 개발용 고정 결과 ----
