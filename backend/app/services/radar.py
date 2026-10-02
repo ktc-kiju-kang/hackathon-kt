@@ -13,8 +13,9 @@ from pathlib import Path
 from fastapi import HTTPException
 from pydantic import BaseModel, Field
 
-from app.agent.providers import get_provider
-from app.agent.structured import CallBudget, Emit, StructuredError, call_structured, sse_stream
+from app.agent.providers import LLMProvider
+from app.agent.stages import StageRunner, stream_stages
+from app.agent.structured import StructuredError
 from app.schemas.radar import Company, Opportunity, OpportunityRequest, OpportunityScore
 from app.schemas.trends import Evidence, EvidenceRef
 from app.services import trends
@@ -133,50 +134,33 @@ def _company_text(company: Company, focus: str | None) -> str:
     return text + (f"\n\n사용자가 관심 있는 방향: {focus}" if focus else "")
 
 
-async def _trend_stage(company, focus, cands, emit, budget) -> TrendsOut:
-    if get_provider().name == "mock":
-        return _mock_trends(cands)
-    prompt = (
+def _trend_prompt(company: Company, focus: str | None, cands: dict[str, Evidence]) -> str:
+    return (
         f"{_company_text(company, focus)}\n\n근거 후보 (2024-07 → 2026-06):\n"
         f"{_candidate_lines(cands)}\n\n"
         "이 회사 사업과 관련이 큰 AI 활용 트렌드 2~4개를 고르세요. "
         "변화가 크고 회사 사업에 의미 있는 지표를 근거로 씁니다."
     )
-    return await call_structured(
-        system=SYSTEM,
-        prompt=prompt,
-        tool_name="submit_trends",
-        description="고른 AI 활용 트렌드를 제출한다.",
-        model=TrendsOut,
-        emit=emit,
-        budget=budget,
-    )
 
 
-async def _match_stage(company, focus, picked: TrendsOut, emit, budget) -> MatchesOut:
-    if get_provider().name == "mock":
-        return _mock_matches(company, picked)
-    prompt = (
+def _match_prompt(company: Company, focus: str | None, picked: TrendsOut) -> str:
+    return (
         f"{_company_text(company, focus)}\n\n고른 트렌드:\n"
         f"{json.dumps(picked.model_dump(), ensure_ascii=False, indent=1)}\n\n"
         "각 트렌드를 회사의 business_areas·assets와 연결하세요 (2~6건). "
         "business_area와 kt_assets는 회사 정보에 있는 문구 그대로 씁니다."
     )
-    return await call_structured(
-        system=SYSTEM,
-        prompt=prompt,
-        tool_name="submit_matches",
-        description="트렌드와 회사 사업의 연결을 제출한다.",
-        model=MatchesOut,
-        emit=emit,
-        budget=budget,
-    )
 
 
-async def _opportunity_stage(company, focus, cands, picked, matches, count, emit, budget):
-    if get_provider().name == "mock":
-        return _mock_opportunities(company, picked, matches, count)
-    prompt = (
+def _opportunity_prompt(
+    company: Company,
+    focus: str | None,
+    cands: dict[str, Evidence],
+    picked: TrendsOut,
+    matches: MatchesOut,
+    count: int,
+) -> str:
+    return (
         f"{_company_text(company, focus)}\n\n근거 후보:\n{_candidate_lines(cands)}\n\n"
         f"고른 트렌드:\n{json.dumps(picked.model_dump(), ensure_ascii=False, indent=1)}\n\n"
         f"사업 연결:\n{json.dumps(matches.model_dump(), ensure_ascii=False, indent=1)}\n\n"
@@ -184,15 +168,6 @@ async def _opportunity_stage(company, focus, cands, picked, matches, count, emit
         "실제 고객과 문제가 분명하게, 각 항목은 1~2문장으로 짧게 씁니다. "
         "kt_assets는 회사 정보의 assets 문구 그대로, "
         "evidence_ids는 근거 후보 id로 씁니다. impact·feasibility는 1~5점입니다."
-    )
-    return await call_structured(
-        system=SYSTEM,
-        prompt=prompt,
-        tool_name="submit_opportunities",
-        description="AI 사업 기회 목록을 제출한다.",
-        model=OpportunitiesOut,
-        emit=emit,
-        budget=budget,
     )
 
 
@@ -218,44 +193,68 @@ def _to_opportunity(
     )
 
 
-async def _run(req: OpportunityRequest, company: Company, emit: Emit) -> None:
+async def _run(req: OpportunityRequest, company: Company, runner: StageRunner) -> None:
     cands = _candidates(req.country)
-    budget = CallBudget()  # 세 단계가 요청당 LLM 호출 한도를 함께 쓴다
 
-    await emit("stage", {"stage": "trend", "status": "start"})
-    picked = await _trend_stage(company, req.focus, cands, emit, budget)
-    summary = " · ".join(t.title for t in picked.trends)
-    await emit("stage", {"stage": "trend", "status": "done", "summary": summary})
-
-    await emit("stage", {"stage": "match", "status": "start"})
-    matches = await _match_stage(company, req.focus, picked, emit, budget)
-    areas = sorted({m.business_area for m in matches.matches})
-    summary = f"{len(matches.matches)}건 연결: {', '.join(areas)}"
-    await emit("stage", {"stage": "match", "status": "done", "summary": summary})
-
-    await emit("stage", {"stage": "opportunity", "status": "start"})
-    out = await _opportunity_stage(
-        company, req.focus, cands, picked, matches, req.count, emit, budget
+    picked = await runner.run(
+        "trend",
+        tool_name="submit_trends",
+        description="고른 AI 활용 트렌드를 제출한다.",
+        output=TrendsOut,
+        prompt=lambda: _trend_prompt(company, req.focus, cands),
+        mock=lambda: _mock_trends(cands),
+        summary=lambda out: " · ".join(t.title for t in out.trends),
     )
-    sent = 0
-    for draft in out.opportunities[: req.count]:
-        if (opp := _to_opportunity(draft, company, req.country, cands)) is not None:
-            await emit("opportunity", {"opportunity": opp.model_dump(by_alias=True)})
-            sent += 1
-    if sent == 0:
-        raise StructuredError(
-            "no_result", "데이터 근거가 있는 사업 기회를 찾지 못했어요. 다시 시도해 주세요."
-        )
-    await emit("stage", {"stage": "opportunity", "status": "done", "summary": f"기회 {sent}건"})
-    await emit("done", {"stop_reason": "end", "usage": {}})
+
+    def match_summary(out: MatchesOut) -> str:
+        areas = sorted({m.business_area for m in out.matches})
+        return f"{len(out.matches)}건 연결: {', '.join(areas)}"
+
+    matches = await runner.run(
+        "match",
+        tool_name="submit_matches",
+        description="트렌드와 회사 사업의 연결을 제출한다.",
+        output=MatchesOut,
+        prompt=lambda: _match_prompt(company, req.focus, picked),
+        mock=lambda: _mock_matches(company, picked),
+        summary=match_summary,
+    )
+
+    async def send_opportunities(out: OpportunitiesOut) -> str:
+        # 기회 이벤트는 이 단계의 start와 done 사이에 보낸다 (계약). 하나도 없으면 done 대신 error.
+        sent = 0
+        for draft in out.opportunities[: req.count]:
+            if (opp := _to_opportunity(draft, company, req.country, cands)) is not None:
+                await runner.emit("opportunity", {"opportunity": opp.model_dump(by_alias=True)})
+                sent += 1
+        if sent == 0:
+            raise StructuredError(
+                "no_result", "데이터 근거가 있는 사업 기회를 찾지 못했어요. 다시 시도해 주세요."
+            )
+        return f"기회 {sent}건"
+
+    await runner.run(
+        "opportunity",
+        tool_name="submit_opportunities",
+        description="AI 사업 기회 목록을 제출한다.",
+        output=OpportunitiesOut,
+        prompt=lambda: _opportunity_prompt(company, req.focus, cands, picked, matches, req.count),
+        mock=lambda: _mock_opportunities(company, picked, matches, req.count),
+        summary=send_opportunities,
+    )
+    await runner.emit("done", {"stop_reason": "end", "usage": {}})
 
 
-def stream_opportunities(req: OpportunityRequest, ip: str) -> AsyncIterator[str]:
+def stream_opportunities(
+    req: OpportunityRequest, ip: str, provider: LLMProvider | None = None
+) -> AsyncIterator[str]:
     """검증·한도 확인은 스트림 시작 전에 한다 (스트림 도중엔 상태코드를 바꿀 수 없음)."""
     company = get_company(req.company_id)
     trends.get_summary(req.country, trends.EVIDENCE_MONTHS)  # 지원하지 않는 국가면 404
     check_chat_quota(ip)
-    return sse_stream(lambda emit: _run(req, company, emit))
+    return stream_stages(
+        lambda runner: _run(req, company, runner), system=SYSTEM, provider=provider
+    )
 
 
 # ---- mock: 키 없이 UI 개발용 고정 결과 (실제 데이터 근거는 그대로 사용) ----

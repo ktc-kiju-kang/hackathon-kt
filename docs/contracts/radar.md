@@ -57,8 +57,8 @@ N이 0이면 `stage(opportunity,done)` 대신 `error`(`no_result`)를 보낸다.
 - 도구 입력(pydantic)을 결과로 쓴다.
 - 도구를 호출하지 않았거나 입력이 검증에 실패하면, 실패 이유를 덧붙여 1회 다시 요청한다. 그래도 실패하면 `error`(`bad_output`)를 보낸다.
 - 출력이 길이 제한(`max_tokens`)에 걸리면 같은 요청을 반복해도 잘리므로 다시 요청하지 않고 바로 `bad_output`을 보낸다.
-- 구현: `app/agent/structured.py`의 `call_structured`(제출 도구 스키마의 `$ref`를 펼쳐 보낸다), `CallBudget`, `sse_stream`.
-- `get_provider().name == "mock"`이면 LLM을 부르지 않고 **고정 샘플 결과**를 같은 이벤트 순서로 보낸다. 키 없이 UI를 개발하기 위해서다.
+- 구현: `app/agent/stages.py`의 `StageRunner`(단계 start/done·mock 폴백·예산)와 `stream_stages`. 내부는 `app/agent/structured.py`의 `call_structured`(제출 도구 스키마의 `$ref`를 펼쳐 보낸다), `CallBudget`, `sse_stream`.
+- provider가 mock이면 LLM을 부르지 않고 **고정 샘플 결과**를 같은 이벤트 순서로 보낸다. 키 없이 UI를 개발하기 위해서다.
 
 ## 화면 간 전달 (frontend)
 `/radar`에서 "프로덕트 설계"를 누르면 고른 `Opportunity`를 `sessionStorage`의 `radar:selected-opportunity` 키(JSON)에 저장하고 `/product`로 이동한다.

@@ -63,12 +63,11 @@ def test_stale_keys_are_swept(monkeypatch):
     assert set(rate_limit._hits) == {"2.2.2.2"}
 
 
-def test_spoofed_forwarded_for_does_not_bypass_quota(monkeypatch):
+def test_spoofed_forwarded_for_does_not_bypass_quota(monkeypatch, use_provider):
     from app.config import settings
-    from app.services import radar
 
     monkeypatch.setattr(settings, "chat_rate_per_ip", 2)
-    monkeypatch.setattr(radar, "get_provider", lambda: MockProvider())
+    use_provider(MockProvider())
 
     def call(spoof: str) -> int:
         headers = {

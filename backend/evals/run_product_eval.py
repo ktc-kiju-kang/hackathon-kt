@@ -18,6 +18,9 @@ import sys
 import time
 from pathlib import Path
 
+from app.agent.providers import get_provider
+from app.agent.stages import StageRunner
+from app.agent.structured import CallBudget
 from app.schemas.product import ProductRequest
 from app.services import product
 
@@ -32,7 +35,8 @@ async def run_case(case: dict) -> dict:
     t0 = time.monotonic()
     fails = []
     try:
-        await product._run(req, emit)
+        budget = CallBudget(product.MAX_CALLS)
+        await product._run(req, StageRunner(emit, budget, get_provider(), product.SYSTEM))
     except Exception as e:  # StructuredError 등
         fails.append(f"error: {getattr(e, 'code', type(e).__name__)} {e}")
     card = next((d["product"] for e, d in events if e == "product"), None)
@@ -69,7 +73,7 @@ async def main() -> int:
         from app.config import settings
 
         settings.llm_provider = args.provider
-        product.get_provider.cache_clear()
+        get_provider.cache_clear()
 
     cases = json.loads(Path(args.cases).read_text("utf-8"))
     if args.only:
