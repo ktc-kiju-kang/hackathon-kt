@@ -44,3 +44,17 @@ class Opportunity(BaseModel):
     evidence: list[Evidence] = Field(min_length=1)
     rationale: str
     score: OpportunityScore
+
+
+class SnapshotInfo(BaseModel):
+    """데모 스냅샷을 언제·어떤 모델로 만들었는지 (화면에 표시)."""
+
+    created_at: str
+    model: str
+
+
+class RadarSnapshot(BaseModel):
+    company_id: str
+    country: str
+    snapshot: SnapshotInfo
+    opportunities: list[Opportunity]

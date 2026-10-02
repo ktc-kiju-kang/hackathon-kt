@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
+  ArchiveIcon,
   ArrowRightIcon,
   BrainIcon,
   ChartColumnIcon,
@@ -22,8 +23,12 @@ import { cn } from '@/lib/utils'
 import {
   type Company,
   type Opportunity,
+  type RadarSnapshot,
+  type SnapshotInfo,
   type Stage,
+  formatSnapshotTime,
   getCompanies,
+  getRadarSnapshot,
   saveSelectedOpportunity,
   streamOpportunities,
 } from './api'
@@ -57,6 +62,8 @@ export function RadarView() {
   const [opps, setOpps] = useState<Opportunity[]>([])
   const [notice, setNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [fallback, setFallback] = useState<RadarSnapshot | null>(null) // 실패 시 보여줄 수 있는 저장된 결과
+  const [saved, setSaved] = useState<SnapshotInfo | null>(null) // 지금 저장된 결과를 보여주는 중
   const abortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
@@ -77,6 +84,8 @@ export function RadarView() {
     setOpps([])
     setError(null)
     setNotice(null)
+    setFallback(null)
+    setSaved(null)
     try {
       await streamOpportunities(
         { company_id: companyId, focus: focus.trim() || undefined },
@@ -92,6 +101,7 @@ export function RadarView() {
           } else if (ev.type === 'error') {
             setError(ev.data.message)
             setStages(halt)
+            offerFallback(companyId, controller)
           }
         },
         controller.signal,
@@ -100,10 +110,28 @@ export function RadarView() {
       if ((e as Error).name !== 'AbortError') {
         setError((e as Error).message || '요청에 실패했습니다')
         setStages(halt)
+        offerFallback(companyId, controller)
       }
     } finally {
       if (abortRef.current === controller) setRunning(false)
     }
+  }
+
+  // 실시간 생성이 실패하면 저장된 결과가 있는지 확인한다 (있을 때만 버튼이 보인다)
+  function offerFallback(id: string, controller: AbortController) {
+    getRadarSnapshot(id).then((snap) => {
+      // 그 사이 새로 실행했으면 이전 실행의 예비안은 버린다
+      if (abortRef.current === controller && snap && snap.opportunities.length > 0) setFallback(snap)
+    })
+  }
+
+  function showSaved(snap: RadarSnapshot) {
+    const label = '저장된 결과'
+    setStages({ trend: { status: 'done', summary: label }, match: { status: 'done', summary: label }, opportunity: { status: 'done', summary: `${label} ${snap.opportunities.length}건` } })
+    setOpps(snap.opportunities)
+    setSaved(snap.snapshot)
+    setError(null)
+    setFallback(null)
   }
 
   function stop() {
@@ -205,9 +233,16 @@ export function RadarView() {
         <Card className="border-destructive/50">
           <CardContent className="flex items-center gap-2 text-sm text-destructive">
             <CircleAlertIcon className="size-4 shrink-0" /> {error}
+            {fallback && fallback.company_id === companyId && (
+              <Button variant="outline" size="sm" className="ml-auto" onClick={() => showSaved(fallback)}>
+                <ArchiveIcon /> 저장된 결과 보기
+              </Button>
+            )}
           </CardContent>
         </Card>
       )}
+
+      {saved && <SavedNotice info={saved} />}
 
       {(opps.length > 0 || stages.opportunity.status === 'running') && (
         <section className="space-y-3">
@@ -221,6 +256,17 @@ export function RadarView() {
         </section>
       )}
     </div>
+  )
+}
+
+function SavedNotice({ info }: { info: SnapshotInfo }) {
+  return (
+    <Card className="border-dashed">
+      <CardContent className="flex items-center gap-2 text-sm text-muted-foreground">
+        <ArchiveIcon className="size-4 shrink-0" />
+        실시간 생성이 아니라 {formatSnapshotTime(info.created_at)}에 {info.model}로 미리 만든 결과입니다. AI가 만든 예시이며 실제 사업 계획이 아닙니다
+      </CardContent>
+    </Card>
   )
 }
 

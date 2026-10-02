@@ -51,6 +51,20 @@ export type RadarEvent =
   | { type: 'done'; data: { stop_reason: string; usage?: Record<string, number> } }
   | { type: 'error'; data: { message: string; code?: string } }
 
+// 데모 예비안: 미리 실제 LLM으로 만든 결과 (계약 radar.md "snapshot"). LLM·한도를 쓰지 않는다
+export type SnapshotInfo = { created_at: string; model: string }
+export type RadarSnapshot = { company_id: string; country: string; snapshot: SnapshotInfo; opportunities: Opportunity[] }
+
+/** 저장된 결과. 없거나(404) 불러오지 못하면 null — 예비안이라 실패해도 화면을 막지 않는다. */
+export const getRadarSnapshot = (companyId: string): Promise<RadarSnapshot | null> =>
+  isMock
+    ? Promise.resolve(null)
+    : request<RadarSnapshot>(`/api/radar/snapshot/${encodeURIComponent(companyId)}`).catch(() => null)
+
+/** 화면 표시용: "2026. 10. 2. 오후 3:12" */
+export const formatSnapshotTime = (iso: string) =>
+  new Date(iso).toLocaleString('ko-KR', { dateStyle: 'medium', timeStyle: 'short' })
+
 export const getCompanies = (): Promise<Company[]> =>
   isMock ? Promise.resolve(MOCK_COMPANIES) : request<Company[]>('/api/radar/companies')
 

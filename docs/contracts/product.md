@@ -26,6 +26,14 @@ LLM 호출은 요청당 최대 3회다 (`CallBudget(limit=3)`, 일시 오류·`b
 - `resolve_evidence`로 다시 채워 `ProductCard.evidence`에 넣는다. 허용 국가는 `opportunity.country`와 `null`이다.
 - 입력의 숫자와 label은 쓰지 않는다. LLM 프롬프트에도 다시 채운 값만 넣는다.
 
+## GET /api/product/snapshot/{opportunity_id} — v1 (데모 예비안)
+radar 스냅샷(`GET /api/radar/snapshot/{company_id}`)의 기회에 대해 미리 만들어 둔 Product Card. LLM을 부르지 않는다.
+→ 200 `ProductSnapshot` · 404 (스냅샷 없음)
+
+```ts
+ProductSnapshot = { snapshot: SnapshotInfo, product: ProductCard }   // SnapshotInfo는 radar 계약
+```
+
 ## 타입
 ```ts
 ProductCard = {
@@ -60,3 +68,4 @@ ProductCard = {
 |---|---|---|
 | 2026-10-01 | 추가 | ktc-kiju-kang |
 | 2026-10-02 | 구현 반영: edge `label`은 null 가능, 잘못된 edge 제거, 입력 크기 상한 8000자(422) | ktc-kiju-kang |
+| 2026-10-02 | `GET /api/product/snapshot/{opportunity_id}` 추가 (데모 예비안, #32) | ktc-kiju-kang |

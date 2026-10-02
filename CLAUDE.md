@@ -39,7 +39,8 @@ backend/                         FastAPI
   app/agent/                       AI 에이전트 엔진 (공용) — providers/ 어댑터, tools/<name>.py 도구(기능 담당자), loop.py,
                                    structured.py(구조화 출력·SSE)·stages.py(단계 실행: radar·product가 사용)
   data/                            공개 읽기 전용 정적 데이터 (Signals CSV·그룹사 JSON, 출처·라이선스 README 포함)
-  evals/                           평가 — run_eval(채팅 에이전트) · run_radar_eval · run_product_eval (실제 API 비용)
+  evals/                           평가 — run_eval(채팅 에이전트) · run_radar_eval · run_product_eval,
+                                   make_demo_snapshot(데모 예비안 생성 → data/demo/) (모두 실제 API 비용)
   tests/test_<feature>.py
 database/                        Supabase Postgres
   migrations/NNNN_<설명>.sql       스키마 변경 (규칙: database/README.md)

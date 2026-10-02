@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import {
+  ArchiveIcon,
   ArrowRightIcon,
   ChartColumnIcon,
   CheckIcon,
@@ -20,8 +21,16 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
-import { type Opportunity, loadSelectedOpportunity } from '@/features/radar/api'
-import { type ProductCard, type ProductStage, SAMPLE_OPPORTUNITY, generateProduct, toMarkdown } from './api'
+import { type Opportunity, type SnapshotInfo, formatSnapshotTime, loadSelectedOpportunity } from '@/features/radar/api'
+import {
+  type ProductCard,
+  type ProductSnapshot,
+  type ProductStage,
+  SAMPLE_OPPORTUNITY,
+  generateProduct,
+  getProductSnapshot,
+  toMarkdown,
+} from './api'
 
 const STAGES: { id: ProductStage; label: string; detail: string }[] = [
   { id: 'design', label: '프로덕트 설계', detail: '문제·사용자·기능·아키텍처' },
@@ -46,6 +55,8 @@ export function ProductView() {
   const [card, setCard] = useState<ProductCard | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [fallback, setFallback] = useState<ProductSnapshot | null>(null) // 실패 시 보여줄 수 있는 저장된 결과
+  const [saved, setSaved] = useState<SnapshotInfo | null>(null) // 지금 저장된 결과를 보여주는 중
   const abortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
@@ -66,6 +77,8 @@ export function ProductView() {
     setCard(null)
     setError(null)
     setNotice(null)
+    setFallback(null)
+    setSaved(null)
     try {
       await generateProduct(
         { opportunity: opp, notes: notes.trim() || undefined },
@@ -81,6 +94,7 @@ export function ProductView() {
           } else if (ev.type === 'error') {
             setError(ev.data.message)
             setStages(halt)
+            offerFallback(opp.id, controller)
           }
         },
         controller.signal,
@@ -89,10 +103,27 @@ export function ProductView() {
       if ((e as Error).name !== 'AbortError') {
         setError((e as Error).message || '요청에 실패했습니다')
         setStages(halt)
+        offerFallback(opp.id, controller)
       }
     } finally {
       if (abortRef.current === controller) setRunning(false)
     }
+  }
+
+  // 실시간 생성이 실패하면 저장된 결과가 있는지 확인한다 (radar 저장된 결과의 기회일 때 있다)
+  function offerFallback(id: string, controller: AbortController) {
+    getProductSnapshot(id).then((snap) => {
+      // 그 사이 새로 실행했으면 이전 실행의 예비안은 버린다
+      if (abortRef.current === controller && snap) setFallback(snap)
+    })
+  }
+
+  function showSaved(snap: ProductSnapshot) {
+    setStages({ design: { status: 'done', summary: '저장된 결과' }, poc: { status: 'done', summary: '저장된 결과' } })
+    setCard(snap.product)
+    setSaved(snap.snapshot)
+    setError(null)
+    setFallback(null)
   }
 
   function stop() {
@@ -221,6 +252,20 @@ export function ProductView() {
         <Card className="border-destructive/50">
           <CardContent className="flex items-center gap-2 text-sm text-destructive">
             <CircleAlertIcon className="size-4 shrink-0" /> {error}
+            {fallback && fallback.product.opportunity_id === opp?.id && (
+              <Button variant="outline" size="sm" className="ml-auto" onClick={() => showSaved(fallback)}>
+                <ArchiveIcon /> 저장된 결과 보기
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {saved && (
+        <Card className="border-dashed">
+          <CardContent className="flex items-center gap-2 text-sm text-muted-foreground">
+            <ArchiveIcon className="size-4 shrink-0" />
+            실시간 생성이 아니라 {formatSnapshotTime(saved.created_at)}에 {saved.model}로 미리 만든 결과입니다. AI가 만든 예시이며 실제 사업 계획이 아닙니다
           </CardContent>
         </Card>
       )}

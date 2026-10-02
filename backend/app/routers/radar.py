@@ -5,8 +5,9 @@ from fastapi.responses import StreamingResponse
 
 from app.agent.providers import LLMProvider
 from app.agent.stages import llm_provider
-from app.schemas.radar import Company, OpportunityRequest
+from app.schemas.radar import Company, OpportunityRequest, RadarSnapshot
 from app.services import radar as service
+from app.services import snapshot
 from app.services.rate_limit import client_ip
 
 router = APIRouter(prefix="/radar", tags=["radar"])
@@ -30,3 +31,9 @@ def create_opportunities(
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@router.get("/snapshot/{company_id}", response_model=RadarSnapshot)
+def get_snapshot(company_id: str) -> RadarSnapshot:
+    """데모 예비안: 미리 만든 결과 (LLM 호출 없음, 한도 미사용)"""
+    return snapshot.get_radar_snapshot(company_id)

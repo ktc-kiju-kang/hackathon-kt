@@ -3,7 +3,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from app.schemas.radar import Opportunity
+from app.schemas.radar import Opportunity, SnapshotInfo
 from app.schemas.trends import Evidence
 
 
@@ -89,3 +89,8 @@ class ProductCard(BaseModel):
     mvp_scope: MvpScope
     poc_plan: PocPlan
     evidence: list[Evidence]
+
+
+class ProductSnapshot(BaseModel):
+    snapshot: SnapshotInfo
+    product: ProductCard
