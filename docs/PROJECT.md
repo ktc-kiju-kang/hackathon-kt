@@ -55,21 +55,23 @@ OpenAI Signals 데이터 → Trend 분석 → KT 그룹사 사업 매칭 → Opp
 | 화면 | 이슈·PR | 상태 |
 |---|---|---|
 | `/trends` Trend Dashboard | #22 · #26 | 운영 배포 |
-| `/radar` Opportunity Radar | #23 · #27 | 운영 배포, **실제 LLM 미확인** |
-| `/product` Product Generator | #24 · #29 | 운영 배포, **실제 LLM 미확인** |
+| `/radar` Opportunity Radar | #23 · #27 | 운영 배포, 실제 LLM(Groq) 확인 ✅ (#31) |
+| `/product` Product Generator | #24 · #29 | 운영 배포, 실제 LLM(Groq) 확인 ✅ (#31) |
 
 - `/agent` 채팅에서도 `get_ai_usage_trends` 도구로 트렌드를 물어볼 수 있다.
 - 남은 일:
-  - 실제 LLM으로 `evals.run_radar_eval`·`run_product_eval` 확인 (Gemini 무료 일일 한도 소진으로 보류)
-  - 데모용 LLM 키 결정 (아래 "데모 준비")
-  - 사용량 한도의 IP 판별 (`X-Forwarded-For` 첫 값은 클라이언트가 바꿀 수 있음)
+  - 운영 Render의 LLM을 Groq로 전환 (#32, 아래 "데모 준비")
+  - 한도 보험: 같은 요청 결과 캐시, 데모 스냅샷 예비안 (#32)
+- 실제 LLM 확인 결과 (2026-10-02, Groq `openai/gpt-oss-120b`): eval radar 2/2, product 1/1. 화면과 같은 SSE로 radar(KT Cloud) 20초 → product 48초. 분당 토큰 제한 429는 자동 재시도로 통과
 
 ## 데모 시나리오
 
 KT Cloud 선택 → 관련 트렌드(Technical help·업무 활용 등) 추출 → KT Cloud 사업과 매칭 → "Cloud 장애 대응 자동화" 등의 Opportunity 제안 → 하나 선택 → CloudOps Agent Product Card와 PoC 생성
 
 ## 데모 준비
-- **LLM 한도**: Gemini 무료(`gemini-3.8-flash`)는 프로젝트당 하루 20회다. radar 1회 = 3회, product 1회 = 2회라 전체 흐름을 4번쯤 돌리면 끝난다. 리허설 횟수까지 생각해 유료 키(Anthropic, Console에서 월 한도 설정)로 바꿀지 정한다. 바꾸면 Render 대시보드에서 `ANTHROPIC_API_KEY`를 넣거나 `LLM_PROVIDER`를 지정한다.
+- **LLM**: Groq 무료(`openai/gpt-oss-120b`)를 쓴다. 하루 1,000회·20만 토큰이라 리허설 포함 수십 회 가능하다. 분당 8,000토큰이라 **radar·product를 연달아 누르면 수십 초씩 기다린다** (화면에 재시도 안내가 나온다). 시연 중 다른 사람이 같은 키로 eval을 돌리지 않는다.
+  - Render 대시보드: `LLM_PROVIDER=openai`, `LLM_BASE_URL=https://api.groq.com/openai/v1`, `LLM_MODEL=openai/gpt-oss-120b`, `LLM_API_KEY=<Groq 키>`. 반영 뒤 `/api/health`의 `llm`이 `openai`인지 확인
+  - Gemini 무료(하루 20회)는 예비. GitHub Models는 종료됐고, Anthropic 키는 쓰기 어렵다
 - **Render 깨우기**: 무료 플랜은 15분 미사용 시 잠든다. 시연 1~2분 전에 `/api/health`를 호출한다.
 - **예비안**: 한도에 걸리면 `/product`의 "샘플로 보기"와 `/trends`(LLM 없음)로 흐름을 보여줄 수 있다.
 

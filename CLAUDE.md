@@ -130,7 +130,8 @@ frontend/src/
 ### AI 에이전트 (`backend/app/agent/`)
 - 흐름: `/api/chat/.../messages` → `loop.run_agent` → LLM 어댑터 → 도구 실행 → 반복 → SSE (`docs/contracts/chat.md`)
 - LLM은 **키로 자동 선택**: `ANTHROPIC_API_KEY` → Claude `claude-opus-5-5` / `GEMINI_API_KEY` → Gemini `gemini-3.8-flash`(무료 등급) / 둘 다 없으면 **mock**(규칙 기반 가짜 LLM, 키 없이 UI·루프 개발용). 강제 지정은 `LLM_PROVIDER`, 모델은 `LLM_MODEL`, 생각 깊이는 `LLM_EFFORT`(medium). 운영 상태는 `/api/health`의 `llm`.
-  - OpenAI 호환 API(Groq·GitHub Models·OpenRouter·Ollama 등): `LLM_PROVIDER=openai` + `LLM_BASE_URL` + `LLM_MODEL` + `LLM_API_KEY` — 코드 수정 없음 (`providers/openai_compat.py`)
+  - OpenAI 호환 API(Groq·OpenRouter·Ollama 등): `LLM_PROVIDER=openai` + `LLM_BASE_URL` + `LLM_MODEL` + `LLM_API_KEY` — 코드 수정 없음 (`providers/openai_compat.py`). **GitHub Models는 2026-07-30 종료** (엔드포인트가 200 `OK`만 돌려줘 빈 응답이 됨). Copilot 구독을 LLM으로 쓰는 것은 약관 위반.
+  - **데모 기본안: Groq 무료** `openai/gpt-oss-120b` (`LLM_BASE_URL=https://api.groq.com/openai/v1`). 하루 1,000회지만 **분당 8,000토큰**이라 radar 1회(약 1만 토큰)에서 429가 나고 `retry-after`(수 초)만큼 기다렸다 이어간다. radar 약 20~70초, product 약 50초 (2026-10-02 실측, #31). 공급자·한도 정보는 **공식 문서로 확인**한다 (제3자 정리 글은 낡았을 수 있다).
   - 무료 등급(Gemini 등)은 입력이 학습에 쓰일 수 있다 → 개인정보·사내 데이터를 넣지 않는다. 분당 한도와 **일일 한도**가 있다 (`gemini-3.8-flash` 무료: 프로젝트당 **하루 20회**, 2026-10-02 확인). radar 1회 = LLM 3회라 하루 6회 남짓이다. 운영·로컬·eval이 같은 키면 한도를 나눠 쓴다. **데모 전에 한도를 확인**하고, 시연이 많으면 유료 키로 바꾼다.
 - **도구 추가 = `app/agent/tools/<name>.py` 파일 하나** (`/add-agent-tool`). 입력은 pydantic, 실행 전 자동 검증. 도구 입력은 신뢰할 수 없는 값으로 다룬다.
 - OpenAI 호환이 아닌 LLM 추가: `providers/<name>.py`에 `LLMProvider`(`stream_turn`) 구현 + `providers/__init__.py` 등록. 응답 원본은 `Message.raw`에 그대로 보관·재전송(Claude thinking, Gemini thought signature 등). 루프·도구·저장·UI는 그대로.
