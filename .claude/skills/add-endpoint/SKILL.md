@@ -7,7 +7,8 @@ argument-hint: <feature> <METHOD> <path> <설명>
 
 1. **계약** — `docs/contracts/<feature>.md` (없으면 `docs/contracts/README.md` 템플릿으로 생성하고 목록에 추가)에 메서드·경로(`/api/<feature>/...`)·Request/Response JSON·에러·변경 이력을 적는다. 사용자에게 보여주고 확인받는다.
    - 다른 기능 담당자가 이 API를 쓰거나 남의 계약을 바꾸는 경우, 계약만 먼저 작은 PR로 올리자고 제안한다.
-2. **DB (필요 시)** — `database/migrations/NNNN_<설명>.sql` 새 파일 (규칙: `database/README.md` — RLS 켜기, 기본 컬럼, 번호는 머지 직전 확정). 계약 문서의 "DB" 항목에도 적는다. **공유 DB에는 직접 적용하지 않는다** — main 머지 시 배포 파이프라인이 자동 적용. 이전 버전 backend와 호환되게 쓰고, Docker Postgres로 로컬 검증 (`database/README.md`).
+2. **데이터 저장 위치** — 공개된 읽기 전용 데이터(공개 통계·고정 목록)면 DB 대신 `backend/data/` 파일 + 메모리 로드 (CLAUDE.md backend 규칙, 출처·라이선스 README). 사용자가 만드는 데이터면 DB:
+   **DB (필요 시)** — `database/migrations/NNNN_<설명>.sql` 새 파일 (규칙: `database/README.md` — RLS 켜기, 기본 컬럼, 번호는 머지 직전 확정). 계약 문서의 "DB" 항목에도 적는다. **공유 DB에는 직접 적용하지 않는다** — main 머지 시 배포 파이프라인이 자동 적용. 이전 버전 backend와 호환되게 쓰고, Docker Postgres로 로컬 검증 (`database/README.md`).
 3. **backend** (`backend/app/`)
    - `schemas/<feature>.py`: Pydantic 모델 (계약과 필드명·타입 일치)
    - `services/<feature>.py`: 로직·DB 접근 (`get_supabase().table("<table>")...execute().data`). service_role이라 RLS를 우회하므로 **행 접근 권한 체크를 service에서** 한다
@@ -16,6 +17,12 @@ argument-hint: <feature> <METHOD> <path> <설명>
 4. **frontend** — `frontend/src/features/<feature>/api.ts`
    - 계약과 같은 TS 타입, `@/lib/api-client`의 `request`로 호출하는 함수
    - `isMock`이면 계약 형태의 mock 반환 (`features/health/api.ts` 패턴)
-5. **검증** — backend: ruff + pytest, frontend: lint + build 모두 통과.
+5. **LLM이 결과를 만드는 API면** (단발 생성, 대화 아님) — `app/agent/structured.py`의 `call_structured` + `CallBudget` + `sse_stream`을 쓴다 (`services/radar.py`·`product.py` 패턴, 계약은 radar.md "스트림 형식"을 참조):
+   - 단계마다 결과 제출 도구 하나, 요청당 LLM 호출 상한을 계약에 적는다. 404·422·429(`check_chat_quota`)는 스트림 전에.
+   - `get_provider().name == "mock"` 분기로 고정 결과 (키 없이 UI 개발). 숫자·근거는 LLM이 만들지 않게 서버가 채운다.
+   - 클라이언트 입력은 프롬프트에서 태그로 감싸고 꺾쇠를 치환하며, 크기 상한을 둔다.
+   - 테스트: `tests/test_radar.py`의 `FakeProvider`처럼 도구 이름별 출력을 정해 두고, 서비스 모듈의 `get_provider`를 monkeypatch. 순서·`bad_output`·`limit`·입력 제한을 확인한다.
+   - 실제 LLM 확인용 eval 스크립트를 둔다 (`evals/run_radar_eval.py` 패턴). 실행은 비용이 들므로 사용자 확인 후.
+6. **검증** — backend: ruff + pytest, frontend: lint + build 모두 통과.
    - 로컬 `backend/.env`에 Supabase 키가 있으면 `fastapi dev`로 띄워 실제 DB로 한 번 호출해 본다. 단 공유 DB이므로 **쓰기 테스트 데이터는 지우고**, 새 테이블은 마이그레이션이 머지·적용된 뒤에야 존재한다 (그 전엔 mock/monkeypatch로).
-6. 결과로 계약 요약, 변경 파일, 컴포넌트에서 호출하는 예시 한 줄을 보여준다.
+7. 결과로 계약 요약, 변경 파일, 컴포넌트에서 호출하는 예시 한 줄을 보여준다.
