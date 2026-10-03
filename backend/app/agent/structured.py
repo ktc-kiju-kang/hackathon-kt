@@ -8,7 +8,7 @@ import asyncio
 import json
 import logging
 from collections.abc import AsyncIterator, Awaitable, Callable
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 from pydantic import BaseModel, ValidationError
 
@@ -64,12 +64,14 @@ def _inline_refs(schema: dict[str, Any]) -> dict[str, Any]:
 def _submit_model(model: type[T]) -> type[T]:
     schema = _inline_refs(model.model_json_schema())
 
-    class Submit(model):  # type: ignore[valid-type, misc]
+    base: Any = model  # 동적 상속: 타입 검사기가 따라가지 못하는 부분만 Any로 둔다
+
+    class Submit(base):
         @classmethod
         def model_json_schema(cls, *args: Any, **kwargs: Any) -> dict[str, Any]:
             return schema
 
-    return Submit
+    return cast(type[T], Submit)
 
 
 class CallBudget:

@@ -189,7 +189,9 @@ def _to_opportunity(
         kt_assets=[a for a in draft.kt_assets if a in company.assets],
         evidence=evidence,
         rationale=draft.rationale,
-        score=OpportunityScore(impact=draft.impact, feasibility=draft.feasibility),
+        score=OpportunityScore.model_validate(
+            {"impact": draft.impact, "feasibility": draft.feasibility}
+        ),
     )
 
 

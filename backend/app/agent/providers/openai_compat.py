@@ -17,6 +17,7 @@ from app.agent.tools import Tool
 from app.agent.types import (
     Message,
     ProviderEvent,
+    StopReason,
     TextDelta,
     ToolCall,
     TurnComplete,
@@ -35,7 +36,11 @@ PRESETS: dict[str, dict[str, Any]] = {
     "openai": {"base_url": None, "model": "", "reasoning_effort": False},
 }
 
-_STOP = {"stop": "end_turn", "tool_calls": "tool_use", "length": "max_tokens"}
+_STOP: dict[str, StopReason] = {
+    "stop": "end_turn",
+    "tool_calls": "tool_use",
+    "length": "max_tokens",
+}
 
 
 def _strip_titles(schema: Any) -> Any:
@@ -210,7 +215,7 @@ class OpenAICompatProvider:
         raw_msg: dict[str, Any] = {"role": "assistant", "content": text or None}
         if raw_calls:
             raw_msg["tool_calls"] = raw_calls
-        stop = _STOP.get(finish or "", "tool_use" if tool_calls else "end_turn")
+        stop: StopReason = _STOP.get(finish or "", "tool_use" if tool_calls else "end_turn")
         if finish == "content_filter":
             stop = "refusal"
         yield TurnComplete(

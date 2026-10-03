@@ -2,6 +2,7 @@ import base64
 import json
 import logging
 from datetime import UTC, datetime
+from typing import Literal
 
 from app.agent.providers import get_provider
 from app.core.config import settings
@@ -27,7 +28,7 @@ def key_role(key: str) -> str | None:
     return None
 
 
-def check_db() -> str:
+def check_db() -> Literal["ok", "error", "unconfigured"]:
     """Supabase 연결·키 확인.
 
     anon 키로도 RLS 테이블 조회는 '빈 결과'로 성공하므로, 조회 전에 키 역할부터 확인한다.

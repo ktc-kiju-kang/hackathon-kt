@@ -84,11 +84,19 @@ def test_tool_exception_and_unknown_tool():
         assert res["is_error"]
 
 
-def test_calculator_rejects_code():
+def _run_calculator(expression: str) -> str:
     calc = next(t for t in get_tools() if t.name == "calculator")
-    args = calc.input_model(expression="__import__('os').system('ls')")
+    args = calc.input_model.model_validate({"expression": expression})
+
+    async def go() -> str:
+        return await calc.run(args)
+
+    return asyncio.run(go())
+
+
+def test_calculator_rejects_code():
     try:
-        asyncio.run(calc.run(args))
+        _run_calculator("__import__('os').system('ls')")
         raise AssertionError("should fail")
     except ValueError:
         pass
@@ -151,10 +159,9 @@ def test_orphan_tool_calls_closed():
 
 
 def test_calculator_blocks_huge_power():
-    calc = next(t for t in get_tools() if t.name == "calculator")
     for expr in ["((9**99)**99)**99", "10**400", "(10**12+1)**2"]:
         try:
-            asyncio.run(calc.run(calc.input_model(expression=expr)))
+            _run_calculator(expr)
             raise AssertionError(expr)
         except ValueError:
             pass

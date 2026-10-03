@@ -7,14 +7,21 @@ import ipaddress
 import time
 from collections import defaultdict, deque
 from datetime import UTC, datetime
+from typing import TypedDict
 
 from fastapi import HTTPException, Request
 
 from app.core.config import settings
 
+
+class _Daily(TypedDict):
+    day: str
+    count: int
+
+
 _WINDOW = 600.0
 _hits: dict[str, deque[float]] = defaultdict(deque)
-_daily = {"day": "", "count": 0}
+_daily: _Daily = {"day": "", "count": 0}
 _SWEEP_AT = 1000  # 키가 이만큼 쌓이면 오래된 기록을 정리한다
 
 
@@ -75,7 +82,7 @@ def check_quota(ip: str) -> None:
 
     today = datetime.now(UTC).strftime("%Y-%m-%d")
     if _daily["day"] != today:
-        _daily.update(day=today, count=0)
+        _daily["day"], _daily["count"] = today, 0
     if _daily["count"] >= settings.chat_daily_limit:
         if not q:
             del _hits[key]
@@ -87,4 +94,4 @@ def check_quota(ip: str) -> None:
 
 def reset() -> None:  # 테스트용
     _hits.clear()
-    _daily.update(day="", count=0)
+    _daily["day"], _daily["count"] = "", 0

@@ -9,15 +9,19 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
+from typing import Any, Literal, cast
 
 from fastapi import HTTPException
 
 from app.schemas.trends import (
+    AskDoExpress,
+    Dimension,
     Evidence,
     EvidenceRef,
     IntentChange,
     MonthRange,
     Source,
+    Topic,
     TopicChange,
     TrendSeries,
     TrendsMeta,
@@ -150,7 +154,10 @@ def get_series(
         for k in sorted(table[m])
     ]
     return TrendSeries(
-        dimension=dimension, country=country, work_related=work_related, points=points
+        dimension=cast(Dimension, dimension),  # 라우터가 Literal로 검증한 값
+        country=country,
+        work_related=cast(Literal[0, 1] | None, work_related),  # 라우터가 0·1로 검증
+        points=points,
     )
 
 
@@ -167,7 +174,7 @@ def _changes(table: dict, start: str, end: str) -> list[tuple[str, float, float,
 
 def _topic_changes(table: dict, start: str, end: str) -> list[TopicChange]:
     return [
-        TopicChange(topic=k, from_share=a, to_share=b, change_pp=pp)
+        TopicChange(topic=cast(Topic, k), from_share=a, to_share=b, change_pp=pp)
         for k, a, b, pp in _changes(table, start, end)
     ]
 
@@ -205,7 +212,7 @@ def get_summary(country: Country, months: int = 12) -> TrendSummary:
         work_topics=_topic_changes(d.work_topic[(country, 1)], start, end),
         work_share=WorkShare(from_=work_from, to=work_to, change_pp=_pp(work_from, work_to)),
         work_intent=[
-            IntentChange(intent=k, from_share=a, to_share=b, change_pp=pp)
+            IntentChange(intent=cast(AskDoExpress, k), from_share=a, to_share=b, change_pp=pp)
             for k, a, b, pp in _changes(d.intent[(country, 1)], start, end)
         ],
         usage_rank=_usage_rank(country, start),
@@ -220,7 +227,7 @@ def _resolve(ref: EvidenceRef) -> Evidence | None:
     s = get_summary(ref.country, EVIDENCE_MONTHS)
     where = ref.country or "전 세계"
     period = f"({s.period.from_} → {s.period.to})"
-    base = {"metric": ref.metric, "key": ref.key, "country": ref.country}
+    base: dict[str, Any] = {"metric": ref.metric, "key": ref.key, "country": ref.country}
 
     def share(subject: str, a: float, b: float) -> Evidence:
         return Evidence(
