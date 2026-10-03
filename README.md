@@ -40,7 +40,7 @@ claude   # 세션 시작 시 내 이슈·열린 PR 표시
   | `VERCEL_PROJECT_ID` | Vercel 프로젝트 Settings → General → Project ID (둘 다 `cd frontend && npx vercel link` 후 `.vercel/project.json`으로도 확인) |
   | `SUPABASE_DB_URL` | Supabase Session pooler 연결 문자열 (비밀번호 포함) |
 
-배포 흐름: main 머지 → CI → Deploy 워크플로(마이그레이션 → backend → frontend → 스모크 테스트). 상세는 CLAUDE.md "배포".
+배포 흐름: main 머지 → CI → Deploy 워크플로(마이그레이션 → backend → frontend → 스모크 테스트). 상세는 `docs/deploy.md`.
 
 ## 화면
 | 경로 | 내용 | 기능 폴더 |
