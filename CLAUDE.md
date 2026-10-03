@@ -44,7 +44,7 @@
 |---|---|---|
 | 셋업 | `npm install && cp .env.example .env.local` | `python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt && cp .env.example .env` |
 | 실행 | `npm run dev` → :3000 | `.venv/bin/fastapi dev app/main.py` → :8000 (`/api/docs`) |
-| 검증 | `npm run lint && npm run build` | `.venv/bin/ruff check . && .venv/bin/ruff format --check . && .venv/bin/pytest` |
+| 검증 | `npm run lint && npm test && npm run build` | `.venv/bin/ruff check . && .venv/bin/ruff format --check . && .venv/bin/pytest` |
 
 **PR 전 변경한 쪽의 검증 명령을 반드시 통과시킨다.** CI(`frontend`, `backend` 잡)가 동일하게 실행한다.
 
@@ -69,7 +69,7 @@
 | 요구사항 | 이슈 하나 = 기능 하나 (목표·완료 조건), 칸반 자동 이동 | `/new-issue` |
 | 설계 | 계약 우선(`docs/contracts/`), 큰 결정은 ADR | `/add-endpoint` |
 | 구현 | 브랜치 `<type>/<이슈>-…`, 기능 폴더, 작게 자주 머지 | `/start-task` `/add-page` `/add-agent-tool` |
-| 테스트 | backend pytest(DB·LLM 없이)·evals(실비용)·lint·build, CI 필수 | `.claude/rules/backend.md` |
+| 테스트 | backend pytest(DB·LLM 없이)·frontend Vitest·evals(실비용)·lint·build, CI 필수 | `.claude/rules/backend.md` |
 | 리뷰 | 셀프 리뷰 + 충돌 검사, 공용 파일은 리뷰 요청 | `reviewer` `/pr-check` `/handoff` |
 | 배포 | main 머지 → CI → migrate → backend → frontend → smoke | `docs/deploy.md` `/deploy-status` |
 | 운영·회고 | `/api/health`, 장애 대응표, 날짜별 작업 기록 | `docs/SDLC.md` `docs/worklog/` |
