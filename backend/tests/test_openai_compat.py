@@ -13,7 +13,13 @@ SIG = {"google": {"thought_signature": "SIG123"}}
 
 
 def chunk(delta=None, finish=None, usage=None):
-    data = {"id": "c", "object": "chat.completion.chunk", "created": 0, "model": "m", "choices": []}
+    data = {
+        "id": "c",
+        "object": "chat.completion.chunk",
+        "created": 0,
+        "model": "m",
+        "choices": [],
+    }
     if delta is not None or finish:
         data["choices"] = [{"index": 0, "delta": delta or {}, "finish_reason": finish}]
     if usage:
@@ -164,7 +170,9 @@ def test_history_from_other_provider_and_orphans():
     # 다른 공급자 기록은 중립 형식으로 변환 (Claude thinking 블록은 보내지 않음)
     assert msgs[2]["tool_calls"][0]["function"]["arguments"] == '{"expression": "1+1"}'
     assert msgs[3]["content"].startswith("ERROR: ")
-    assert msgs[4] == history[3].raw[0]  # 같은 공급자 원본은 그대로
+    raw = history[3].raw
+    assert raw is not None
+    assert msgs[4] == raw[0]  # 같은 공급자 원본은 그대로
     assert msgs[5]["role"] == "tool" and msgs[5]["tool_call_id"] == "t2"  # 끊긴 호출 보충
     assert msgs[6] == {"role": "user", "content": "next"}
 

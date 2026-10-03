@@ -30,7 +30,10 @@ def classify(e: Exception) -> LLMError:
         "TimeoutError",
     ):
         return LLMError(
-            "unavailable", "LLM 서버가 잠시 응답하지 않아요. 다시 시도해 주세요.", True, retry_after
+            "unavailable",
+            "LLM 서버가 잠시 응답하지 않아요. 다시 시도해 주세요.",
+            True,
+            retry_after,
         )
     if status in (401, 403):
         return LLMError("auth", "LLM API 키 설정에 문제가 있어요. 관리자에게 알려주세요.", False)

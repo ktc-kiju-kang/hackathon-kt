@@ -1,9 +1,17 @@
 [tool.ruff]
-line-length = 100
+line-length = 99  # PEP 8: 79 대신 팀 합의로 99 (.claude/rules/backend.md)
 target-version = "py311"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B"]
+# E/W = pycodestyle(PEP 8 형식), F = pyflakes, I = import 정렬(PEP 8), N = pep8-naming,
+# UP = 최신 문법, B = bugbear, RET = return 규칙(PEP 8 "일관된 return")
+select = ["E", "W", "F", "I", "N", "UP", "B", "RET"]
+
+[tool.ruff.lint.pycodestyle]
+max-doc-length = 99  # 독스트링·주석 길이 (W505)
+
+[tool.ty.environment]
+python-version = "3.11"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

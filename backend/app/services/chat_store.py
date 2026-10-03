@@ -6,7 +6,7 @@
 import uuid
 from datetime import UTC, datetime
 from functools import lru_cache
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 from app.agent.types import Message
 from app.core.config import settings
@@ -69,10 +69,10 @@ class SupabaseChatStore:
             .insert({"client_id": client_id, "title": title})
             .execute()
         )
-        return res.data[0]
+        return cast(dict[str, Any], res.data[0])
 
     def list_conversations(self, client_id: str) -> list[dict[str, Any]]:
-        return (
+        rows = (
             self.db.table("conversations")
             .select("id, client_id, title, created_at")
             .eq("client_id", client_id)
@@ -81,15 +81,16 @@ class SupabaseChatStore:
             .execute()
             .data
         )
+        return cast(list[dict[str, Any]], rows)
 
     def get_conversation(self, conversation_id: str) -> dict[str, Any] | None:
         rows = (
             self.db.table("conversations").select("*").eq("id", conversation_id).limit(1).execute()
         ).data
-        return rows[0] if rows else None
+        return cast(dict[str, Any], rows[0]) if rows else None
 
     def list_messages(self, conversation_id: str) -> list[dict[str, Any]]:
-        return (
+        rows = (
             self.db.table("messages")
             .select("data, created_at")
             .eq("conversation_id", conversation_id)
@@ -97,6 +98,7 @@ class SupabaseChatStore:
             .execute()
             .data
         )
+        return cast(list[dict[str, Any]], rows)
 
     def append_messages(self, conversation_id: str, messages: list[Message]) -> None:
         if messages:

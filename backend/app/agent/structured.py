@@ -8,7 +8,7 @@ import asyncio
 import json
 import logging
 from collections.abc import AsyncIterator, Awaitable, Callable
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 from pydantic import BaseModel, ValidationError
 
@@ -64,12 +64,14 @@ def _inline_refs(schema: dict[str, Any]) -> dict[str, Any]:
 def _submit_model(model: type[T]) -> type[T]:
     schema = _inline_refs(model.model_json_schema())
 
-    class Submit(model):  # type: ignore[valid-type, misc]
+    base: Any = model  # 동적 상속: 타입 검사기가 따라가지 못하는 부분만 Any로 둔다
+
+    class Submit(base):
         @classmethod
         def model_json_schema(cls, *args: Any, **kwargs: Any) -> dict[str, Any]:
             return schema
 
-    return Submit
+    return cast(type[T], Submit)
 
 
 class CallBudget:
@@ -87,7 +89,7 @@ class CallBudget:
         self.remaining -= 1
 
 
-class _NoOutput(Exception):
+class _NoOutputError(Exception):
     """도구를 부르지 않았거나 입력이 형식에 맞지 않음 → 형식 오류 재시도 대상."""
 
 
@@ -119,7 +121,7 @@ async def call_structured(
             turn = await _one_turn(
                 provider, system, [Message(role="user", content=content)], tool, emit, budget
             )
-        except _NoOutput as e:
+        except _NoOutputError as e:
             reason = str(e)
         else:
             if turn.stop_reason == "max_tokens":
@@ -160,13 +162,13 @@ async def _one_turn(
                 if isinstance(ev, TurnComplete):
                     turn = ev
             if turn is None:
-                raise _NoOutput("응답이 끝나지 않았습니다")
+                raise _NoOutputError("응답이 끝나지 않았습니다")
             return turn
-        except _NoOutput:
+        except _NoOutputError:
             raise
         except ValueError as e:
             # 어댑터가 도구 입력 JSON을 해석하지 못함 (pydantic ValidationError도 ValueError)
-            raise _NoOutput(f"도구 입력을 해석할 수 없습니다: {e}") from e
+            raise _NoOutputError(f"도구 입력을 해석할 수 없습니다: {e}") from e
         except Exception as e:
             err = classify(e)
             log.warning("LLM call failed (%s, attempt %d): %r", err.code, attempt + 1, e)

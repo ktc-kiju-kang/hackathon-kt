@@ -92,7 +92,8 @@ async def run_agent(
             return
 
         history.append(turn.message)
-        yield AgentEvent(type="message", data={"message": turn.message.model_dump(exclude={"raw"})})
+        message = turn.message.model_dump(exclude={"raw"})
+        yield AgentEvent(type="message", data={"message": message})
 
         if turn.stop_reason == "refusal":
             yield AgentEvent(type="error", data={"message": "모델이 요청을 거절했습니다"})

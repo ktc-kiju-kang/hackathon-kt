@@ -25,7 +25,8 @@ def _is_uuid(value: str) -> bool:
 
 def _owned(conversation_id: str, client_id: str) -> dict:
     """권한 체크: service_role은 RLS를 우회하므로 여기서 소유자를 확인한다."""
-    conv = get_chat_store().get_conversation(conversation_id) if _is_uuid(conversation_id) else None
+    store = get_chat_store()
+    conv = store.get_conversation(conversation_id) if _is_uuid(conversation_id) else None
     if conv is None or conv["client_id"] != client_id:
         raise HTTPException(status_code=404, detail="conversation not found")
     return conv

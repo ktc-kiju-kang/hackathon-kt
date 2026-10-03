@@ -189,7 +189,9 @@ def _to_opportunity(
         kt_assets=[a for a in draft.kt_assets if a in company.assets],
         evidence=evidence,
         rationale=draft.rationale,
-        score=OpportunityScore(impact=draft.impact, feasibility=draft.feasibility),
+        score=OpportunityScore.model_validate(
+            {"impact": draft.impact, "feasibility": draft.feasibility}
+        ),
     )
 
 
@@ -311,7 +313,9 @@ def _mock_opportunities(
                 solution="[mock] AI 에이전트가 데이터를 분석해 답변·조치안을 제안한다.",
                 kt_assets=m.kt_assets,
                 evidence_ids=t.evidence_ids,
-                rationale="[mock] mock LLM이 만든 예시입니다. 실제 키를 설정하면 LLM이 추론합니다.",
+                rationale=(
+                    "[mock] mock LLM이 만든 예시입니다. 실제 키를 설정하면 LLM이 추론합니다."
+                ),
                 impact=4 - n % 2,
                 feasibility=3 + n % 2,
             )

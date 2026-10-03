@@ -177,8 +177,12 @@ def _mock_design(req: ProductRequest) -> DesignOut:
         target_users=[TargetUser(persona=t, pain=opp.problem) for t in opp.target[:2]],
         value_props=["[mock] 처리 시간 단축", "[mock] 운영 인력 절감"],
         features=[
-            Feature(name="[mock] 데이터 수집", description="관련 데이터를 모은다", priority="must"),
-            Feature(name="[mock] AI 분석", description="원인과 조치안을 제안한다", priority="must"),
+            Feature(
+                name="[mock] 데이터 수집", description="관련 데이터를 모은다", priority="must"
+            ),
+            Feature(
+                name="[mock] AI 분석", description="원인과 조치안을 제안한다", priority="must"
+            ),
             Feature(name="[mock] 리포트", description="결과를 공유한다", priority="should"),
         ],
         user_flow=["[mock] 요청 접수", "[mock] AI 분석", "[mock] 조치안 확인"],

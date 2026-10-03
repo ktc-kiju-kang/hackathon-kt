@@ -2,12 +2,14 @@ import ast
 import asyncio
 import json
 import operator
+from collections.abc import Callable
+from typing import Any
 
 from pydantic import BaseModel, Field
 
 from app.agent.tools import Tool
 
-_OPS = {
+_OPS: dict[type[ast.AST], Callable[..., Any]] = {
     ast.Add: operator.add,
     ast.Sub: operator.sub,
     ast.Mult: operator.mul,
