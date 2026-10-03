@@ -370,43 +370,6 @@ class LintTest(unittest.TestCase):
 - [ ] **Step 3: 구현**
 
 ```python
-def score_lint(
-    frontend: bool,
-    backend: bool,
-    eslint_errors: int | None,
-    ruff_violations: int | None,
-    format_ok: bool | None,
-    ty_count: int | None,
-) -> list[Item]:
-    """측정값이 None이면 측정 못 함. 해당 영역 변경이 없으면 실행하지 않고 만점."""
-
-    def item(name, mx, applicable, value, points):
-        if not applicable:
-            return Item(name, mx, mx, "해당 없음")
-        if value is None:
-            return Item(name, 0, mx, "측정 못 함", measured=False)
-        return Item(name, points(value), mx, points.note(value))
-
-    class P:
-        def __init__(self, fn, note):
-            self.fn, self.note = fn, note
-
-        def __call__(self, v):
-            return self.fn(v)
-
-    count = lambda v: f"{v}건"  # noqa: E731
-    return [
-        item("ESLint", 3, frontend, eslint_errors, _p(lambda v: 3 if v == 0 else 0, count)),
-        item("ruff check", 3, backend, ruff_violations, _p(lambda v: 3 if v == 0 else 0, count)),
-        item("ruff format", 2, backend, format_ok,
-             _p(lambda v: 2 if v else 0, lambda v: "차이 없음" if v else "포맷 차이 있음")),
-        item("ty", 2, backend, ty_count, _p(lambda v: 2 if v == 0 else 1 if v <= 2 else 0, count)),
-    ]
-```
-
-위 초안은 불필요한 `P` 클래스가 섞여 있다. **아래로 대체한다** (함수 전체를 이 버전으로 쓴다):
-
-```python
 def _lint_item(name, mx, applicable, value, points, note):
     if not applicable:
         return Item(name, mx, mx, "해당 없음")
@@ -665,7 +628,8 @@ def render_comment(
     if missing:
         lines += ["", f"측정 못 한 항목({', '.join(missing)})은 제외하고 비율로 환산했습니다."]
     lines += ["", "### AI 리뷰"]
-    if ai is None or (ai.errors and not ai.commit and not ai.total and ai.errors == ["AI 리뷰 블록이 없음"]):
+    no_block = ai is None or ai.errors == ["AI 리뷰 블록이 없음"]
+    if no_block:
         lines.append("PR 본문에 AI 리뷰 블록이 없습니다. `/handoff`로 리뷰를 받아 본문에 넣으세요.")
     elif ai.errors:
         lines.append("형식 오류로 AI 점수는 0점입니다:")
@@ -876,18 +840,6 @@ if __name__ == "__main__":
         print(f"채점 실패: {type(e).__name__}: {sanitize(str(e), 300)}")
     sys.exit(0)
 ```
-
-`render_comment`의 "블록 없음" 분기 조건이 복잡하므로 아래처럼 단순화한다 (Task 5 코드의 해당 `if` 줄을 교체):
-
-```python
-    no_block = ai is None or ai.errors == ["AI 리뷰 블록이 없음"]
-    if no_block:
-        lines.append("PR 본문에 AI 리뷰 블록이 없습니다. `/handoff`로 리뷰를 받아 본문에 넣으세요.")
-    elif ai.errors:
-```
-
-(바로 뒤 `elif ai.errors:`가 기존 `elif`를 대체한다.)
-
 - [ ] **Step 4: 통과 확인**
 
 Run: `python3 scripts/test_pr_review_score.py` → 전부 OK
