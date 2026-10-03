@@ -1,0 +1,27 @@
+# gitleaks 설정 — 공개 저장소라 비밀값이 커밋되면 바로 노출된다. CI(`.github/workflows/security.yml`)가 읽는다.
+# 로컬 점검: gitleaks git . --redact   (--redact 는 출력에 값을 가린다)
+
+title = "hackathon-kt"
+
+[extend]
+useDefault = true # 기본 규칙(AWS·GitHub 토큰, 일반 API 키 등) 전부 사용
+
+# `.env.example`은 값을 비워 두거나 <설명>만 쓴다. 키처럼 긴 값이 들어가면 실수로 진짜 키를 붙여넣은 것이다
+# (2026-10-02 실제로 정체불명의 53자 값이 들어갈 뻔함, docs/worklog/2026-10-02.md).
+# 그래서 이 파일을 통째로 예외 처리하지 않고, 오히려 별도 규칙으로 더 엄격하게 본다.
+# `=` 뒤 공백·따옴표·뒤에 붙는 `# 주석`(이 레포의 .env.example 스타일)이 있어도 잡도록 줄 끝 앵커를 두지 않는다.
+[[rules]]
+id = "env-example-long-value"
+description = ".env.example 에 키처럼 보이는 긴 값 — 예시 파일에는 값을 넣지 않는다"
+path = '''(^|/)\.env\.example$'''
+regex = '''(?m)^[A-Z0-9_]*(KEY|TOKEN|SECRET|PASSWORD|DB_URL)[A-Z0-9_]*=[ \t]*["']?[^\s"'#]{20,}'''
+keywords = ["key", "token", "secret", "password", "db_url"]
+
+# 알려진 오탐 — 최소 범위(규칙 1개 × 경로 1개)로만 허용한다. 파일·디렉터리 통째 예외는 두지 않는다.
+# 값이 빈 줄(`LLM_API_KEY=`)을 gitleaks 의 generic-api-key 가 줄바꿈을 넘어 다음 줄(`LLM_EFFORT=medium`)을
+# 값으로 잘못 잡는다. 새 PR 이 `KEY=` 와 다음 줄을 한 번에 추가하면 git 모드에서도 난다 (임시 저장소로 재현함).
+# `.env.example` 안의 키처럼 긴 값은 위 `env-example-long-value`, GitHub·AWS 토큰 같은 알려진 형식은 기본 규칙이 계속 잡는다.
+[[allowlists]]
+description = ".env.example 의 빈 값 줄에서 나는 generic-api-key 오탐"
+targetRules = ["generic-api-key"]
+paths = ['''(^|/)\.env\.example$''']

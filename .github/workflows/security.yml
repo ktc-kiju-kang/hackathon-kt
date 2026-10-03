@@ -1,0 +1,27 @@
+name: Security
+
+# 비밀값 스캔 (gitleaks). 공개 저장소라 키·토큰이 커밋되면 바로 노출된다.
+# 배포(Deploy)는 `CI` 워크플로 완료만 트리거로 쓰므로 이 워크플로는 배포 흐름과 무관하다.
+# 설정: .gitleaks.toml · 문서: docs/SDLC.md
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: read # PR 의 커밋 범위를 읽는다
+
+jobs:
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 전체 이력을 받아야 PR 범위의 커밋을 스캔할 수 있다
+      # 제3자 액션이라 태그가 아닌 커밋 SHA 로 고정한다 (공급망 보안). 올릴 때는 Dependabot 이 SHA 와 주석을 함께 갱신한다.
+      # 라이선스: 개인 계정 저장소는 키가 필요 없다. 저장소를 조직으로 옮기면 GITLEAKS_LICENSE 시크릿이 필요하다.
+      - uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_CONFIG: .gitleaks.toml
