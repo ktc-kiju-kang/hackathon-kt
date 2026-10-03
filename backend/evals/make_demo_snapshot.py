@@ -36,6 +36,7 @@ async def _patient(make, provider: LLMProvider):
                 raise
             print(f"  한도·일시 오류({e.code}) → {RATE_WAIT:.0f}초 뒤 다시")
             await asyncio.sleep(RATE_WAIT)
+    raise AssertionError("unreachable")  # 마지막 시도는 위에서 raise 한다
 
 
 async def build(company_id: str, count: int, provider: LLMProvider) -> snapshot.SnapshotFile:

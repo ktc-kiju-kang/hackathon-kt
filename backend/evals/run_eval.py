@@ -1,6 +1,6 @@
 """에이전트 평가. 질문 세트(cases.json)를 돌려 도구 사용·답변 내용을 규칙으로 채점한다.
 
-    cd backend && .venv/bin/python -m evals.run_eval              # 설정된 LLM (실제 API 비용 발생!)
+    cd backend && .venv/bin/python -m evals.run_eval              # 설정된 LLM (API 비용 발생!)
     cd backend && .venv/bin/python -m evals.run_eval --provider mock  # 비용 없이 흐름만 확인
     옵션: --cases evals/cases.json --only calc-basic --min-pass 0.75
 

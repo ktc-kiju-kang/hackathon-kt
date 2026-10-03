@@ -1,6 +1,7 @@
 """OpenAI Signals 트렌드 지표. 계약: docs/contracts/trends.md
 
-공개된 읽기 전용 데이터라 DB 대신 backend/data/signals/의 CSV를 처음 호출 때 메모리에 읽는다 (~2MB).
+공개된 읽기 전용 데이터라 DB 대신 backend/data/signals/의 CSV를
+처음 호출 때 메모리에 읽는다 (~2MB).
 """
 
 import csv

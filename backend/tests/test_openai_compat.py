@@ -13,7 +13,13 @@ SIG = {"google": {"thought_signature": "SIG123"}}
 
 
 def chunk(delta=None, finish=None, usage=None):
-    data = {"id": "c", "object": "chat.completion.chunk", "created": 0, "model": "m", "choices": []}
+    data = {
+        "id": "c",
+        "object": "chat.completion.chunk",
+        "created": 0,
+        "model": "m",
+        "choices": [],
+    }
     if delta is not None or finish:
         data["choices"] = [{"index": 0, "delta": delta or {}, "finish_reason": finish}]
     if usage:

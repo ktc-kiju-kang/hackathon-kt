@@ -1,3 +1,5 @@
 -r requirements.txt
 pytest>=8
-ruff>=0.6
+# 린트·타입 검사는 CI와 로컬 결과가 같도록 정확한 버전으로 고정한다
+ruff==0.16.10
+ty==0.0.84

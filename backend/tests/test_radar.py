@@ -177,10 +177,11 @@ class ScriptedProvider:
             raise step
         name = tools[0].name
         calls = [ToolCall(id="c", name=name, input=step[1])] if step[1] else []
-        yield TurnComplete(message=Message(role="assistant", tool_calls=calls), stop_reason=step[0])
+        message = Message(role="assistant", tool_calls=calls)
+        yield TurnComplete(message=message, stop_reason=step[0])
 
 
-class RateLimited(Exception):
+class RateLimitedError(Exception):
     status_code = 429
 
 
@@ -211,7 +212,7 @@ def run_structured(provider, budget=None):
 
 def test_transient_error_retries_with_event(monkeypatch):
     monkeypatch.setattr("app.agent.structured.asyncio.sleep", _no_sleep)
-    provider = ScriptedProvider([RateLimited("429"), ("tool_use", TRENDS)])
+    provider = ScriptedProvider([RateLimitedError("429"), ("tool_use", TRENDS)])
     out, events = run_structured(provider)
     assert len(out.trends) == 2 and provider.calls == 2
     assert events == [("retry", {"code": "rate_limit", "wait_seconds": 4.0, "attempt": 1})]

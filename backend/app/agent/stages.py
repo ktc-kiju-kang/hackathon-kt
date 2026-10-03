@@ -1,4 +1,6 @@
-"""단계형 LLM 생성 파이프라인 실행 (radar·product 공통). 계약: docs/contracts/radar.md "스트림 형식"
+"""단계형 LLM 생성 파이프라인 실행 (radar·product 공통).
+
+계약: docs/contracts/radar.md "스트림 형식"
 
 서비스는 단계를 선언만 한다 (이름·제출 도구·출력 모델·프롬프트·mock 결과·요약).
 단계 시작/끝 이벤트, mock 폴백, 구조화 호출(`call_structured`), 요청당 호출 예산은 여기서 처리한다.
@@ -19,7 +21,10 @@ T = TypeVar("T", bound=BaseModel)
 
 
 def llm_provider() -> LLMProvider:
-    """FastAPI 의존성: 요청이 쓸 LLM. 테스트는 `app.dependency_overrides[llm_provider]`로 바꾼다."""
+    """FastAPI 의존성: 요청이 쓸 LLM.
+
+    테스트는 `app.dependency_overrides[llm_provider]`로 바꾼다.
+    """
     return get_provider()
 
 
@@ -81,7 +86,8 @@ def stream_stages(
     """`run(runner)`가 보내는 이벤트를 SSE 문자열로 스트리밍한다 (`sse_stream` 사용).
 
     검증·한도 확인은 이 함수를 부르기 전에 끝낸다 (스트림 도중엔 상태코드를 바꿀 수 없음).
-    `max_calls`는 요청당 LLM 호출 상한(없으면 AGENT_MAX_TURNS). `provider`가 없으면 설정에서 고른다.
+    `max_calls`는 요청당 LLM 호출 상한(없으면 AGENT_MAX_TURNS).
+    `provider`가 없으면 설정에서 고른다.
     """
     chosen = provider or get_provider()
     return sse_stream(lambda emit: run(StageRunner(emit, CallBudget(max_calls), chosen, system)))
