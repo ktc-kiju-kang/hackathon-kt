@@ -11,7 +11,7 @@
 | 요구사항·계획 | 이슈 하나 = 기능 하나. 템플릿에 목표·완료 조건·API 초안을 적고, 칸반 카드가 움직인다 (Todo·In Review·Done은 GitHub Projects 내장 워크플로로 자동 — 레포에 정의가 없고 설정은 `docs/TEAM.md`, In Progress만 `/start-task`) | `.github/ISSUE_TEMPLATE/`, `/new-issue`, 칸반, `docs/PROJECT.md`(주제·MVP·데모 시나리오) | 관례 (이슈 없이 시작 금지) |
 | 설계 | **계약 우선** — API를 문서로 먼저 정한다. 되돌리기 어려운 결정은 ADR | `docs/contracts/`, `docs/decisions/`(0001~0007), `docs/architecture.md` | 관례 + reviewer 점검 항목 |
 | 구현 | 브랜치 `<type>/<이슈번호>-…`, 기능 폴더, 작게 자주 머지 | `/start-task`, `/add-endpoint`·`/add-page`·`/add-agent-tool`, `.claude/rules/` | 관례 |
-| 테스트 | 아래 3절 | pytest, Vitest, evals, ESLint, ruff, build | **CI가 강제** (evals 제외) |
+| 테스트 | 아래 3절 | pytest, Vitest, evals, ESLint, ruff, ty, build | **CI가 강제** (evals 제외) |
 | 리뷰 | PR 전 셀프 리뷰와 충돌 검사. 공용 파일·남의 기능·계약·마이그레이션은 리뷰 요청 | `reviewer` 에이전트, `/pr-check`, PR 템플릿 | 관례 (승인은 필수 아님) |
 | 배포 | main 머지 → CI → migrate → backend → frontend → smoke | `.github/workflows/deploy.yml`, `docs/deploy.md` | **자동** |
 | 운영·회고 | 상태는 `/api/health`, 배포는 `/deploy-status`, 날짜별 기록 | `docs/DEMO.md`(시연·장애), `docs/worklog/` | 관례 |
@@ -36,7 +36,7 @@
 |---|---|---|---|---|
 | 단위·API | pytest 88개 — 계약의 이벤트 순서, 입력 검증, 사용량 한도, 단계 파이프라인. DB·LLM 없이(mock·가짜 공급자) | `backend/tests/` | CI 자동 | 무료 |
 | 단위 (frontend) | Vitest 14개 — `lib/sse.ts`(SSE 파서·스트림 읽기): 청크 분할, 끊김 감지, 서버 오류 문구, 헤더·취소 | `frontend/src/**/*.test.ts` | CI 자동 (`npm test`) | 무료 |
-| 정적 검사 | ruff(lint·format), ESLint | CI | 자동 | 무료 |
+| 정적 검사 | ruff(lint·format), ty(타입), ESLint | CI | 자동 | 무료 |
 | 비밀값 스캔 | gitleaks — 기본 규칙 + `.env.example`의 키처럼 긴 값 | `.gitleaks.toml`, `.github/workflows/security.yml` | PR·main push 자동 (**필수 체크는 아님**) | 무료 |
 | 빌드 | Next.js build (타입 검사 포함) | CI | 자동 | 무료 |
 | 품질 평가 | 실제 LLM으로 에이전트·radar·product 결과를 규칙으로 채점 | `backend/evals/` | **수동**, 실행 전 사용자 확인 | **실제 API 비용** |
@@ -71,7 +71,7 @@
 | Deploy의 backend 단계가 `Wait for new version`에서 15분 뒤 실패 (2026-10-02, `4d1e84c`) | 워크플로가 15분 안에 새 버전을 확인하지 못함(Render가 새 커밋을 못 띄운 것으로 보이며, 원인은 Render 대시보드 로그에서만 볼 수 있다) | 그사이 main에 새 커밋이 있으면 **다음 Deploy가 처리**한다 (실제로 다음 커밋에서 해소). 계속 실패하면 Render 로그를 보고 수동 재배포(`gh workflow run deploy.yml`, 사용자 확인) |
 | 운영 API 첫 요청이 응답이 없음(타임아웃) | Render free는 15분 미사용 시 잠든다 | `/api/health`를 반복 호출해 깨운다(약 1분). 시연 10분 전에 미리 |
 | radar·product·agent가 429 | LLM 무료 한도(분당·일일) | radar "저장된 결과 보기"(`docs/DEMO.md`), 한도 확인 |
-| 로컬 pytest가 `ModuleNotFoundError: anthropic` 등으로 수집 실패 | main에 의존성이 추가됐는데 로컬 venv가 낡음 | `.venv/bin/pip install -r requirements-dev.txt` |
+| 로컬 pytest가 `ModuleNotFoundError: anthropic` 등으로 수집 실패 | main에 의존성이 추가됐는데 로컬 venv가 낡음 | `uv pip install -r requirements-dev.txt` |
 | 로컬 build가 `.next/dev/types/… Cannot find module '…/page.js'`로 실패 | 삭제한 라우트를 가리키는 생성 캐시 | `rm -rf frontend/.next` (gitignore됨, CI에는 없음) |
 | 테스트·`fastapi dev`가 실제 공유 DB에 붙음 | `backend/.env`에 실제 Supabase 키가 있음 | 테스트는 설정을 고정(monkeypatch). 수동 확인은 `SUPABASE_URL=` 등을 비워 실행하고, 쓴 데이터는 지운다 |
 | Dependabot PR이 한꺼번에 열림 (설정 직후 첫 실행에 7개) | 첫 실행은 밀린 업데이트를 한 번에 만든다. 설정은 주 1회·그룹이지만 생태계마다 한도가 따로다 | CI 통과를 확인하고 **하나씩** 머지한다. GitHub Actions 메이저 업데이트(예: `checkout` 4→7)는 PR CI가 못 돌리는 `deploy.yml`에 영향이 있으니 머지 뒤 `Deploy`를 한 번 수동 실행해 확인한다 |

@@ -42,9 +42,9 @@
 ## 명령
 | | frontend (`cd frontend`) | backend (`cd backend`) |
 |---|---|---|
-| 셋업 | `npm install && cp .env.example .env.local` | `python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt && cp .env.example .env` |
+| 셋업 | `npm install && cp .env.example .env.local` | `uv venv && uv pip install -r requirements-dev.txt && cp .env.example .env` |
 | 실행 | `npm run dev` → :3000 | `.venv/bin/fastapi dev app/main.py` → :8000 (`/api/docs`) |
-| 검증 | `npm run lint && npm test && npm run build` | `.venv/bin/ruff check . && .venv/bin/ruff format --check . && .venv/bin/pytest` |
+| 검증 | `npm run lint && npm test && npm run build` | `.venv/bin/ruff check . && .venv/bin/ruff format --check . && .venv/bin/ty check app tests evals && .venv/bin/pytest` |
 
 **PR 전 변경한 쪽의 검증 명령을 반드시 통과시킨다.** CI(`frontend`, `backend` 잡)가 동일하게 실행한다.
 
