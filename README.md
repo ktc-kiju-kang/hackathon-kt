@@ -10,6 +10,7 @@ git clone https://github.com/ktc-kiju-kang/hackathon-kt.git && cd hackathon-kt
 cd frontend && npm install && cp .env.example .env.local && npm run dev
 
 # backend — http://localhost:8000/api/docs  (SUPABASE_URL·SUPABASE_SERVICE_ROLE_KEY는 팀원에게 안전한 경로로 받아 .env에)
+# uv 필요: brew install uv (또는 pip install uv)
 cd backend && uv venv && uv pip install -r requirements-dev.txt
 cp .env.example .env && .venv/bin/fastapi dev app/main.py
 
