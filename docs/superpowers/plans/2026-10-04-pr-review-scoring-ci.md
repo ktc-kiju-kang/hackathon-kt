@@ -1,16 +1,29 @@
 # PR 자동 점검 CI (PR 1/2) 구현 계획
 
+> **상태: 미구현 (2026-10-06 확인)**. 아래 코드는 계획용 예시이며 저장소의 실행 파일이 아니다. 문서의 `Expected`와 체크리스트는 실제 실행 결과가 아니고, 이 문서 수정으로 워크플로가 설치되지 않는다. 현재 운영 절차는 [SDLC](../../SDLC.md)를 따른다.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** PR이 열리거나 갱신될 때 자동 점검 40점(이슈 연결·테스트·계약·크기·커밋·본문·린트/타입)과 AI 리뷰 블록 검증 결과를 PR 코멘트 1개로 남긴다.
 
-**Architecture:** 표준 라이브러리만 쓰는 `scripts/pr_review_score.py`가 `gh api`로 PR 메타·파일·커밋을 읽어 채점하고, 워크플로가 만든 린트 결과 파일(`lint/`)을 읽어 린트 점수를 낸다. 점수 함수는 전부 순수 함수라 `unittest`로 경계값을 검증한다. 워크플로는 항상 성공(비차단)이다. 설계: `docs/superpowers/specs/2026-10-03-pr-review-scoring-design.md`.
+**Architecture:** 표준 라이브러리만 쓰는 `scripts/pr_review_score.py`가 `gh api`로 PR 메타·파일·커밋을 읽어 채점하고, 워크플로가 만든 린트 결과 파일(`lint/`)을 읽어 린트 점수를 낸다. 점수 함수는 전부 순수 함수라 `unittest`로 경계값을 검증한다. 워크플로는 보고 전용·비차단을 목표로 하며, 실패 시에도 보고를 남기는 처리는 아래 착수 전 재확인 대상이다. 설계: `docs/superpowers/specs/2026-10-03-pr-review-scoring-design.md`.
 
 **Tech Stack:** Python 3 stdlib(unittest, re, json, subprocess), `gh` CLI, GitHub Actions, ESLint(JSON), ruff(JSON), ty(concise)
 
 **범위 밖:** 리뷰 흐름 문서·`reviewer`/`/handoff`/PR 템플릿 갱신(PR 2, 이 PR 머지 후 별도 계획).
 
 **브랜치:** `ci/pr-review-score` (이슈 없는 인프라 작업 규칙: `<type>/<설명>`)
+
+## 구현 착수 전 재확인
+
+기존 배점·판정선을 바꾸는 절차가 아니라, 예시를 실제 구현으로 옮기기 전에 확인해야 할 차이다. **아래 코드 블록을 그대로 실행 가능한 완성본으로 취급하지 않는다.**
+
+- [현재 CI](../../../.github/workflows/ci.yml)는 checkout·setup-node·setup-python v7을 사용한다. Task 7의 액션 버전은 예전 예시이므로 구현 시 현재 main과 맞춘다.
+- 워크플로가 필수 체크가 아닌 것과 모든 step이 성공하는 것은 별개다. 설치 실패·API 실패·파싱 실패에도 상태가 명확히 보고되는지, 도구 실패를 진단 0건으로 오인하지 않는지 확인한다. 성공 경로 테스트만으로 "항상 성공"을 주장하지 않는다.
+- PR이 바꾼 스크립트·의존성·린트 설정은 실행 코드다. Task 7처럼 작업 전체에 쓰기 토큰을 두는 예시를 그대로 채택하지 말고 실행 단계와 보고 단계의 권한 경계를 먼저 확정한다. 포크·Dependabot의 읽기 전용 경로도 별도로 검증한다.
+- Task 8의 변이 시험은 격리된 임시 사본/worktree에서 한다. 원래 미커밋 변경이 있을 수 있는 작업 파일을 통째로 되돌리지 않는다. 생성한 변이만 제거하고 원래 내용이 보존됐는지 확인한다.
+- 실환경 PR·push·수동 실행은 사용자 승인 후 진행한다. 기존 #55 같은 과거 PR이 여전히 열려 있다고 가정하지 말고 현재 사용할 수 있는 검증 대상을 확인한다.
+- 미측정·해당 없음·오래된 AI 리뷰는 별도로 표시하고, 테스트·설치 실패를 숨겨 점수를 높이지 않는다. 실제 실행 URL·대상 SHA·명령·결과가 남기 전에는 체크박스를 완료로 바꾸지 않는다.
 
 ---
 
@@ -941,14 +954,12 @@ Expected: `0 0` (현재 main은 ruff·ty 모두 깨끗)
 
 ### Task 8: 검증과 PR
 
-- [ ] **Step 1: 변이 시험** — 채점 규칙을 하나 바꿔 테스트가 실패하는지 확인하고 되돌린다.
+- [ ] **Step 1: 변이 시험** — 격리된 임시 사본/worktree에서 아래 순서로 확인한다.
 
-```bash
-sed -i '' 's/pts = 4 if n <= 400/pts = 4 if n <= 500/' scripts/pr_review_score.py
-python3 scripts/test_pr_review_score.py 2>&1 | tail -3   # FAIL 이어야 한다
-git checkout scripts/pr_review_score.py
-python3 scripts/test_pr_review_score.py 2>&1 | tail -3   # OK
-```
+1. `python3 scripts/test_pr_review_score.py`의 정상 통과를 먼저 기록한다.
+2. PR 크기 경계 `400`을 `500`으로 바꾸는 등 채점 규칙 하나만 변이시키고 diff를 확인한다.
+3. 같은 명령의 **전체 결과와 종료 코드**를 확인한다. 경계값 테스트 때문에 실패해야 하며, 의존성 누락 등 다른 실패는 변이를 잡았다는 증거가 아니다.
+4. 자신이 만든 변이만 제거하고 같은 명령이 다시 통과하는지 확인한다. 기존 변경을 통째로 되돌리거나 `tail` 파이프의 종료 코드를 테스트 성공으로 사용하지 않는다.
 
 - [ ] **Step 2: 충돌 검사·리뷰** — `scripts/check-conflicts.sh`, `reviewer` 서브에이전트(보안: 코멘트에 외부 입력이 무력화되는지, 워크플로 권한)
 
