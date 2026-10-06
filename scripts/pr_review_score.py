@@ -26,7 +26,14 @@ AI_ITEMS = {
     "테스트 품질": 10,
     "배포·운영 안전": 5,
 }
-AI_SECTIONS = ["변경 요약", "구조·설계 평가", "위험 분석", "테스트 평가", "지적 사항", "확인하지 못한 것"]
+AI_SECTIONS = [
+    "변경 요약",
+    "구조·설계 평가",
+    "위험 분석",
+    "테스트 평가",
+    "지적 사항",
+    "확인하지 못한 것",
+]
 EXEMPT_TYPES = ("docs", "chore", "ci")
 
 UI_PREFIX = "frontend/src/components/ui/"
@@ -68,7 +75,7 @@ def score_issue(title: str, body: str) -> Item:
     m = re.match(r"^(\w+)(\([^)]*\))?:", title)
     if m and m.group(1) in EXEMPT_TYPES:
         return Item("이슈 연결", 6, 6, "면제 (docs·chore·ci)")
-    if re.search(r"\b(closes|fixes|resolves)\s+#\d+", body, re.I):
+    if re.search(r"\b(closes|fixes|resolves)\s+#\d+", body, re.IGNORECASE):
         return Item("이슈 연결", 6, 6, "Closes/Fixes 있음")
     if re.search(r"#\d+", body):
         return Item("이슈 연결", 4, 6, "참조만 있음 (Closes 권장)")
@@ -121,12 +128,12 @@ def score_body(body: str) -> Item:
         pts += 1
     else:
         notes.append("본문 200자 미만")
-    if re.search(r"^##\s*변경", body, re.M):
+    if re.search(r"^##\s*변경", body, re.MULTILINE):
         pts += 1
     else:
         notes.append("`## 변경` 없음")
-    m = re.search(r"^##\s*(검증|확인)[^\n]*\n(.*?)(?=^##\s|\Z)", body, re.M | re.S)
-    if m and re.search(r"^\s*([-*]|\d+\.)\s+\S", m.group(2), re.M):
+    m = re.search(r"^##\s*(검증|확인)[^\n]*\n(.*?)(?=^##\s|\Z)", body, re.MULTILINE | re.DOTALL)
+    if m and re.search(r"^\s*([-*]|\d+\.)\s+\S", m.group(2), re.MULTILINE):
         pts += 2
     else:
         notes.append("`## 검증` 항목 없음")
@@ -143,12 +150,18 @@ def _lint_item(name, mx, applicable, value, points, note):
 
 def score_lint(frontend, backend, eslint_errors, ruff_violations, format_ok, ty_count):
     """측정값이 None이면 측정 못 함. 해당 영역 변경이 없으면 실행하지 않고 만점."""
-    n = lambda v: f"{v}건"  # noqa: E731
+    n = lambda v: f"{v}건"
     return [
         _lint_item("ESLint", 3, frontend, eslint_errors, lambda v: 3 if v == 0 else 0, n),
         _lint_item("ruff check", 3, backend, ruff_violations, lambda v: 3 if v == 0 else 0, n),
-        _lint_item("ruff format", 2, backend, format_ok, lambda v: 2 if v else 0,
-                   lambda v: "차이 없음" if v else "포맷 차이 있음"),
+        _lint_item(
+            "ruff format",
+            2,
+            backend,
+            format_ok,
+            lambda v: 2 if v else 0,
+            lambda v: "차이 없음" if v else "포맷 차이 있음",
+        ),
         _lint_item("ty", 2, backend, ty_count, lambda v: 2 if v == 0 else 1 if v <= 2 else 0, n),
     ]
 
@@ -175,7 +188,7 @@ class AiReview:
 
 def parse_ai_block(body: str) -> AiReview:
     r = AiReview(scores={}, errors=[], warnings=[])
-    m = re.search(r"<!-- ai-review:start -->(.*?)<!-- ai-review:end -->", body, re.S)
+    m = re.search(r"<!-- ai-review:start -->(.*?)<!-- ai-review:end -->", body, re.DOTALL)
     if not m:
         r.errors.append("AI 리뷰 블록이 없음")
         return r
@@ -207,7 +220,7 @@ def parse_ai_block(body: str) -> AiReview:
     if len(r.scores) == len(AI_ITEMS) and t and sum(r.scores.values()) != r.total:
         r.errors.append(f"항목 합({sum(r.scores.values())})과 총점({r.total})이 다름")
     for h in AI_SECTIONS:
-        if not re.search(rf"^#{{2,4}}\s*{re.escape(h)}", blk, re.M):
+        if not re.search(rf"^#{{2,4}}\s*{re.escape(h)}", blk, re.MULTILINE):
             r.warnings.append(f"섹션 `{h}` 없음")
     return r
 
@@ -231,7 +244,7 @@ def verdict(total: int, blocking: int, ai_ok: bool) -> str:
 def sanitize(text: str, limit: int = 200) -> str:
     """코멘트에 인용할 외부 문자열: 멘션·링크·HTML을 무력화하고 한 줄로 줄인다."""
     t = " ".join(str(text).split())
-    t = t.replace("@", "@​").replace("](", "]​(").replace("<", "&lt;")
+    t = t.replace("@", "@\u200b").replace("](", "]\u200b(").replace("<", "&lt;")
     return t if len(t) <= limit else t[:limit] + "…"
 
 
@@ -262,7 +275,9 @@ def render_comment(
     lines += ["", "### AI 리뷰"]
     no_block = ai is None or ai.errors == ["AI 리뷰 블록이 없음"]
     if no_block:
-        lines.append("PR 본문에 AI 리뷰 블록이 없습니다. `/handoff`로 리뷰를 받아 본문에 넣으세요.")
+        lines.append(
+            "PR 본문에 AI 리뷰 블록이 없습니다. `/handoff`로 리뷰를 받아 본문에 넣으세요."
+        )
     elif ai.errors:
         lines.append("형식 오류로 AI 점수는 0점입니다:")
         lines += [f"- {sanitize(e, 160)}" for e in ai.errors]
@@ -275,7 +290,152 @@ def render_comment(
         lines += [f"- ⚠️ {sanitize(w, 100)}" for w in (ai.warnings or [])]
     lines += [
         "",
-        f"<sub>head `{head_sha[:7]}` · 점수는 참고용이며 머지 결정은 사람이 합니다. "
-        "AI 리뷰는 작성자의 자기 보고라 실제 실행 여부는 검증하지 못합니다.</sub>",
+        (
+            f"<sub>head `{head_sha[:7]}` · 점수는 참고용이며 머지 결정은 사람이 합니다. "
+            "AI 리뷰는 작성자의 자기 보고라 실제 실행 여부는 검증하지 못합니다.</sub>"
+        ),
     ]
     return "\n".join(lines) + "\n"
+
+
+def _read_json(path: Path):
+    try:
+        return json.loads(path.read_text())
+    except (OSError, ValueError):
+        return None
+
+
+def count_eslint(d: Path) -> int | None:
+    data = _read_json(d / "eslint.json")
+    if not isinstance(data, list):
+        return None
+    return sum(int(f.get("errorCount", 0)) for f in data)
+
+
+def count_ruff(d: Path) -> int | None:
+    data = _read_json(d / "ruff.json")
+    return len(data) if isinstance(data, list) else None
+
+
+def format_ok(d: Path) -> bool | None:
+    try:
+        return (d / "ruff-format.code").read_text().strip() == "0"
+    except OSError:
+        return None
+
+
+def count_ty(d: Path) -> int | None:
+    try:
+        text = (d / "ty.txt").read_text()
+    except OSError:
+        return None
+    return len(re.findall(r"^\S+:\d+:\d+: (?:error|warning)\[", text, re.MULTILINE))
+
+
+# ---- GitHub I/O (gh CLI) ----------------------------------------------------
+
+
+def gh(*args: str, stdin: str | None = None) -> str:
+    return subprocess.run(
+        ["gh", *args], input=stdin, capture_output=True, text=True, check=True
+    ).stdout
+
+
+def gh_pages(path: str) -> list:
+    """페이지가 여러 개여도 하나의 목록으로 합친다."""
+    pages = json.loads(gh("api", "--paginate", "--slurp", path))
+    return [x for page in pages for x in page]
+
+
+def load_pr() -> tuple[str, int, dict]:
+    repo = os.environ["GITHUB_REPOSITORY"]
+    event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text())
+    number = event["pull_request"]["number"]
+    pr = json.loads(gh("api", f"repos/{repo}/pulls/{number}"))
+    return repo, number, pr
+
+
+def detect_areas(files: list[dict]) -> tuple[bool, bool]:
+    names = [f["filename"] for f in files]
+    return any(n.startswith("frontend/") for n in names), any(
+        n.startswith("backend/") for n in names
+    )
+
+
+def upsert_comment(repo: str, number: int, body: str) -> None:
+    comments = gh_pages(f"repos/{repo}/issues/{number}/comments")
+    mine = next((c for c in comments if MARKER in (c.get("body") or "")), None)
+    if mine:
+        gh(
+            "api",
+            "-X",
+            "PATCH",
+            f"repos/{repo}/issues/comments/{mine['id']}",
+            "-f",
+            f"body={body}",
+        )
+    else:
+        gh("api", f"repos/{repo}/issues/{number}/comments", "-f", f"body={body}")
+
+
+def write_output(name: str, value: str) -> None:
+    path = os.environ.get("GITHUB_OUTPUT")
+    if path:
+        with open(path, "a") as f:
+            f.write(f"{name}={value}\n")
+
+
+def main(argv: list[str]) -> None:
+    repo, number, pr = load_pr()
+    files = gh_pages(f"repos/{repo}/pulls/{number}/files")
+    frontend, backend = detect_areas(files)
+    if "--areas" in argv:  # 워크플로가 린트를 어느 영역에서 돌릴지 정하는 용도
+        write_output("frontend", str(frontend).lower())
+        write_output("backend", str(backend).lower())
+        return
+
+    commits = gh_pages(f"repos/{repo}/pulls/{number}/commits")
+    lint_dir = Path(argv[argv.index("--lint-dir") + 1]) if "--lint-dir" in argv else Path("lint")
+    title, body = pr.get("title") or "", pr.get("body") or ""
+
+    items = [
+        *score_lint(
+            frontend,
+            backend,
+            count_eslint(lint_dir) if frontend else None,
+            count_ruff(lint_dir) if backend else None,
+            format_ok(lint_dir) if backend else None,
+            count_ty(lint_dir) if backend else None,
+        ),
+        score_issue(title, body),
+        score_tests(files),
+        score_contract(files),
+        score_size(files),
+        score_commits([c["commit"]["message"] for c in commits]),
+        score_body(body),
+    ]
+    auto, missing = auto_total(items)
+
+    ai = parse_ai_block(body)
+    behind = None
+    if not ai.errors:
+        behind = commits_behind(ai.commit, [c["sha"] for c in commits])
+        if behind is None:
+            ai.errors.append("리뷰한 커밋이 이 PR에 없음")
+    comment = render_comment(items, auto, missing, ai, behind, pr["head"]["sha"])
+
+    summary = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary:
+        Path(summary).write_text(comment)
+    try:
+        upsert_comment(repo, number, comment)
+    except subprocess.CalledProcessError as e:  # 읽기 전용 토큰(Dependabot·포크)은 요약만 남긴다
+        print(f"코멘트를 쓰지 못함(권한?): {sanitize(e.stderr or '', 200)}")
+
+
+if __name__ == "__main__":
+    try:
+        main(sys.argv[1:])
+    except Exception as e:  # noqa: BLE001  비차단: 채점 실패가 PR을 막지 않는다
+        print(f"채점 실패: {type(e).__name__}: {sanitize(str(e), 300)}")
+    sys.exit(0)

@@ -1,9 +1,11 @@
+import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-import pr_review_score as s  # noqa: E402
+import pr_review_score as s
 
 
 class ClassifyTest(unittest.TestCase):
@@ -124,9 +126,7 @@ class LintTest(unittest.TestCase):
 
 def block(commit="abc1234", total=52, blocking="없음", scores=None, sections=True):
     scores = scores or [13, 10, 10, 8, 7, 4]
-    rows = "\n".join(
-        f"| {n} | {v}/{m} |" for (n, m), v in zip(s.AI_ITEMS.items(), scores)
-    )
+    rows = "\n".join(f"| {n} | {v}/{m} |" for (n, m), v in zip(s.AI_ITEMS.items(), scores))
     secs = "\n".join(f"### {h}" for h in s.AI_SECTIONS) if sections else ""
     return (
         f"본문\n<!-- ai-review:start -->\n## AI 리뷰\n- 리뷰한 커밋: `{commit}`\n"
@@ -215,6 +215,42 @@ class RenderTest(unittest.TestCase):
         out = self._render(ai)
         self.assertIn("형식 오류", out)
         self.assertIn("항목 합", out)
+
+
+class LintParseTest(unittest.TestCase):
+    def setUp(self):
+        self.d = Path(tempfile.mkdtemp())
+
+    def test_eslint(self):
+        (self.d / "eslint.json").write_text(
+            json.dumps(
+                [{"errorCount": 2, "warningCount": 5}, {"errorCount": 1, "warningCount": 0}]
+            )
+        )
+        self.assertEqual(s.count_eslint(self.d), 3)
+        self.assertIsNone(s.count_eslint(self.d / "nope"))
+
+    def test_ruff(self):
+        (self.d / "ruff.json").write_text(json.dumps([{"code": "E501"}, {"code": "F401"}]))
+        self.assertEqual(s.count_ruff(self.d), 2)
+
+    def test_ruff_format(self):
+        (self.d / "ruff-format.code").write_text("0\n")
+        self.assertTrue(s.format_ok(self.d))
+        (self.d / "ruff-format.code").write_text("1\n")
+        self.assertFalse(s.format_ok(self.d))
+
+    def test_ty(self):
+        (self.d / "ty.txt").write_text(
+            "app/a.py:1:2: error[x] 메시지\napp/b.py:3:4: warning[y] 메시지\nFound 2 diagnostics\n"
+        )
+        self.assertEqual(s.count_ty(self.d), 2)
+        (self.d / "ty.txt").write_text("All checks passed!\n")
+        self.assertEqual(s.count_ty(self.d), 0)
+
+    def test_broken_json_is_unmeasured(self):
+        (self.d / "ruff.json").write_text("not json")
+        self.assertIsNone(s.count_ruff(self.d))
 
 
 if __name__ == "__main__":
