@@ -1,4 +1,8 @@
+import contextlib
+import io
 import json
+import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -238,6 +242,117 @@ class MainAbsentLintDirTest(unittest.TestCase):
             row = next(x for x in body.splitlines() if x.startswith(f"| {name} |"))
             self.assertIn("측정 못 함", row)
             self.assertIn("—", row)
+
+
+def _comment(cid, body, utype="Bot", login="github-actions[bot]"):
+    return {"id": cid, "body": body, "user": {"type": utype, "login": login}}
+
+
+class UpsertCommentTest(unittest.TestCase):
+    def run_upsert(self, comments):
+        calls = []
+        orig = (s.gh, s.gh_pages)
+        s.gh_pages = lambda path: comments
+        s.gh = lambda *a, **k: calls.append(a) or ""
+        try:
+            s.upsert_comment("o/r", 7, f"{s.MARKER}\n본문")
+        finally:
+            s.gh, s.gh_pages = orig
+        return calls
+
+    def test_non_bot_marker_comment_is_ignored(self):
+        calls = self.run_upsert([_comment(1, s.MARKER, "User", "mallory")])
+        self.assertEqual(len(calls), 1)
+        self.assertNotIn("PATCH", calls[0])
+        self.assertIn("repos/o/r/issues/7/comments", calls[0])
+
+    def test_bot_comment_without_marker_is_ignored(self):
+        calls = self.run_upsert([_comment(1, "다른 봇 코멘트")])
+        self.assertNotIn("PATCH", calls[0])
+
+    def test_bot_marker_comment_is_patched(self):
+        calls = self.run_upsert([_comment(1, "x", "User", "u"), _comment(5, s.MARKER + " old")])
+        self.assertEqual(len(calls), 1)
+        self.assertIn("PATCH", calls[0])
+        self.assertIn("repos/o/r/issues/comments/5", calls[0])
+
+    def test_login_alone_counts_as_bot(self):
+        calls = self.run_upsert([_comment(9, s.MARKER, "User", "github-actions[bot]")])
+        self.assertIn("PATCH", calls[0])
+
+    def test_none_posts_new(self):
+        calls = self.run_upsert([])
+        self.assertEqual(len(calls), 1)
+        self.assertNotIn("PATCH", calls[0])
+
+
+class WriteFailureTest(unittest.TestCase):
+    def run_main(self, exc):
+        def boom(*a):
+            raise exc
+
+        orig = (s.load_pr, s.gh_pages, s.upsert_comment)
+        s.load_pr = lambda: ("o/r", 1, {"title": "t", "body": "", "head": {"sha": "a" * 40}})
+        s.gh_pages = lambda path: []
+        s.upsert_comment = boom
+        out = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(out):
+                s.main(["--lint-dir", "nope"])
+        finally:
+            s.load_pr, s.gh_pages, s.upsert_comment = orig
+        return out.getvalue()
+
+    def test_subprocess_error_message_has_http_status(self):
+        err = subprocess.CalledProcessError(
+            1, "gh", stderr="gh: Resource not accessible by integration (HTTP 403)"
+        )
+        self.assertIn("HTTP 403", self.run_main(err))
+
+    def test_json_error_is_caught(self):
+        self.assertIn("코멘트를 쓰지 못함", self.run_main(ValueError("bad json")))
+
+    def test_other_errors_propagate(self):
+        with self.assertRaises(KeyError):
+            self.run_main(KeyError("x"))
+
+    def test_report_failure_writes_summary_and_minimal_comment(self):
+        posted = []
+        d = Path(tempfile.mkdtemp())
+        ev = d / "event.json"
+        ev.write_text(json.dumps({"pull_request": {"number": 3}}))
+        env = {
+            "GITHUB_STEP_SUMMARY": str(d / "sum.md"),
+            "GITHUB_REPOSITORY": "o/r",
+            "GITHUB_EVENT_PATH": str(ev),
+        }
+        old_env = {k: os.environ.get(k) for k in env}
+        orig = s.upsert_comment
+        s.upsert_comment = lambda repo, n, body: posted.append((repo, n, body))
+        os.environ.update(env)
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                s.report_failure(KeyError("x"))
+        finally:
+            s.upsert_comment = orig
+            for k, v in old_env.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
+        self.assertIn("KeyError", (d / "sum.md").read_text())
+        self.assertEqual(posted[0][:2], ("o/r", 3))
+        self.assertIn(s.MARKER, posted[0][2])
+        self.assertIn("채점 실패: KeyError", posted[0][2])
+
+    def test_report_failure_never_raises(self):
+        orig = s.upsert_comment
+        s.upsert_comment = lambda *a: 1 / 0
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                s.report_failure(RuntimeError("x"))
+        finally:
+            s.upsert_comment = orig
 
 
 class LintParseTest(unittest.TestCase):

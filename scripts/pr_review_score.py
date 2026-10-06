@@ -370,9 +370,16 @@ def detect_areas(files: list[dict]) -> tuple[bool, bool]:
     )
 
 
+def _is_mine(c: dict) -> bool:
+    """봇이 쓴 마커 코멘트만. 사용자가 마커를 흉내 낸 코멘트는 건드리지 않는다."""
+    user = c.get("user") or {}
+    is_bot = user.get("type") == "Bot" or user.get("login") == "github-actions[bot]"
+    return is_bot and MARKER in (c.get("body") or "")
+
+
 def upsert_comment(repo: str, number: int, body: str) -> None:
     comments = gh_pages(f"repos/{repo}/issues/{number}/comments")
-    mine = next((c for c in comments if MARKER in (c.get("body") or "")), None)
+    mine = next((c for c in comments if _is_mine(c)), None)
     if mine:
         gh(
             "api",
@@ -437,13 +444,35 @@ def main(argv: list[str]) -> None:
         Path(summary).write_text(comment)
     try:
         upsert_comment(repo, number, comment)
-    except subprocess.CalledProcessError as e:  # 읽기 전용 토큰(Dependabot·포크)은 요약만 남긴다
-        print(f"코멘트를 쓰지 못함(권한?): {sanitize(e.stderr or '', 200)}")
+    except (subprocess.CalledProcessError, ValueError) as e:
+        # 읽기 전용 토큰(Dependabot·포크)은 요약만 남긴다. stderr 에 HTTP 상태가 들어 있다.
+        detail = sanitize(getattr(e, "stderr", None) or str(e), 200)
+        print(f"코멘트를 쓰지 못함(권한? {type(e).__name__}): {detail}")
+
+
+def report_failure(e: Exception) -> None:
+    """채점 자체가 실패했을 때 요약과 최소 코멘트를 최대한 남긴다. 절대 예외를 내지 않는다."""
+    msg = f"채점 실패: {type(e).__name__}"
+    print(f"{msg}: {sanitize(str(e), 300)}")
+    try:
+        summary = os.environ.get("GITHUB_STEP_SUMMARY")
+        if summary:
+            Path(summary).write_text(f"## PR 리뷰 점수\n\n{msg}\n")
+    except Exception as e2:  # noqa: BLE001
+        print(f"요약을 쓰지 못함: {type(e2).__name__}")
+    try:
+        repo = os.environ["GITHUB_REPOSITORY"]
+        event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text())
+        upsert_comment(
+            repo, event["pull_request"]["number"], f"{MARKER}\n## PR 리뷰 점수\n\n{msg}\n"
+        )
+    except Exception as e2:  # noqa: BLE001
+        print(f"실패 코멘트를 쓰지 못함: {type(e2).__name__}")
 
 
 if __name__ == "__main__":
     try:
         main(sys.argv[1:])
     except Exception as e:  # noqa: BLE001  비차단: 채점 실패가 PR을 막지 않는다
-        print(f"채점 실패: {type(e).__name__}: {sanitize(str(e), 300)}")
+        report_failure(e)
     sys.exit(0)
