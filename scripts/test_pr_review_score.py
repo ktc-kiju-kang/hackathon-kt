@@ -196,6 +196,18 @@ class RenderTest(unittest.TestCase):
         self.assertNotIn("\n", out)
         self.assertEqual(len(s.sanitize("가" * 500, 100)), 101)  # 100 + …
 
+    def test_sanitize_urls_pipes_amp_issue_refs(self):
+        out = s.sanitize("보세요 https://evil.example/x http://a.b | 표 & #12 와 #7")
+        self.assertNotIn("://", out)
+        self.assertIn(":\u200b//", out)
+        self.assertIn("\\|", out)
+        self.assertIn("&amp;", out)
+        self.assertNotRegex(out, r"#\d")
+        self.assertIn("#\u200b12", out)
+
+    def test_sanitize_amp_before_lt(self):
+        self.assertEqual(s.sanitize("<b>&"), "&lt;b>&amp;")
+
     def _render(self, ai=None, behind=0):
         items = [s.Item("이슈 연결", 6, 6, "Closes 있음"), s.Item("ty", 0, 2, "측정 못 함", False)]
         return s.render_comment(items, 38, ["ty"], ai, behind, "abc1234")

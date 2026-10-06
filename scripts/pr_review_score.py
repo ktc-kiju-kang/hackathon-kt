@@ -244,7 +244,11 @@ def verdict(total: int, blocking: int, ai_ok: bool) -> str:
 def sanitize(text: str, limit: int = 200) -> str:
     """코멘트에 인용할 외부 문자열: 멘션·링크·HTML을 무력화하고 한 줄로 줄인다."""
     t = " ".join(str(text).split())
-    t = t.replace("@", "@\u200b").replace("](", "]\u200b(").replace("<", "&lt;")
+    t = t.replace("&", "&amp;").replace("<", "&lt;")  # & 를 먼저
+    t = t.replace("@", "@\u200b").replace("](", "]\u200b(")
+    t = t.replace("://", ":\u200b//")  # 자동 링크 무력화
+    t = t.replace("|", "\\|")  # 표 셀 깨짐 방지
+    t = re.sub(r"#(?=\d)", "#\u200b", t)  # 이슈·PR 자동 참조 무력화
     return t if len(t) <= limit else t[:limit] + "…"
 
 
