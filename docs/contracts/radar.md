@@ -1,7 +1,7 @@
 # radar (그룹사 선택 + AI Opportunity Radar)
 - 담당: @ktc-kiju-kang · 이슈: #23 · 계약: #21
 - 사용처: frontend `/radar` (`features/radar`). `Opportunity` 타입은 product (#24)가 입력으로 쓴다
-- 데이터: `backend/data/companies.json` (DB 없음, 아래 "그룹사 데이터"). Opportunity는 v1에서 저장하지 않는다 (요청마다 생성해 스트리밍)
+- 데이터: `backend/data/companies.json` (DB 없음, 아래 "그룹사 데이터"). Opportunity는 DB에 저장하지 않는다 (요청마다 생성해 스트리밍, 같은 요청은 메모리에서 재사용 — 아래)
 - 스키마: `backend/app/schemas/radar.py` (#21에서 만듦)
 - 의존: trends `summary`·`resolve_evidence` (#22). 구현 전에는 같은 형태의 mock을 쓴다
 
@@ -23,6 +23,11 @@ Request:
 
 권한·한도 확인은 스트림 시작 전에 한다.
 
+**같은 요청 재사용** (#66, LLM 비용 절약): `company_id`·`country`·`focus`(앞뒤 공백 무시)·`count`·LLM 공급자가 같은 요청은 **6시간 동안** 이전 결과를 다시 보낸다.
+- 이벤트 순서·내용(기회 `id` 포함)은 처음과 같고, 마지막 `done`의 data에 `"cached": true`가 붙는다. LLM을 부르지 않고 한도도 쓰지 않는다.
+- `done`으로 끝난 결과만 저장한다. `error`로 끝났거나 중간에 연결이 끊긴 결과는 저장하지 않는다.
+- 서버 메모리에 최대 100개까지 두며 재시작·재배포하면 비워진다.
+
 단계:
 1. `trend`: 요청 국가와 전 세계의 `TrendSummary(months=23)`를 읽고 LLM이 회사와 관련된 트렌드를 고른다.
 2. `match`: 회사의 사업·자산과 연결한다.
@@ -41,7 +46,7 @@ LLM 호출은 요청당 최대 `AGENT_MAX_TURNS`(6)회다. 일시 오류 재시�
 | `opportunity` | `{ "opportunity": Opportunity }` | (radar) 기회 1건 완성 |
 | `product` | `{ "product": ProductCard }` | (product) 설계 완성 |
 | `retry` | chat과 같음 | LLM 일시 오류로 대기 후 재시도 |
-| `done` | `{ "stop_reason": "end", "usage": object }` | 정상 종료 (마지막 이벤트). chat 파서와 호환되게 `stop_reason`을 넣는다 |
+| `done` | `{ "stop_reason": "end", "usage": object, "cached"?: true }` | 정상 종료 (마지막 이벤트). chat 파서와 호환되게 `stop_reason`을 넣는다. `cached`는 radar가 이전 결과를 재사용했을 때만 온다 |
 | `error` | chat과 같음 `{ "message", "code"? }` | 오류 종료 (마지막 이벤트). 이 기능에서 추가된 code: `bad_output`(LLM 출력이 스키마와 맞지 않거나 길이 제한에 걸려 잘림), `no_result`(근거 있는 기회가 0개), `limit`(요청당 LLM 호출 한도 초과) |
 
 **radar 순서**: 모든 단계는 `start`와 `done`을 한 번씩 보낸다. `opportunity` 이벤트는 해당 단계의 start와 done 사이에 온다.

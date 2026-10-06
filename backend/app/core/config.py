@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     agent_retry_max_delay: float = 20.0
     # 공개 API 남용 방지 (프로세스 메모리 기준 — 서버 재시작 시 초기화)
     chat_rate_per_ip: int = 20  # IP당 10분에 보낼 수 있는 메시지 수
-    chat_daily_limit: int = 500  # 서버 전체 하루 메시지 수
+    chat_daily_limit: int = 150  # 서버 전체 하루 요청 수 (chat·radar·product 합산, LLM 비용 상한)
     chat_max_messages: int = 80  # 대화 하나의 최대 저장 메시지 수 (넘으면 새 대화)
 
     @property

@@ -22,7 +22,7 @@ paths:
 - `SYSTEM_PROMPT`(`agent/prompts.py`)에 날짜 등 바뀌는 값을 넣지 않는다 (프롬프트 캐시가 깨짐). 공용 파일이라 변경 시 리뷰 필요.
 - 대화 기록은 append-only (`raw`의 thinking 블록 유효성). 저장된 메시지를 수정·삭제하는 기능을 만들지 않는다.
 - **LLM 일시 오류**(한도 초과 429·5xx)는 루프가 글자를 보내기 전에만 대기 후 재시도한다(`AGENT_LLM_RETRIES`=2, retry-after 또는 4초→8초, 최대 20초). 오류 문구는 `app/agent/errors.py`에서 사용자용 한국어로 바꿔 SSE `error.message`로 보낸다 — 화면에 예외 이름을 노출하지 않는다.
-- **비용 보호** (공개 API): IP당 10분 20회(IP는 `core/quota.py`의 `client_ip`: Cloudflare `CF-Connecting-IP` → `X-Forwarded-For` 마지막 값. XFF 첫 값·`True-Client-IP`는 클라이언트가 넣을 수 있어 쓰지 않는다. IPv6는 /64로 묶는다), 서버 전체 하루 500회, 대화당 메시지 80개, 턴당 출력 8000토큰, 요청당 6턴 (`CHAT_*`, `LLM_MAX_TOKENS`, `AGENT_MAX_TURNS`). 메모리 기준이라 재시작 시 초기화 — **Anthropic Console에서 월 사용 한도도 설정**한다.
+- **비용 보호** (공개 API): IP당 10분 20회(IP는 `core/quota.py`의 `client_ip`: Cloudflare `CF-Connecting-IP` → `X-Forwarded-For` 마지막 값. XFF 첫 값·`True-Client-IP`는 클라이언트가 넣을 수 있어 쓰지 않는다. IPv6는 /64로 묶는다), 서버 전체 하루 150회(chat·radar·product 합산), 대화당 메시지 80개, 턴당 출력 8000토큰, 요청당 6턴 (`CHAT_*`, `LLM_MAX_TOKENS`, `AGENT_MAX_TURNS`). 메모리 기준이라 재시작 시 초기화 — **Anthropic Console에서 월 사용 한도도 설정**한다.
 - 대화가 길어져도 앞부분을 잘라 보내지 않는다 (기록 수정 → thinking 블록 무효·캐시 손실). 한도를 넘으면 409로 새 대화를 시작하게 한다.
 - **LLM이 결과 객체를 만드는 API**(대화가 아닌 단발 생성, 예: radar·product): 단계는 `app/agent/stages.py`의 `StageRunner.run`으로 **선언**하고(이름·제출 도구·출력 모델·프롬프트·mock 결과·요약), 진입은 `stream_stages`로 한다. 내부는 `structured.py`(`call_structured`·`CallBudget`·`sse_stream`). 규칙은 `docs/contracts/radar.md`의 "스트림 형식"·"구조화 출력 방법".
   - 결과 제출용 도구 하나만 넘겨 호출하게 하고, 그 입력(pydantic)을 결과로 쓴다 (`call_structured`). 도구 스키마의 `$ref`는 펼쳐서 보낸다 (Gemini).

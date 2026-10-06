@@ -69,15 +69,16 @@ def test_spoofed_forwarded_for_does_not_bypass_quota(monkeypatch, use_provider):
     monkeypatch.setattr(settings, "chat_rate_per_ip", 2)
     use_provider(MockProvider())
 
-    def call(spoof: str) -> int:
+    def call(spoof: str, count: int) -> int:
         headers = {
             "CF-Connecting-IP": "1.1.1.1",
             "X-Forwarded-For": f"{spoof}, 1.1.1.1, 172.68.0.1",
         }
-        body = {"company_id": "kt-cloud", "count": 3}
+        # 같은 요청은 재사용돼 한도를 쓰지 않으므로 요청마다 count를 바꾼다
+        body = {"company_id": "kt-cloud", "count": count}
         return client.post("/api/radar/opportunities", json=body, headers=headers).status_code
 
-    assert [call(f"9.9.9.{i}") for i in range(3)] == [200, 200, 429]
+    assert [call(f"9.9.9.{i}", 3 + i) for i in range(3)] == [200, 200, 429]
 
 
 def test_health_shows_own_ip():

@@ -2,10 +2,13 @@
 
 단계: trend(트렌드 고르기) → match(사업 연결) → opportunity(기회 생성). 단계마다 LLM 1회 호출.
 LLM은 근거를 서버가 준 후보 목록의 id로만 고르고, 숫자·문구는 trends.resolve_evidence가 채운다.
+같은 요청은 CACHE_TTL 동안 정상 종료된 결과를 다시 보낸다 (LLM 비용 절약).
 """
 
 import json
+import time
 import uuid
+from collections import OrderedDict
 from collections.abc import AsyncIterator
 from functools import lru_cache
 from pathlib import Path
@@ -247,16 +250,83 @@ async def _run(req: OpportunityRequest, company: Company, runner: StageRunner) -
     await runner.emit("done", {"stop_reason": "end", "usage": {}})
 
 
+# ---- 같은 요청 결과 재사용 ----
+# 서버 메모리라 재시작·재배포하면 비워진다 (Render free 인스턴스 하나 기준).
+
+CACHE_TTL = 6 * 3600.0
+CACHE_MAX = 100  # focus가 자유 입력이라 키 개수를 제한한다 (넘으면 오래된 것부터 지움)
+_DONE = "event: done\ndata: "
+
+CacheKey = tuple[str, str, str, int, str]
+_cache: OrderedDict[CacheKey, tuple[float, list[str]]] = OrderedDict()
+
+
+def _cache_key(req: OpportunityRequest, provider: str) -> CacheKey:
+    # provider를 넣어 mock 결과가 실제 LLM 결과로 나가지 않게 한다
+    return (req.company_id, req.country, (req.focus or "").strip(), req.count, provider)
+
+
+def _cached(key: CacheKey) -> list[str] | None:
+    hit = _cache.get(key)
+    if hit is None:
+        return None
+    if time.monotonic() - hit[0] > CACHE_TTL:
+        del _cache[key]
+        return None
+    return hit[1]
+
+
+async def _record(key: CacheKey, stream: AsyncIterator[str]) -> AsyncIterator[str]:
+    """스트림을 그대로 보내며 이벤트를 모은다.
+
+    done으로 끝났을 때만 저장한다 (error로 끝나거나 연결이 끊기면 저장하지 않는다).
+    """
+    chunks: list[str] = []
+    try:
+        async for chunk in stream:
+            if not chunk.startswith(":"):  # ping은 저장하지 않는다
+                chunks.append(chunk)
+            yield chunk
+    finally:
+        # 연결이 끊겨 이 제너레이터가 닫히면 안쪽 스트림도 바로 닫아 LLM 호출을 멈춘다
+        if (aclose := getattr(stream, "aclose", None)) is not None:
+            await aclose()
+    if chunks and chunks[-1].startswith(_DONE):
+        done = json.loads(chunks[-1].removeprefix(_DONE))
+        replay_done = f"{_DONE}{json.dumps({**done, 'cached': True}, ensure_ascii=False)}\n\n"
+        _cache[key] = (time.monotonic(), [*chunks[:-1], replay_done])
+        _cache.move_to_end(key)
+        while len(_cache) > CACHE_MAX:
+            _cache.popitem(last=False)
+
+
+async def _replay(chunks: list[str]) -> AsyncIterator[str]:
+    for chunk in chunks:
+        yield chunk
+
+
+def clear_cache() -> None:  # 테스트용
+    _cache.clear()
+
+
 def stream_opportunities(
     req: OpportunityRequest, ip: str, provider: LLMProvider | None = None
 ) -> AsyncIterator[str]:
-    """검증·한도 확인은 스트림 시작 전에 한다 (스트림 도중엔 상태코드를 바꿀 수 없음)."""
+    """검증·한도 확인은 스트림 시작 전에 한다 (스트림 도중엔 상태코드를 바꿀 수 없음).
+
+    재사용하는 결과는 LLM을 부르지 않으므로 한도를 쓰지 않는다.
+    provider를 받지 않은 호출(eval 등)은 어떤 LLM이 쓰일지 여기서 알 수 없어 재사용하지 않는다.
+    """
     company = get_company(req.company_id)
     trends.get_summary(req.country, trends.EVIDENCE_MONTHS)  # 지원하지 않는 국가면 404
+    key = _cache_key(req, provider.name) if provider else None
+    if key and (chunks := _cached(key)) is not None:
+        return _replay(chunks)
     check_quota(ip)
-    return stream_stages(
+    stream = stream_stages(
         lambda runner: _run(req, company, runner), system=SYSTEM, provider=provider
     )
+    return _record(key, stream) if key else stream
 
 
 # ---- mock: 키 없이 UI 개발용 고정 결과 (실제 데이터 근거는 그대로 사용) ----
