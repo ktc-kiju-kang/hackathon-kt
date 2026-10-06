@@ -318,10 +318,12 @@ def count_ruff(d: Path) -> int | None:
 
 
 def format_ok(d: Path) -> bool | None:
+    """종료 코드 0=차이 없음, 1=차이 있음. 그 외(2·127 등)는 도구 실패이므로 측정 못 함."""
     try:
-        return (d / "ruff-format.code").read_text().strip() == "0"
+        code = (d / "ruff-format.code").read_text().strip()
     except OSError:
         return None
+    return {"0": True, "1": False}.get(code)
 
 
 def count_ty(d: Path) -> int | None:
@@ -329,7 +331,13 @@ def count_ty(d: Path) -> int | None:
         text = (d / "ty.txt").read_text()
     except OSError:
         return None
-    return len(re.findall(r"^\S+:\d+:\d+: (?:error|warning)\[", text, re.MULTILINE))
+    counted = len(re.findall(r"^\S+:\d+:\d+: (?:error|warning)\[", text, re.MULTILINE))
+    found = re.search(r"^Found (\d+) diagnostics?\b", text, re.MULTILINE)
+    if found:  # 요약 줄의 N이 있으면 우선
+        return int(found.group(1))
+    if re.search(r"^All checks passed!", text, re.MULTILINE):
+        return counted
+    return None  # 정상 종료 표식이 없으면 도구 실패로 보고 0건으로 오인하지 않는다
 
 
 # ---- GitHub I/O (gh CLI) ----------------------------------------------------

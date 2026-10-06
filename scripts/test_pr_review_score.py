@@ -248,6 +248,33 @@ class LintParseTest(unittest.TestCase):
         (self.d / "ty.txt").write_text("All checks passed!\n")
         self.assertEqual(s.count_ty(self.d), 0)
 
+    def test_ruff_format_other_codes_unmeasured(self):
+        f = self.d / "ruff-format.code"
+        for code in ("2", "127", "", "abc"):
+            f.write_text(code)
+            self.assertIsNone(s.format_ok(self.d), code)
+        self.assertIsNone(s.format_ok(self.d / "nope"))
+
+    def test_ty_tool_failure_is_unmeasured(self):
+        f = self.d / "ty.txt"
+        for text in ("", "\n", "command not found: ty\n", "Traceback (most recent call last):\n"):
+            f.write_text(text)
+            self.assertIsNone(s.count_ty(self.d), text)
+        self.assertIsNone(s.count_ty(self.d / "nope"))
+
+    def test_ty_found_n_wins_over_counted_lines(self):
+        (self.d / "ty.txt").write_text("app/a.py:1:2: error[x] m\nFound 3 diagnostics\n")
+        self.assertEqual(s.count_ty(self.d), 3)
+        (self.d / "ty.txt").write_text("Found 1 diagnostic\n")
+        self.assertEqual(s.count_ty(self.d), 1)
+
+    def test_absent_lint_dir_is_all_unmeasured(self):
+        gone = self.d / "absent"
+        self.assertIsNone(s.count_eslint(gone))
+        self.assertIsNone(s.count_ruff(gone))
+        self.assertIsNone(s.format_ok(gone))
+        self.assertIsNone(s.count_ty(gone))
+
     def test_broken_json_is_unmeasured(self):
         (self.d / "ruff.json").write_text("not json")
         self.assertIsNone(s.count_ruff(self.d))
