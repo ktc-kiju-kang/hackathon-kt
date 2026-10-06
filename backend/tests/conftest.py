@@ -4,6 +4,7 @@ from app.agent.providers import get_provider
 from app.agent.providers.mock import MockProvider
 from app.core import quota
 from app.core.config import settings
+from app.services import radar
 from app.services.chat_store import MemoryChatStore
 
 
@@ -21,6 +22,7 @@ def isolate_external(monkeypatch):
     get_provider.cache_clear()  # 로컬 .env로 이미 만들어진 공급자를 버린다
     monkeypatch.setattr("app.agent.loop.get_provider", lambda: MockProvider())
     quota.reset()
+    radar.clear_cache()  # 같은 요청 재사용 결과가 테스트 사이로 새지 않게
     store = MemoryChatStore()
     monkeypatch.setattr("app.services.chat.get_chat_store", lambda: store)
     yield store

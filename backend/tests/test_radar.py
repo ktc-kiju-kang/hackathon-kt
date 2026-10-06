@@ -161,6 +161,56 @@ def test_quota_checked_before_stream(mock_llm, monkeypatch):
     assert post().status_code == 429
 
 
+def ok_provider():
+    return FakeProvider(
+        {
+            "submit_trends": TRENDS,
+            "submit_matches": MATCHES,
+            "submit_opportunities": {"opportunities": [draft()]},
+        }
+    )
+
+
+def test_same_request_reuses_result_without_llm_or_quota(use_provider, monkeypatch):
+    from app.core.config import settings
+
+    fake = ok_provider()
+    use_provider(fake)
+    first = parse_sse(post(count=3, focus="B2B").text)
+    monkeypatch.setattr(settings, "chat_rate_per_ip", 0)  # 재사용은 한도를 쓰지 않는다
+    second = parse_sse(post(count=3, focus=" B2B ").text)
+    assert len(fake.calls) == 3  # 두 번째 요청은 LLM을 부르지 않음
+    assert second[:-1] == first[:-1]  # 같은 이벤트 순서·같은 기회
+    assert first[-1] == ("done", {"stop_reason": "end", "usage": {}})
+    assert second[-1] == ("done", {"stop_reason": "end", "usage": {}, "cached": True})
+
+
+def test_different_request_or_expired_result_calls_llm_again(use_provider, monkeypatch):
+    fake = ok_provider()
+    use_provider(fake)
+    post(count=3)
+    post(count=4)  # 조건이 다르면 새로 생성
+    assert len(fake.calls) == 6
+    monkeypatch.setattr(radar, "CACHE_TTL", -1.0)  # 저장된 결과가 모두 만료
+    post(count=3)
+    assert len(fake.calls) == 9
+
+
+def test_error_result_is_not_reused(use_provider):
+    fake = FakeProvider(
+        {
+            "submit_trends": TRENDS,
+            "submit_matches": MATCHES,
+            "submit_opportunities": {"opportunities": [draft(evidence_ids=["e999"])]},
+        }
+    )
+    use_provider(fake)
+    post()
+    events = parse_sse(post().text)
+    assert events[-1][0] == "error"
+    assert len(fake.calls) == 6
+
+
 class ScriptedProvider:
     """호출마다 정해진 동작: 예외를 던지거나 TurnComplete를 돌려준다."""
 

@@ -48,7 +48,7 @@ export type RadarEvent =
   | { type: 'stage'; data: { stage: Stage; status: 'start' | 'done'; summary?: string } }
   | { type: 'opportunity'; data: { opportunity: Opportunity } }
   | { type: 'retry'; data: { code: string; wait_seconds: number; attempt: number } }
-  | { type: 'done'; data: { stop_reason: string; usage?: Record<string, number> } }
+  | { type: 'done'; data: { stop_reason: string; usage?: Record<string, number>; cached?: boolean } }
   | { type: 'error'; data: { message: string; code?: string } }
 
 // 데모 예비안: 미리 실제 LLM으로 만든 결과 (계약 radar.md "snapshot"). LLM·한도를 쓰지 않는다
