@@ -131,3 +131,33 @@ def score_body(body: str) -> Item:
     else:
         notes.append("`## 검증` 항목 없음")
     return Item("PR 본문 충실도", pts, 4, ", ".join(notes) or "충실")
+
+
+def _lint_item(name, mx, applicable, value, points, note):
+    if not applicable:
+        return Item(name, mx, mx, "해당 없음")
+    if value is None:
+        return Item(name, 0, mx, "측정 못 함", measured=False)
+    return Item(name, points(value), mx, note(value))
+
+
+def score_lint(frontend, backend, eslint_errors, ruff_violations, format_ok, ty_count):
+    """측정값이 None이면 측정 못 함. 해당 영역 변경이 없으면 실행하지 않고 만점."""
+    n = lambda v: f"{v}건"  # noqa: E731
+    return [
+        _lint_item("ESLint", 3, frontend, eslint_errors, lambda v: 3 if v == 0 else 0, n),
+        _lint_item("ruff check", 3, backend, ruff_violations, lambda v: 3 if v == 0 else 0, n),
+        _lint_item("ruff format", 2, backend, format_ok, lambda v: 2 if v else 0,
+                   lambda v: "차이 없음" if v else "포맷 차이 있음"),
+        _lint_item("ty", 2, backend, ty_count, lambda v: 2 if v == 0 else 1 if v <= 2 else 0, n),
+    ]
+
+
+def auto_total(items: list[Item]) -> tuple[int, list[str]]:
+    """측정된 항목만으로 40점 만점에 비례 환산한다. 측정 못 한 항목 이름도 돌려준다."""
+    got = [i for i in items if i.measured]
+    missing = [i.name for i in items if not i.measured]
+    mx = sum(i.max for i in got)
+    if mx == 0:
+        return 0, missing
+    return int(sum(i.score for i in got) / mx * AUTO_MAX + 0.5), missing

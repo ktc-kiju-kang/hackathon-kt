@@ -87,5 +87,40 @@ class ScoreTest(unittest.TestCase):
         self.assertEqual(s.score_body(alt).score, 4)
 
 
+class LintTest(unittest.TestCase):
+    def names(self, items):
+        return {i.name: i for i in items}
+
+    def test_not_applicable_is_full(self):
+        items = s.score_lint(False, False, None, None, None, None)
+        self.assertTrue(all(i.score == i.max and i.measured for i in items))
+        self.assertEqual(sum(i.max for i in items), 10)
+
+    def test_frontend_eslint(self):
+        d = self.names(s.score_lint(True, False, 0, None, None, None))
+        self.assertEqual(d["ESLint"].score, 3)
+        d = self.names(s.score_lint(True, False, 2, None, None, None))
+        self.assertEqual(d["ESLint"].score, 0)
+
+    def test_backend(self):
+        d = self.names(s.score_lint(False, True, None, 0, True, 0))
+        self.assertEqual([d[k].score for k in ("ruff check", "ruff format", "ty")], [3, 2, 2])
+        d = self.names(s.score_lint(False, True, None, 4, False, 1))
+        self.assertEqual([d[k].score for k in ("ruff check", "ruff format", "ty")], [0, 0, 1])
+        d = self.names(s.score_lint(False, True, None, 0, True, 3))
+        self.assertEqual(d["ty"].score, 0)
+
+    def test_unmeasured(self):
+        d = self.names(s.score_lint(True, False, None, None, None, None))
+        self.assertFalse(d["ESLint"].measured)
+
+    def test_total_scales_over_measured(self):
+        items = [s.Item("a", 6, 6), s.Item("b", 0, 4, measured=False), s.Item("c", 0, 10)]
+        total, missing = s.auto_total(items)
+        self.assertEqual(total, 15)  # 6/16 * 40
+        self.assertEqual(missing, ["b"])
+        self.assertEqual(s.auto_total([s.Item("a", 5, 5, measured=False)]), (0, ["a"]))
+
+
 if __name__ == "__main__":
     unittest.main()
