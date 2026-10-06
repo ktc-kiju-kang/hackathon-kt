@@ -161,3 +161,68 @@ def auto_total(items: list[Item]) -> tuple[int, list[str]]:
     if mx == 0:
         return 0, missing
     return int(sum(i.score for i in got) / mx * AUTO_MAX + 0.5), missing
+
+
+@dataclass
+class AiReview:
+    total: int = 0
+    commit: str = ""
+    blocking: int = 0
+    scores: dict | None = None
+    errors: list | None = None
+    warnings: list | None = None
+
+
+def parse_ai_block(body: str) -> AiReview:
+    r = AiReview(scores={}, errors=[], warnings=[])
+    m = re.search(r"<!-- ai-review:start -->(.*?)<!-- ai-review:end -->", body, re.S)
+    if not m:
+        r.errors.append("AI 리뷰 블록이 없음")
+        return r
+    blk = m.group(1)
+    c = re.search(r"리뷰한 커밋:\s*`?([0-9a-f]{7,40})`?", blk)
+    if c:
+        r.commit = c.group(1)
+    else:
+        r.errors.append("`리뷰한 커밋`이 없거나 형식이 틀림")
+    t = re.search(r"총점:\s*(\d+)\s*/\s*60", blk)
+    if t:
+        r.total = int(t.group(1))
+    else:
+        r.errors.append("`총점: N/60`이 없거나 형식이 틀림")
+    b = re.search(r"차단 이슈:\s*(없음|(\d+)\s*건)", blk)
+    if b:
+        r.blocking = int(b.group(2)) if b.group(2) else 0
+    else:
+        r.errors.append("`차단 이슈`가 없거나 형식이 틀림")
+    for name, mx in AI_ITEMS.items():
+        row = re.search(rf"\|\s*{re.escape(name)}\s*\|\s*(\d+)\s*/\s*(\d+)\s*\|", blk)
+        if not row:
+            r.errors.append(f"항목 `{name}` 점수가 없음")
+            continue
+        score, den = int(row.group(1)), int(row.group(2))
+        if den != mx or score > mx:
+            r.errors.append(f"항목 `{name}`이 배점 {mx}을 벗어남 ({score}/{den})")
+        r.scores[name] = score
+    if len(r.scores) == len(AI_ITEMS) and t and sum(r.scores.values()) != r.total:
+        r.errors.append(f"항목 합({sum(r.scores.values())})과 총점({r.total})이 다름")
+    for h in AI_SECTIONS:
+        if not re.search(rf"^#{{2,4}}\s*{re.escape(h)}", blk, re.M):
+            r.warnings.append(f"섹션 `{h}` 없음")
+    return r
+
+
+def commits_behind(reviewed: str, shas: list[str]) -> int | None:
+    """리뷰한 커밋 뒤에 쌓인 커밋 수. PR에 없으면 None."""
+    for i, sha in enumerate(shas):
+        if sha.startswith(reviewed):
+            return len(shas) - 1 - i
+    return None
+
+
+def verdict(total: int, blocking: int, ai_ok: bool) -> str:
+    if not ai_ok:
+        return "AI 리뷰 필요"
+    if blocking > 0 or total < 70:
+        return "수정 필요"
+    return "머지 가능" if total >= 85 else "지적 처리 후 머지"

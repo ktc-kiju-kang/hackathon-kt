@@ -122,5 +122,66 @@ class LintTest(unittest.TestCase):
         self.assertEqual(s.auto_total([s.Item("a", 5, 5, measured=False)]), (0, ["a"]))
 
 
+def block(commit="abc1234", total=52, blocking="없음", scores=None, sections=True):
+    scores = scores or [13, 10, 10, 8, 7, 4]
+    rows = "\n".join(
+        f"| {n} | {v}/{m} |" for (n, m), v in zip(s.AI_ITEMS.items(), scores)
+    )
+    secs = "\n".join(f"### {h}" for h in s.AI_SECTIONS) if sections else ""
+    return (
+        f"본문\n<!-- ai-review:start -->\n## AI 리뷰\n- 리뷰한 커밋: `{commit}`\n"
+        f"- 총점: {total}/60\n- 판정: 지적 처리 후 머지\n- 차단 이슈: {blocking}\n\n"
+        f"| 항목 | 점수 |\n|---|---|\n{rows}\n\n{secs}\n<!-- ai-review:end -->\n"
+    )
+
+
+class AiBlockTest(unittest.TestCase):
+    def test_ok(self):
+        r = s.parse_ai_block(block())
+        self.assertEqual(r.errors, [])
+        self.assertEqual((r.total, r.commit, r.blocking), (52, "abc1234", 0))
+
+    def test_blocking_count(self):
+        self.assertEqual(s.parse_ai_block(block(blocking="2건")).blocking, 2)
+
+    def test_missing_block(self):
+        r = s.parse_ai_block("블록 없음")
+        self.assertTrue(r.errors)
+
+    def test_sum_mismatch(self):
+        self.assertTrue(s.parse_ai_block(block(total=50)).errors)
+
+    def test_item_over_max(self):
+        r = s.parse_ai_block(block(total=56, scores=[16, 10, 10, 8, 7, 5]))
+        self.assertTrue(any("배점" in e for e in r.errors))
+
+    def test_missing_item(self):
+        text = block().replace("| 배포·운영 안전 | 4/5 |\n", "")
+        self.assertTrue(s.parse_ai_block(text).errors)
+
+    def test_bad_commit(self):
+        self.assertTrue(s.parse_ai_block(block(commit="xyz")).errors)
+
+    def test_missing_sections_are_warnings(self):
+        r = s.parse_ai_block(block(sections=False))
+        self.assertEqual(r.errors, [])
+        self.assertEqual(len(r.warnings), len(s.AI_SECTIONS))
+
+    def test_freshness(self):
+        shas = ["aaa1111" + "0" * 33, "bbb2222" + "0" * 33, "ccc3333" + "0" * 33]
+        self.assertEqual(s.commits_behind("ccc3333", shas), 0)
+        self.assertEqual(s.commits_behind("aaa1111", shas), 2)
+        self.assertIsNone(s.commits_behind("ddd4444", shas))
+
+    def test_verdict(self):
+        self.assertEqual(s.verdict(90, 0, True), "머지 가능")
+        self.assertEqual(s.verdict(85, 0, True), "머지 가능")
+        self.assertEqual(s.verdict(84, 0, True), "지적 처리 후 머지")
+        self.assertEqual(s.verdict(70, 0, True), "지적 처리 후 머지")
+        self.assertEqual(s.verdict(69, 0, True), "수정 필요")
+        self.assertEqual(s.verdict(99, 1, True), "수정 필요")  # 차단 이슈
+        self.assertEqual(s.verdict(40, 0, False), "AI 리뷰 필요")
+
+
 if __name__ == "__main__":
     unittest.main()
