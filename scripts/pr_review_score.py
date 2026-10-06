@@ -39,11 +39,13 @@ EXEMPT_TYPES = ("docs", "chore", "ci")
 UI_PREFIX = "frontend/src/components/ui/"
 CODE_RE = re.compile(r"^(backend/app/.+\.py|frontend/src/.+\.(ts|tsx))$")
 TEST_RE = re.compile(r"^(backend/tests/.+|.+\.test\.(ts|tsx))$")
-SIZE_EXCLUDE = ("package-lock.json", UI_PREFIX, "backend/data/")
+SIZE_EXCLUDE_NAMES = ("package-lock.json",)
+SIZE_EXCLUDE_PREFIXES = (UI_PREFIX, "backend/data/")
 CONTRACT_RE = re.compile(
     r"^(backend/app/(routers|schemas)/.+\.py|frontend/src/features/[^/]+/api\.ts)$"
 )
 COMMIT_RE = re.compile(r"^(feat|fix|refactor|docs|chore|test|perf|ci)(\([^)]+\))?: ")
+AI_BLOCK_RE = re.compile(r"<!-- ai-review:start -->(.*?)<!-- ai-review:end -->", re.DOTALL)
 
 
 def is_test(path: str) -> bool:
@@ -55,7 +57,7 @@ def is_code(path: str) -> bool:
 
 
 def is_size_excluded(path: str) -> bool:
-    return any(x in path for x in SIZE_EXCLUDE)
+    return path.rsplit("/", 1)[-1] in SIZE_EXCLUDE_NAMES or path.startswith(SIZE_EXCLUDE_PREFIXES)
 
 
 def is_contract_affecting(path: str) -> bool:
@@ -75,7 +77,8 @@ def score_issue(title: str, body: str) -> Item:
     m = re.match(r"^(\w+)(\([^)]*\))?:", title)
     if m and m.group(1) in EXEMPT_TYPES:
         return Item("이슈 연결", 6, 6, "면제 (docs·chore·ci)")
-    if re.search(r"\b(closes|fixes|resolves)\s+#\d+", body, re.IGNORECASE):
+    kw = r"\b(?:close[sd]?|fix(?:es|ed)?|resolve[sd]?):?\s+(?:[\w.-]+/[\w.-]+)?#\d+"
+    if re.search(kw, body, re.IGNORECASE):
         return Item("이슈 연결", 6, 6, "Closes/Fixes 있음")
     if re.search(r"#\d+", body):
         return Item("이슈 연결", 4, 6, "참조만 있음 (Closes 권장)")
@@ -188,17 +191,17 @@ class AiReview:
 
 def parse_ai_block(body: str) -> AiReview:
     r = AiReview(scores={}, errors=[], warnings=[])
-    m = re.search(r"<!-- ai-review:start -->(.*?)<!-- ai-review:end -->", body, re.DOTALL)
-    if not m:
+    blocks = AI_BLOCK_RE.findall(body)  # 본문 앞쪽 예시·플레이스홀더보다 마지막 블록을 쓴다
+    if not blocks:
         r.errors.append("AI 리뷰 블록이 없음")
         return r
-    blk = m.group(1)
-    c = re.search(r"리뷰한 커밋:\s*`?([0-9a-f]{7,40})`?", blk)
+    blk = blocks[-1]
+    c = re.search(r"리뷰한 커밋:\s*`?([0-9a-f]{7,40})(?![0-9A-Za-z])`?", blk)
     if c:
         r.commit = c.group(1)
     else:
         r.errors.append("`리뷰한 커밋`이 없거나 형식이 틀림")
-    t = re.search(r"총점:\s*(\d+)\s*/\s*60", blk)
+    t = re.search(r"총점:\s*(\d+)\s*/\s*60\b", blk)
     if t:
         r.total = int(t.group(1))
     else:

@@ -31,6 +31,12 @@ class ClassifyTest(unittest.TestCase):
         self.assertTrue(s.is_size_excluded("frontend/src/components/ui/card.tsx"))
         self.assertTrue(s.is_size_excluded("backend/data/signals/x.csv"))
         self.assertFalse(s.is_size_excluded("backend/app/main.py"))
+        self.assertTrue(s.is_size_excluded("package-lock.json"))
+        # 부분 문자열 일치는 제외하지 않는다
+        self.assertFalse(s.is_size_excluded("backend/app/package-lock.json.py"))
+        self.assertFalse(s.is_size_excluded("docs/old-package-lock.json"))
+        self.assertFalse(s.is_size_excluded("src/frontend/src/components/ui/a.tsx"))
+        self.assertFalse(s.is_size_excluded("backend/app/backend/data/x.py"))
 
     def test_is_contract_affecting(self):
         self.assertTrue(s.is_contract_affecting("backend/app/routers/radar.py"))
@@ -51,6 +57,21 @@ class ScoreTest(unittest.TestCase):
         self.assertEqual(s.score_issue("fix: x", "fixes #3").score, 6)
         self.assertEqual(s.score_issue("feat: x", "관련 #9").score, 4)
         self.assertEqual(s.score_issue("feat: x", "없음").score, 0)
+
+    def test_issue_keyword_forms(self):
+        for body in (
+            "closed #4",
+            "Close #4",
+            "closes #4",
+            "Fixed #4",
+            "fix #4",
+            "resolved #4",
+            "Resolves #4",
+            "Closes ktc-kiju-kang/hackathon-kt#4",
+            "Fixes: #4",
+        ):
+            self.assertEqual(s.score_issue("feat: x", body).score, 6, body)
+        self.assertEqual(s.score_issue("feat: x", "disclosed #4").score, 4)  # 키워드 아님
 
     def test_tests(self):
         self.assertEqual(s.score_tests([F("docs/a.md", 5)]).score, 8)  # 코드 변경 없음
@@ -165,6 +186,20 @@ class AiBlockTest(unittest.TestCase):
 
     def test_bad_commit(self):
         self.assertTrue(s.parse_ai_block(block(commit="xyz")).errors)
+        self.assertTrue(s.parse_ai_block(block(commit="a" * 41)).errors)  # 40자 초과
+        self.assertTrue(s.parse_ai_block(block(commit="abc1234z")).errors)
+        self.assertEqual(s.parse_ai_block(block(commit="a" * 40)).errors, [])
+
+    def test_total_denominator_must_be_exactly_60(self):
+        text = block().replace("총점: 52/60", "총점: 52/600")
+        self.assertTrue(any("총점" in e for e in s.parse_ai_block(text).errors))
+
+    def test_last_block_wins_over_placeholder(self):
+        example = block(commit="deadbee", total=60, scores=[15, 10, 10, 10, 10, 5])
+        real = block(commit="abc1234")
+        r = s.parse_ai_block(f"예시:\n{example}\n실제:\n{real}")
+        self.assertEqual(r.errors, [])
+        self.assertEqual((r.commit, r.total), ("abc1234", 52))
 
     def test_missing_sections_are_warnings(self):
         r = s.parse_ai_block(block(sections=False))
