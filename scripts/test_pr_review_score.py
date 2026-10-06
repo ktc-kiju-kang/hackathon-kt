@@ -217,6 +217,29 @@ class RenderTest(unittest.TestCase):
         self.assertIn("항목 합", out)
 
 
+class MainAbsentLintDirTest(unittest.TestCase):
+    """lint 잡이 실패·생략돼 결과 디렉터리가 없어도 채점은 '측정 못 함'으로 끝나야 한다."""
+
+    def test_absent_dir_reports_unmeasured(self):
+        pr = {"title": "feat: x", "body": "", "head": {"sha": "a" * 40}}
+        files = [F("frontend/src/a.ts", 1), F("backend/app/a.py", 1)]
+        commits = [{"sha": "a" * 40, "commit": {"message": "feat: x"}}]
+        posted = []
+        orig = (s.load_pr, s.gh_pages, s.upsert_comment)
+        s.load_pr = lambda: ("o/r", 1, pr)
+        s.gh_pages = lambda path: files if path.endswith("/files") else commits
+        s.upsert_comment = lambda repo, n, body: posted.append(body)
+        try:
+            s.main(["--lint-dir", str(Path(tempfile.mkdtemp()) / "absent")])
+        finally:
+            s.load_pr, s.gh_pages, s.upsert_comment = orig
+        body = posted[0]
+        for name in ("ESLint", "ruff check", "ruff format", "ty"):
+            row = next(x for x in body.splitlines() if x.startswith(f"| {name} |"))
+            self.assertIn("측정 못 함", row)
+            self.assertIn("—", row)
+
+
 class LintParseTest(unittest.TestCase):
     def setUp(self):
         self.d = Path(tempfile.mkdtemp())
