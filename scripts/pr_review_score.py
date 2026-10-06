@@ -226,3 +226,56 @@ def verdict(total: int, blocking: int, ai_ok: bool) -> str:
     if blocking > 0 or total < 70:
         return "수정 필요"
     return "머지 가능" if total >= 85 else "지적 처리 후 머지"
+
+
+def sanitize(text: str, limit: int = 200) -> str:
+    """코멘트에 인용할 외부 문자열: 멘션·링크·HTML을 무력화하고 한 줄로 줄인다."""
+    t = " ".join(str(text).split())
+    t = t.replace("@", "@​").replace("](", "]​(").replace("<", "&lt;")
+    return t if len(t) <= limit else t[:limit] + "…"
+
+
+def render_comment(
+    items: list[Item],
+    auto: int,
+    missing: list[str],
+    ai: AiReview | None,
+    behind: int | None,
+    head_sha: str,
+) -> str:
+    ai_ok = ai is not None and not ai.errors
+    total = auto + (ai.total if ai_ok else 0)
+    v = verdict(total, ai.blocking if ai_ok else 0, ai_ok)
+    stale = ai_ok and behind is not None and behind > 0
+    lines = [MARKER, "## PR 리뷰 점수", ""]
+    if ai_ok:
+        suffix = " (최신 아님)" if stale else ""
+        lines.append(f"**{total}/100 — {v}**{suffix}  (자동 {auto}/40 + AI {ai.total}/60)")
+    else:
+        lines.append(f"**자동 점검 {auto}/40 — {v}**")
+    lines += ["", "### 자동 점검", "| 항목 | 점수 | 비고 |", "|---|---|---|"]
+    for i in items:
+        score = f"{i.score}/{i.max}" if i.measured else "—"
+        lines.append(f"| {i.name} | {score} | {sanitize(i.note, 120)} |")
+    if missing:
+        lines += ["", f"측정 못 한 항목({', '.join(missing)})은 제외하고 비율로 환산했습니다."]
+    lines += ["", "### AI 리뷰"]
+    no_block = ai is None or ai.errors == ["AI 리뷰 블록이 없음"]
+    if no_block:
+        lines.append("PR 본문에 AI 리뷰 블록이 없습니다. `/handoff`로 리뷰를 받아 본문에 넣으세요.")
+    elif ai.errors:
+        lines.append("형식 오류로 AI 점수는 0점입니다:")
+        lines += [f"- {sanitize(e, 160)}" for e in ai.errors]
+    else:
+        lines.append(f"리뷰한 커밋 `{sanitize(ai.commit, 40)}`, 차단 이슈 {ai.blocking}건")
+        if behind is None:
+            lines.append("- ⚠️ 리뷰한 커밋이 이 PR에 없습니다.")
+        elif behind > 0:
+            lines.append(f"- ⚠️ 리뷰 이후 {behind}개 커밋이 추가됐습니다. 다시 리뷰하세요.")
+        lines += [f"- ⚠️ {sanitize(w, 100)}" for w in (ai.warnings or [])]
+    lines += [
+        "",
+        f"<sub>head `{head_sha[:7]}` · 점수는 참고용이며 머지 결정은 사람이 합니다. "
+        "AI 리뷰는 작성자의 자기 보고라 실제 실행 여부는 검증하지 못합니다.</sub>",
+    ]
+    return "\n".join(lines) + "\n"

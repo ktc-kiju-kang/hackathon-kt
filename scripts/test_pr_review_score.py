@@ -183,5 +183,39 @@ class AiBlockTest(unittest.TestCase):
         self.assertEqual(s.verdict(40, 0, False), "AI 리뷰 필요")
 
 
+class RenderTest(unittest.TestCase):
+    def test_sanitize(self):
+        out = s.sanitize("@octocat [x](http://e.com) <script>\n줄바꿈", 200)
+        self.assertNotIn("@octocat", out)
+        self.assertNotIn("](", out)
+        self.assertNotIn("<script>", out)
+        self.assertNotIn("\n", out)
+        self.assertEqual(len(s.sanitize("가" * 500, 100)), 101)  # 100 + …
+
+    def _render(self, ai=None, behind=0):
+        items = [s.Item("이슈 연결", 6, 6, "Closes 있음"), s.Item("ty", 0, 2, "측정 못 함", False)]
+        return s.render_comment(items, 38, ["ty"], ai, behind, "abc1234")
+
+    def test_marker_and_no_ai(self):
+        out = self._render()
+        self.assertTrue(out.startswith(s.MARKER))
+        self.assertIn("AI 리뷰 필요", out)
+        self.assertIn("38/40", out)
+        self.assertIn("측정 못 함", out)
+
+    def test_with_ai_and_stale(self):
+        ai = s.parse_ai_block(block())
+        out = self._render(ai, behind=2)
+        self.assertIn("90/100", out)
+        self.assertIn("최신 아님", out)
+        self.assertIn("2개 커밋", out)
+
+    def test_ai_errors_listed(self):
+        ai = s.parse_ai_block(block(total=50))
+        out = self._render(ai)
+        self.assertIn("형식 오류", out)
+        self.assertIn("항목 합", out)
+
+
 if __name__ == "__main__":
     unittest.main()
