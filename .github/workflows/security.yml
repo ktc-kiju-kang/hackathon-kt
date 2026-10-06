@@ -16,7 +16,7 @@ jobs:
   secrets:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # 전체 이력을 받아야 PR 범위의 커밋을 스캔할 수 있다
       # 제3자 액션이라 태그가 아닌 커밋 SHA 로 고정한다 (공급망 보안). 올릴 때는 Dependabot 이 SHA 와 주석을 함께 갱신한다.
