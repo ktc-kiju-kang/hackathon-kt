@@ -1,0 +1,58 @@
+name: PR Review
+
+# PR 자동 점검 점수 (비차단). 설계: docs/superpowers/specs/2026-10-03-pr-review-scoring-design.md
+# 점수는 PR 코멘트 1개와 잡 요약으로 보여 준다. 실패해도 PR을 막지 않는다 (필수 체크 아님).
+# pull_request_target 은 쓰지 않는다 — 포크 PR 코드로 시크릿·쓰기 토큰을 쓰지 않기 위해.
+on:
+  pull_request:
+    types: [opened, synchronize, edited, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write # PR 코멘트는 issues API
+
+concurrency:
+  group: pr-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  score:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: 채점 스크립트 자체 테스트
+        run: python3 scripts/test_pr_review_score.py
+      - id: areas
+        run: python3 scripts/pr_review_score.py --areas
+      - run: mkdir -p lint
+
+      - if: steps.areas.outputs.frontend == 'true'
+        uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - if: steps.areas.outputs.frontend == 'true'
+        working-directory: frontend
+        run: |
+          npm ci
+          npx eslint . --format json --output-file "$GITHUB_WORKSPACE/lint/eslint.json" || true
+
+      - if: steps.areas.outputs.backend == 'true'
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - if: steps.areas.outputs.backend == 'true'
+        working-directory: backend
+        run: |
+          pip install uv
+          uv venv && uv pip install -r requirements-dev.txt
+          .venv/bin/ruff check --output-format json . > "$GITHUB_WORKSPACE/lint/ruff.json" || true
+          .venv/bin/ruff format --check . > /dev/null 2>&1; echo $? > "$GITHUB_WORKSPACE/lint/ruff-format.code"
+          .venv/bin/ty check --output-format concise app tests evals > "$GITHUB_WORKSPACE/lint/ty.txt" 2>&1 || true
+
+      - name: 채점하고 코멘트 남기기
+        run: python3 scripts/pr_review_score.py --lint-dir lint
