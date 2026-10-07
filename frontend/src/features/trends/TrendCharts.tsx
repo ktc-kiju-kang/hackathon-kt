@@ -13,11 +13,13 @@ import { cn } from '@/lib/utils'
 import type { TopicChange } from './api'
 import { TOPIC_LABEL, signedPp } from './labels'
 
-// 차트 색: KDS 2.0 차트 토큰 (계열 teal → yellow → blue, 증가 teal / 감소 회색). 다크모드는 토큰이 바꾼다.
-// 빨강은 KDS에서 글자 강조 전용이라 감소 막대에 쓰지 않는다. 색만으로 구분하지 않게 범례·부호(±pp)를 함께 둔다.
+// 차트 색: KDS 2.0 차트 토큰 (계열 teal → yellow → blue). 다크모드는 토큰이 바꾼다.
+// 비교 기준(전 세계)은 회색, 막대는 가장 많이 늘어난 1개만 진한 teal로 강조하고 나머지는 회색.
+// 빨강은 KDS에서 글자 강조 전용이라 쓰지 않는다. 색만으로 구분하지 않게 범례·부호(±pp)를 함께 둔다.
 export const CHART_COLORS = cn(
   '[--series-1:var(--data-visual-default-teal)] [--series-2:var(--data-visual-default-yellow)]',
-  '[--series-3:var(--data-visual-default-blue)] [--up:var(--data-visual-default-teal)] [--down:var(--data-visual-default-gray)]',
+  '[--series-3:var(--data-visual-default-blue)] [--compare:var(--data-visual-default-gray)]',
+  '[--highlight:var(--data-visual-strong-teal)] [--rest:var(--data-visual-default-gray)]',
 )
 
 export type LinePoint = { month: string } & Record<string, number | string>
@@ -46,13 +48,13 @@ export function ShareLineChart({
 }) {
   const keys = Object.keys(config)
   return (
-    <ChartContainer config={config} className={cn('aspect-auto h-64 w-full', className)}>
+    <ChartContainer config={config} className={cn('aspect-auto h-72 w-full', className)}>
       <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }} accessibilityLayer>
         <CartesianGrid vertical={false} />
         <XAxis dataKey="month" tickLine={false} axisLine={false} minTickGap={32} tickMargin={8} />
         <YAxis tickLine={false} axisLine={false} width={40} tickFormatter={(v: number) => `${v}%`} />
         <ChartTooltip content={<ChartTooltipContent formatter={percentFormatter(config)} />} />
-        <ChartLegend verticalAlign="top" content={<ChartLegendContent className="justify-end pt-0 pb-3" />} />
+        <ChartLegend verticalAlign="bottom" content={<ChartLegendContent className="pt-3" />} />
         {keys.map((key) => (
           <Line
             key={key}
@@ -74,6 +76,7 @@ const changeConfig = { change_pp: { label: '변화' } } satisfies ChartConfig
 
 export function TopicChangeChart({ rows }: { rows: TopicChange[] }) {
   const data = rows.map((r) => ({ ...r, label: TOPIC_LABEL[r.topic] }))
+  const top = Math.max(...rows.map((r) => r.change_pp)) // 강조는 가장 많이 늘어난 1개만
   return (
     <ChartContainer config={changeConfig} className="aspect-auto h-72 w-full">
       <BarChart data={data} layout="vertical" margin={{ top: 0, right: 56, bottom: 0, left: 0 }} accessibilityLayer>
@@ -107,9 +110,9 @@ export function TopicChangeChart({ rows }: { rows: TopicChange[] }) {
             />
           }
         />
-        <Bar dataKey="change_pp" radius={4} barSize={16} isAnimationActive={false}>
+        <Bar dataKey="change_pp" radius={4} barSize={24} isAnimationActive={false}>
           {data.map((r) => (
-            <Cell key={r.topic} fill={r.change_pp >= 0 ? 'var(--up)' : 'var(--down)'} />
+            <Cell key={r.topic} fill={r.change_pp === top && top > 0 ? 'var(--highlight)' : 'var(--rest)'} />
           ))}
           <LabelList
             dataKey="change_pp"
