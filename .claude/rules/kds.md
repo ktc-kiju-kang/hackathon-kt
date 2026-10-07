@@ -31,7 +31,7 @@ paths:
 | 차트는 teal부터 | `var(--chart-1)`~`--chart-5` = teal → yellow → blue → purple → red. 검정 막대 금지. 비교 기준·나머지는 `var(--data-visual-default-gray)`, 강조 1개는 `var(--data-visual-strong-teal)`. 막대는 가늘게(24~32) |
 | 아이콘은 SVG | `lucide-react`. 글자(`<` `>` `X`)·이모지로 대신하지 않는다 |
 | 태그는 예외 상태에만 | 정상·기본 상태에는 `Badge`를 붙이지 않는다 |
-| 오류는 한 줄 | 아이콘 + 빨간 글자 한 줄. 분홍·노랑 박스로 감싸지 않는다 |
+| 오류는 한 줄 | 아이콘 + 빨간 글자 한 줄. 분홍·노랑 박스로 감싸지 않는다. 공용 `ErrorLine`(`@/components/error-line`, `onRetry`로 "다시 시도") |
 | 빈 상태는 회색 글자 한 줄 | 큰 그림·긴 설명·이모지 금지 |
 | 글자 크기 4~5단계 | 32 제목 / 20·24 섹션 / 15·16 본문 / 13·14 보조 / 12 캡션. 위계는 크기보다 **글자색**(`text-foreground` → `text-muted-foreground`)으로 |
 | 간격은 바깥이 크게 | 안쪽 8·16 < 요소 사이 24 < 덩어리 사이 40 < 큰 구역 64 |
