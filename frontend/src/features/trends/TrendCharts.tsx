@@ -78,7 +78,14 @@ export function TopicChangeChart({ rows }: { rows: TopicChange[] }) {
     <ChartContainer config={changeConfig} className="aspect-auto h-72 w-full">
       <BarChart data={data} layout="vertical" margin={{ top: 0, right: 56, bottom: 0, left: 0 }} accessibilityLayer>
         <CartesianGrid horizontal={false} />
-        <XAxis type="number" tickLine={false} axisLine={false} tickFormatter={(v: number) => `${v}%p`} />
+        <XAxis
+          type="number"
+          tickLine={false}
+          axisLine={false}
+          // 감소 막대 왼쪽에 라벨이 들어갈 자리: 음수 쪽만 범위를 넓혀 항목 이름과 겹치지 않게 한다
+          domain={[(min: number) => Math.min(0, min * 1.5), 'auto']}
+          tickFormatter={(v: number) => `${v}%p`}
+        />
         <YAxis type="category" dataKey="label" tickLine={false} axisLine={false} width={80} />
         <ReferenceLine x={0} className="stroke-border" />
         <ChartTooltip

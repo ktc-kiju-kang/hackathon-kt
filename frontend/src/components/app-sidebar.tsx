@@ -56,15 +56,15 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="p-3">
-        {/* 상단 배너 */}
+        {/* 상단 배너 — KDS: 큰 면을 포인트 색(검정)으로 칠하지 않는다 */}
         <Link
           href="/"
-          className="flex items-center gap-3 rounded-lg bg-primary p-3 text-primary-foreground group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0"
+          className="flex items-center gap-3 rounded-lg p-3 text-sidebar-foreground hover:bg-sidebar-accent group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0"
         >
           <Rocket className="size-5 shrink-0" />
           <div className="grid leading-tight group-data-[collapsible=icon]:hidden">
             <span className="text-sm font-semibold">KT 해커톤</span>
-            <span className="text-xs opacity-80">Team Project</span>
+            <span className="text-xs text-muted-foreground">Team Project</span>
           </div>
         </Link>
       </SidebarHeader>
