@@ -1,16 +1,35 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { CircleAlertIcon, LoaderCircleIcon, PlusIcon, SendIcon, SquareIcon, WrenchIcon } from 'lucide-react'
+import { CircleAlertIcon, CopyIcon, LoaderCircleIcon, PlusIcon, SendIcon, SquareIcon } from 'lucide-react'
+import { toast } from 'sonner'
+import { AiGeneratedLabel } from '@/components/ai-generated-label'
+import { PageHeader } from '@/components/page-header'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
-import { cn } from '@/lib/utils'
 import { isMock } from '@/lib/api-client'
-import { useChat, type ToolActivity } from './useChat'
+import { Markdown } from './Markdown'
+import { ToolStep } from './ToolStep'
+import { useChat } from './useChat'
 
-const EXAMPLES = ['지금 서울은 몇 시야?', '1234 * 5678 / 9 계산해줘', '오늘 기준 100일 뒤는 무슨 요일이야?']
+// 서비스 주제(AI 활용 트렌드 → KT 그룹 사업 기회)에 맞춘 예시. 에이전트 도구 get_ai_usage_trends로 답할 수 있는 질문
+const EXAMPLES = [
+  '한국에서 업무용 AI 활용은 1년 동안 어떻게 바뀌었어?',
+  '한국과 미국의 AI 활용 주제를 비교해 줘',
+  'KT Cloud가 주목할 만한 AI 활용 트렌드는?',
+]
+
+function copy(text: string) {
+  if (!navigator.clipboard) {
+    toast.error('이 브라우저에서는 복사할 수 없어요')
+    return
+  }
+  navigator.clipboard
+    .writeText(text)
+    .then(() => toast.success('답변을 복사했어요'))
+    .catch(() => toast.error('복사하지 못했어요'))
+}
 
 export function ChatView() {
   const { items, busy, send, stop, reset } = useChat()
@@ -28,24 +47,28 @@ export function ChatView() {
 
   return (
     // 3rem = AppShell 상단 헤더(h-12). 메시지는 페이지가 아니라 목록 안에서 스크롤된다.
-    <div className="mx-auto flex h-[calc(100svh-3rem)] w-full max-w-3xl flex-col gap-4 px-4 py-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <h1 className="text-2xl font-bold tracking-tight">AI 에이전트</h1>
-          {isMock && <Badge variant="secondary">mock</Badge>}
-        </div>
-        <Button variant="outline" size="sm" onClick={reset} disabled={busy && items.length === 0}>
-          <PlusIcon /> 새 대화
-        </Button>
-      </div>
+    <div className="mx-auto flex h-[calc(100svh-3rem)] w-full max-w-[780px] flex-col gap-4 px-4 py-6">
+      <PageHeader
+        title={
+          <span className="flex items-center gap-2">
+            AI 에이전트 {isMock && <Badge variant="secondary">mock</Badge>}
+          </span>
+        }
+        description="AI 활용 트렌드 데이터를 찾아보며 질문에 답해요"
+        actions={
+          <Button variant="outline" size="sm" onClick={reset} disabled={busy && items.length === 0}>
+            <PlusIcon /> 새 대화
+          </Button>
+        }
+      />
 
       <div role="log" aria-live="polite" aria-label="대화 내용" className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
         {items.length === 0 && (
           <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
-            <p>무엇이든 물어보세요. 필요하면 도구를 써서 답합니다.</p>
+            <p>AI 활용 트렌드나 KT 그룹 사업 기회에 대해 물어보세요.</p>
             <div className="flex flex-wrap justify-center gap-2">
               {EXAMPLES.map((q) => (
-                <Button key={q} variant="secondary" size="sm" onClick={() => void send(q)}>
+                <Button key={q} variant="outline" size="sm" onClick={() => void send(q)}>
                   {q}
                 </Button>
               ))}
@@ -62,12 +85,28 @@ export function ChatView() {
           ) : (
             <div key={i} className="max-w-[85%] space-y-2">
               {item.tools.map((t) => (
-                <ToolCard key={t.id} tool={t} />
+                <ToolStep key={t.id} tool={t} />
               ))}
-              {(item.text.trim() || (item.streaming && !item.status && !item.error)) && (
-                <div className="whitespace-pre-wrap rounded-2xl bg-muted px-4 py-2">
-                  {item.text.trim()}
-                  {item.streaming && <span className="ml-0.5 inline-block w-2 animate-pulse">▍</span>}
+              {item.text.trim() ? (
+                <div className="rounded-2xl bg-muted px-4 py-2">
+                  <Markdown>{item.text.trim()}</Markdown>
+                </div>
+              ) : (
+                item.streaming &&
+                !item.status &&
+                !item.error && (
+                  <p className="flex items-center gap-1.5 px-1 text-xs text-muted-foreground">
+                    <LoaderCircleIcon className="size-3.5 animate-spin" aria-hidden /> 답변을 만들고 있어요
+                  </p>
+                )
+              )}
+              {item.stopped && <p className="px-1 text-xs text-muted-foreground">응답을 멈췄어요</p>}
+              {!item.streaming && item.text.trim() && !item.error && (
+                <div className="flex items-center gap-2 px-1">
+                  <AiGeneratedLabel />
+                  <Button variant="ghost" size="icon-sm" aria-label="답변 복사" onClick={() => copy(item.text.trim())}>
+                    <CopyIcon />
+                  </Button>
                 </div>
               )}
               {item.status && (
@@ -102,7 +141,7 @@ export function ChatView() {
               submit()
             }
           }}
-          placeholder="메시지 입력 (Enter 전송, Shift+Enter 줄바꿈)"
+          placeholder="질문을 입력해 주세요 (Enter 전송, Shift+Enter 줄바꿈)"
           className="max-h-40 min-h-11 resize-none"
           rows={1}
         />
@@ -116,23 +155,9 @@ export function ChatView() {
           </Button>
         )}
       </form>
+      <p className="-mt-2 text-center text-xs text-muted-foreground">
+        AI는 실수할 수 있어요. 중요한 내용은 근거 데이터를 확인해 주세요.
+      </p>
     </div>
-  )
-}
-
-function ToolCard({ tool }: { tool: ToolActivity }) {
-  const pending = tool.result === undefined
-  return (
-    <Card size="sm" className={cn('gap-1 py-2', tool.isError && 'border-destructive')}>
-      <CardContent className="space-y-1 px-3 text-xs">
-        <div className="flex items-center gap-1.5 font-medium">
-          {pending ? <LoaderCircleIcon className="size-3.5 animate-spin" /> : <WrenchIcon className="size-3.5" />}
-          {tool.name}
-          {tool.isError && <Badge variant="destructive">오류</Badge>}
-        </div>
-        <pre className="overflow-x-auto text-muted-foreground">{JSON.stringify(tool.input)}</pre>
-        {!pending && <pre className="overflow-x-auto whitespace-pre-wrap">{tool.result}</pre>}
-      </CardContent>
-    </Card>
   )
 }

@@ -21,6 +21,7 @@ export type ChatItem =
       streaming: boolean
       status?: string // 재시도 대기 등 진행 상태 (글자가 오면 지움)
       error?: string // 실패 사유 (말풍선 안에 표시)
+      stopped?: boolean // 사용자가 중지함
     }
 
 export function toItems(messages: ChatMessage[]): ChatItem[] {
@@ -86,7 +87,7 @@ export function useChat() {
       case 'retry': {
         const why = ev.data.code === 'rate_limit' ? '사용량 한도' : '일시 오류'
         updateAgent((a) => {
-          a.status = `${why}로 ${Math.round(ev.data.wait_seconds)}초 후 다시 시도합니다… (${ev.data.attempt}회)`
+          a.status = `${why}로 ${Math.round(ev.data.wait_seconds)}초 뒤 다시 시도해요 (${ev.data.attempt}회)`
         })
         break
       }
@@ -117,7 +118,12 @@ export function useChat() {
         }
         await sendMessage(id, text, onEvent, abortRef.current.signal)
       } catch (e) {
-        if ((e as Error).name !== 'AbortError') {
+        if ((e as Error).name === 'AbortError') {
+          updateAgent((a) => {
+            a.stopped = true
+            a.status = undefined
+          })
+        } else {
           const message = (e as Error).message
           updateAgent((a) => void (a.error = message))
         }
