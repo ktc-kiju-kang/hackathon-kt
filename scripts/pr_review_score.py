@@ -39,8 +39,6 @@ EXEMPT_TYPES = ("docs", "chore", "ci")
 UI_PREFIX = "frontend/src/components/ui/"
 CODE_RE = re.compile(r"^(backend/app/.+\.py|frontend/src/.+\.(ts|tsx))$")
 TEST_RE = re.compile(r"^(backend/tests/.+|.+\.test\.(ts|tsx))$")
-SIZE_EXCLUDE_NAMES = ("package-lock.json",)
-SIZE_EXCLUDE_PREFIXES = (UI_PREFIX, "backend/data/")
 CONTRACT_RE = re.compile(
     r"^(backend/app/(routers|schemas)/.+\.py|frontend/src/features/[^/]+/api\.ts)$"
 )
@@ -54,10 +52,6 @@ def is_test(path: str) -> bool:
 
 def is_code(path: str) -> bool:
     return bool(CODE_RE.match(path)) and not path.startswith(UI_PREFIX) and not is_test(path)
-
-
-def is_size_excluded(path: str) -> bool:
-    return path.rsplit("/", 1)[-1] in SIZE_EXCLUDE_NAMES or path.startswith(SIZE_EXCLUDE_PREFIXES)
 
 
 def is_contract_affecting(path: str) -> bool:
@@ -92,13 +86,13 @@ def _lines(f: dict) -> int:
 def score_tests(files: list[dict]) -> Item:
     code = [f for f in files if is_code(f["filename"])]
     if not code:
-        return Item("테스트 동반", 8, 8, "코드 변경 없음")
+        return Item("테스트 동반", 10, 10, "코드 변경 없음")
     if any(is_test(f["filename"]) for f in files):
-        return Item("테스트 동반", 8, 8, "테스트 변경 있음")
+        return Item("테스트 동반", 10, 10, "테스트 변경 있음")
     n = sum(_lines(f) for f in code)
     if n <= 30:
-        return Item("테스트 동반", 5, 8, f"코드 {n}줄 변경, 테스트 없음 (소규모)")
-    return Item("테스트 동반", 0, 8, f"코드 {n}줄 변경, 테스트 없음")
+        return Item("테스트 동반", 6, 10, f"코드 {n}줄 변경, 테스트 없음 (소규모)")
+    return Item("테스트 동반", 0, 10, f"코드 {n}줄 변경, 테스트 없음")
 
 
 def score_contract(files: list[dict]) -> Item:
@@ -108,12 +102,6 @@ def score_contract(files: list[dict]) -> Item:
     if affected and not changed:
         return Item("문서·계약 동반", 0, 5, "API 파일이 바뀌었는데 docs/contracts 변경 없음")
     return Item("문서·계약 동반", 5, 5, "해당 없음 또는 함께 변경")
-
-
-def score_size(files: list[dict]) -> Item:
-    n = sum(_lines(f) for f in files if not is_size_excluded(f["filename"]))
-    pts = 4 if n <= 400 else 2 if n <= 800 else 0
-    return Item("PR 크기", pts, 4, f"{n}줄 (제외 파일 뺌)")
 
 
 def score_commits(messages: list[str]) -> Item:
@@ -132,15 +120,15 @@ def score_body(body: str) -> Item:
     else:
         notes.append("본문 200자 미만")
     if re.search(r"^##\s*변경", body, re.MULTILINE):
-        pts += 1
+        pts += 2
     else:
         notes.append("`## 변경` 없음")
     m = re.search(r"^##\s*(검증|확인)[^\n]*\n(.*?)(?=^##\s|\Z)", body, re.MULTILINE | re.DOTALL)
     if m and re.search(r"^\s*([-*]|\d+\.)\s+\S", m.group(2), re.MULTILINE):
-        pts += 2
+        pts += 3
     else:
         notes.append("`## 검증` 항목 없음")
-    return Item("PR 본문 충실도", pts, 4, ", ".join(notes) or "충실")
+    return Item("PR 본문 충실도", pts, 6, ", ".join(notes) or "충실")
 
 
 def _lint_item(name, mx, applicable, value, points, note):
@@ -432,7 +420,6 @@ def main(argv: list[str]) -> None:
         score_issue(title, body),
         score_tests(files),
         score_contract(files),
-        score_size(files),
         score_commits([c["commit"]["message"] for c in commits]),
         score_body(body),
     ]

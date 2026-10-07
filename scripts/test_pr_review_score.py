@@ -26,18 +26,6 @@ class ClassifyTest(unittest.TestCase):
         self.assertTrue(s.is_test("frontend/src/lib/sse.test.ts"))
         self.assertFalse(s.is_test("backend/app/services/radar.py"))
 
-    def test_size_excluded(self):
-        self.assertTrue(s.is_size_excluded("frontend/package-lock.json"))
-        self.assertTrue(s.is_size_excluded("frontend/src/components/ui/card.tsx"))
-        self.assertTrue(s.is_size_excluded("backend/data/signals/x.csv"))
-        self.assertFalse(s.is_size_excluded("backend/app/main.py"))
-        self.assertTrue(s.is_size_excluded("package-lock.json"))
-        # 부분 문자열 일치는 제외하지 않는다
-        self.assertFalse(s.is_size_excluded("backend/app/package-lock.json.py"))
-        self.assertFalse(s.is_size_excluded("docs/old-package-lock.json"))
-        self.assertFalse(s.is_size_excluded("src/frontend/src/components/ui/a.tsx"))
-        self.assertFalse(s.is_size_excluded("backend/app/backend/data/x.py"))
-
     def test_is_contract_affecting(self):
         self.assertTrue(s.is_contract_affecting("backend/app/routers/radar.py"))
         self.assertTrue(s.is_contract_affecting("backend/app/schemas/radar.py"))
@@ -74,10 +62,10 @@ class ScoreTest(unittest.TestCase):
         self.assertEqual(s.score_issue("feat: x", "disclosed #4").score, 4)  # 키워드 아님
 
     def test_tests(self):
-        self.assertEqual(s.score_tests([F("docs/a.md", 5)]).score, 8)  # 코드 변경 없음
+        self.assertEqual(s.score_tests([F("docs/a.md", 5)]).score, 10)  # 코드 변경 없음
         code, test = F("backend/app/a.py", 100), F("backend/tests/test_a.py", 10)
-        self.assertEqual(s.score_tests([code, test]).score, 8)
-        self.assertEqual(s.score_tests([F("backend/app/a.py", 30)]).score, 5)  # 30 이하
+        self.assertEqual(s.score_tests([code, test]).score, 10)
+        self.assertEqual(s.score_tests([F("backend/app/a.py", 30)]).score, 6)  # 30 이하
         self.assertEqual(s.score_tests([F("backend/app/a.py", 20, 11)]).score, 0)  # 31
 
     def test_contract(self):
@@ -86,13 +74,21 @@ class ScoreTest(unittest.TestCase):
         self.assertEqual(s.score_contract([r, c]).score, 5)
         self.assertEqual(s.score_contract([F("backend/app/services/radar.py")]).score, 5)
 
-    def test_size(self):
-        self.assertEqual(s.score_size([F("backend/app/a.py", 400)]).score, 4)
-        self.assertEqual(s.score_size([F("backend/app/a.py", 401)]).score, 2)
-        self.assertEqual(s.score_size([F("backend/app/a.py", 800)]).score, 2)
-        self.assertEqual(s.score_size([F("backend/app/a.py", 801)]).score, 0)
-        big = F("frontend/package-lock.json", 5000)
-        self.assertEqual(s.score_size([F("backend/app/a.py", 10), big]).score, 4)  # 제외
+    def test_no_size_item_and_auto_max_is_40(self):
+        self.assertFalse(hasattr(s, "score_size"))
+        self.assertFalse(hasattr(s, "is_size_excluded"))
+        items = [
+            *s.score_lint(False, False, None, None, None, None),
+            s.score_issue("feat: x", ""),
+            s.score_tests([]),
+            s.score_contract([]),
+            s.score_commits([]),
+            s.score_body(""),
+        ]
+        self.assertNotIn("PR 크기", [i.name for i in items])
+        self.assertEqual(sum(i.max for i in items), 40)
+        self.assertEqual(s.score_tests([]).max, 10)
+        self.assertEqual(s.score_body("").max, 6)
 
     def test_commits(self):
         ok, bad = "feat(x): a", "수정함"
@@ -105,13 +101,13 @@ class ScoreTest(unittest.TestCase):
 
     def test_body(self):
         full = "## 변경\n" + "가" * 200 + "\n## 검증\n- npm test 통과\n"
-        self.assertEqual(s.score_body(full).score, 4)
+        self.assertEqual(s.score_body(full).score, 6)
         self.assertEqual(s.score_body("짧음").score, 0)
-        self.assertEqual(s.score_body("## 변경\n" + "가" * 200).score, 2)  # 길이+변경
+        self.assertEqual(s.score_body("## 변경\n" + "가" * 200).score, 3)  # 길이+변경
         no_item = "## 변경\n" + "가" * 200 + "\n## 검증\n\n"
-        self.assertEqual(s.score_body(no_item).score, 2)
+        self.assertEqual(s.score_body(no_item).score, 3)
         alt = "## 변경 내용\n" + "가" * 200 + "\n## 확인\n1. 해봄\n"
-        self.assertEqual(s.score_body(alt).score, 4)
+        self.assertEqual(s.score_body(alt).score, 6)
 
 
 class LintTest(unittest.TestCase):

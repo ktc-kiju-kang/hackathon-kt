@@ -4,7 +4,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** PR이 열리거나 갱신될 때 자동 점검 40점(이슈 연결·테스트·계약·크기·커밋·본문·린트/타입)과 AI 리뷰 블록 검증 결과를 PR 코멘트 1개로 남긴다.
+**Goal:** PR이 열리거나 갱신될 때 자동 점검 40점(이슈 연결·테스트·계약·커밋·본문·린트/타입)과 AI 리뷰 블록 검증 결과를 PR 코멘트 1개로 남긴다.
 
 **Architecture:** 표준 라이브러리만 쓰는 `scripts/pr_review_score.py`가 `gh api`로 PR 메타·파일·커밋을 읽어 채점하고, 워크플로가 만든 린트 결과 파일(`lint/`)을 읽어 린트 점수를 낸다. 점수 함수는 전부 순수 함수라 `unittest`로 경계값을 검증한다. 워크플로는 보고 전용·비차단을 목표로 하며, 실패 시에도 보고를 남기는 처리는 아래 착수 전 재확인 대상이다. 설계: `docs/superpowers/specs/2026-10-03-pr-review-scoring-design.md`.
 
@@ -13,6 +13,10 @@
 **범위 밖:** 리뷰 흐름 문서·`reviewer`/`/handoff`/PR 템플릿 갱신(PR 2, 이 PR 머지 후 별도 계획).
 
 **브랜치:** `ci/pr-review-score` (이슈 없는 인프라 작업 규칙: `<type>/<설명>`)
+
+## 구현 갱신
+
+- 2026-10-07: PR 크기 항목 삭제(`score_size`·`is_size_excluded` 제거), 배점 재배분 — 테스트 동반 8→10(코드만 있고 테스트 없음·30줄 이하 = 6), PR 본문 충실도 4→6(길이 1·`## 변경` 2·`## 검증` 항목 3). 자동 합계는 40 유지. 아래 Task 2의 코드·테스트는 이전 설계 기준의 기록이며 다시 쓰지 않았다.
 
 ## 구현 착수 전 재확인
 
@@ -957,7 +961,7 @@ Expected: `0 0` (현재 main은 ruff·ty 모두 깨끗)
 - [ ] **Step 1: 변이 시험** — 격리된 임시 사본/worktree에서 아래 순서로 확인한다.
 
 1. `python3 scripts/test_pr_review_score.py`의 정상 통과를 먼저 기록한다.
-2. PR 크기 경계 `400`을 `500`으로 바꾸는 등 채점 규칙 하나만 변이시키고 diff를 확인한다.
+2. 테스트 동반 경계 `30`을 `50`으로 바꾸는 등 채점 규칙 하나만 변이시키고 diff를 확인한다.
 3. 같은 명령의 **전체 결과와 종료 코드**를 확인한다. 경계값 테스트 때문에 실패해야 하며, 의존성 누락 등 다른 실패는 변이를 잡았다는 증거가 아니다.
 4. 자신이 만든 변이만 제거하고 같은 명령이 다시 통과하는지 확인한다. 기존 변경을 통째로 되돌리거나 `tail` 파이프의 종료 코드를 테스트 성공으로 사용하지 않는다.
 
