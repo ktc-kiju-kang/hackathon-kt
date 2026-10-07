@@ -63,6 +63,9 @@ ProductCard = {
 }
 ```
 
+## 결과 유지 (frontend)
+`/radar`에 다녀와도 마지막 Product Card가 남도록 `sessionStorage`의 `product:last-result`에 `{ product, snapshot }`을 저장한다 (`features/product/api.ts`의 `saveProductResult`·`loadProductResult`, 저장은 `@/lib/session`). 지금 고른 기회와 `opportunity_id`가 같을 때만 다시 보여 준다. 서버 API와는 무관하다.
+
 ## 변경 이력
 | 날짜 | 변경 | 작성자 |
 |---|---|---|
