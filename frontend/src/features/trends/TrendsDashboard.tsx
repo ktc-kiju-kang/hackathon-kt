@@ -1,7 +1,11 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { CircleAlertIcon, TrendingDownIcon, TrendingUpIcon } from 'lucide-react'
+import Link from 'next/link'
+import { ArrowRightIcon, TrendingDownIcon, TrendingUpIcon } from 'lucide-react'
+import { ErrorLine } from '@/components/error-line'
+import { PageHeader } from '@/components/page-header'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -41,6 +45,18 @@ function mergeSeries(parts: { name: string; series: TrendSeries; key: string }[]
   return [...byMonth.values()].sort((a, b) => a.month.localeCompare(b.month))
 }
 
+// 선 그래프 해석 한 문장: 첫 달 → 마지막 달 값과 변화 (전 세계 비교가 있으면 함께)
+function describeLine(data: LinePoint[], subject: string, compare: boolean): string {
+  const first = data[0]
+  const last = data.at(-1)
+  if (!first || !last || typeof first.own !== 'number' || typeof last.own !== 'number') return ''
+  const diff = last.own - first.own
+  const verb = Math.abs(diff) < 0.5 ? '비슷해요' : diff > 0 ? '늘었어요' : '줄었어요'
+  let text = `${subject}은 ${first.month} ${first.own.toFixed(1)}%에서 ${last.month} ${last.own.toFixed(1)}%로 ${verb}`
+  if (compare && typeof last.global === 'number') text += ` (같은 달 전 세계 ${last.global.toFixed(1)}%)`
+  return `${text}.`
+}
+
 export function TrendsDashboard() {
   const [meta, setMeta] = useState<TrendsMeta | null>(null)
   const [country, setCountry] = useState('KR')
@@ -49,15 +65,24 @@ export function TrendsDashboard() {
   const [scope, setScope] = useState<'all' | 'work'>('all')
   const [data, setData] = useState<Loaded | null>(null)
   const [error, setError] = useState<{ key: string; message: string } | null>(null)
+  const [attempt, setAttempt] = useState(0) // "다시 시도"로 같은 선택을 다시 불러온다
 
   const apiCountry = country === GLOBAL ? null : country
   const key = `${country}|${months}` // topic 변경은 이미 받은 시계열로 다시 그리기만 한다
 
-  useEffect(() => {
+  function loadMeta() {
     getMeta()
       .then(setMeta)
-      .catch(() => setError({ key: 'meta', message: '데이터 목록을 불러오지 못했습니다' }))
-  }, [])
+      .catch(() => setError({ key: 'meta', message: '국가 목록을 불러오지 못했어요' }))
+  }
+
+  useEffect(loadMeta, [])
+
+  function retry() {
+    if (error?.key === 'meta') loadMeta()
+    else setAttempt((n) => n + 1)
+    setError(null)
+  }
 
   useEffect(() => {
     let cancelled = false // 늦게 도착한 이전 선택의 응답이 최신 결과를 덮지 않게
@@ -73,12 +98,12 @@ export function TrendsDashboard() {
         if (!cancelled) setData({ key, summary, topic: topicS, topicGlobal, work, workGlobal, intent })
       })
       .catch(() => {
-        if (!cancelled) setError({ key, message: '트렌드 데이터를 불러오지 못했습니다. 잠시 후 다시 시도하세요.' })
+        if (!cancelled) setError({ key, message: '트렌드 데이터를 불러오지 못했어요' })
       })
     return () => {
       cancelled = true
     }
-  }, [key, apiCountry, months])
+  }, [key, apiCountry, months, attempt])
 
   const current = data?.key === key ? data : null // 다른 선택의 데이터는 보여주지 않는다
   const loading = !current && error?.key !== key
@@ -90,7 +115,7 @@ export function TrendsDashboard() {
     // config 키는 CSS 변수 이름(--color-<key>)이 되므로 영문만 쓴다
     const lineConfig = {
       own: { label: name, color: 'var(--series-1)' },
-      ...(compareGlobal ? { global: { label: '전 세계', color: 'var(--series-2)' } } : {}),
+      ...(compareGlobal ? { global: { label: '전 세계', color: 'var(--compare)' } } : {}),
     }
     const pair = (own: TrendSeries, global: TrendSeries, k: string) =>
       mergeSeries([
@@ -114,16 +139,35 @@ export function TrendsDashboard() {
   const summary = current?.summary
   const rows = summary ? (scope === 'all' ? summary.topics : summary.work_topics) : []
 
+  // 차트마다 해석 한 문장
+  const notes = useMemo(() => {
+    if (!summary || !charts) return null
+    const ranked = scope === 'all' ? summary.topics : summary.work_topics
+    const up = ranked[0]
+    const down = ranked.at(-1)
+    const most = [...summary.work_intent].sort((a, b) => b.to_share - a.to_share)[0]
+    const rising = [...summary.work_intent].sort((a, b) => b.change_pp - a.change_pp)[0]
+    return {
+      change:
+        up && down
+          ? `${name}에서 가장 많이 늘어난 주제는 ${TOPIC_LABEL[up.topic]}(${signedPp(up.change_pp)}), 가장 많이 줄어든 주제는 ${TOPIC_LABEL[down.topic]}(${signedPp(down.change_pp)})예요.`
+          : '',
+      topic: describeLine(charts.topic, `${name}의 ${TOPIC_LABEL[topic]} 비중`, compareGlobal),
+      work: describeLine(charts.work, `${name}의 업무 관련 메시지 비중`, compareGlobal),
+      intent:
+        most && rising
+          ? `업무 메시지에서는 ${INTENT_LABEL[most.intent]}(${pct(most.to_share)}) 비중이 가장 크고, ${INTENT_LABEL[rising.intent]} 비중이 ${signedPp(rising.change_pp)}로 가장 많이 늘었어요.`
+          : '',
+    }
+  }, [summary, charts, scope, name, topic, compareGlobal])
+
   return (
     <div className={cn('mx-auto w-full max-w-6xl space-y-4 p-4 md:p-6', CHART_COLORS)}>
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold">AI 활용 트렌드</h1>
-          <p className="text-sm text-muted-foreground">
-            개인 ChatGPT 사용 통계(OpenAI Signals)로 본 국가별 AI 활용 변화
-          </p>
-        </div>
-        <div className="flex gap-2">
+      <PageHeader
+        title="AI 활용 트렌드"
+        description="개인 ChatGPT 사용 통계(OpenAI Signals)로 본 국가별 AI 활용 변화예요"
+        actions={
+          <>
           <Select value={country} onValueChange={setCountry}>
             <SelectTrigger className="w-40" aria-label="국가">
               <SelectValue />
@@ -152,16 +196,11 @@ export function TrendsDashboard() {
               ))}
             </SelectContent>
           </Select>
-        </div>
-      </div>
+          </>
+        }
+      />
 
-      {error && (error.key === key || error.key === 'meta') && (
-        <Card className="border-destructive/50">
-          <CardContent className="flex items-center gap-2 text-sm text-destructive">
-            <CircleAlertIcon className="size-4" /> {error.message}
-          </CardContent>
-        </Card>
-      )}
+      {error && (error.key === key || error.key === 'meta') && <ErrorLine message={error.message} onRetry={retry} />}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {loading || !summary ? (
@@ -227,7 +266,10 @@ export function TrendsDashboard() {
               </TabsList>
             </Tabs>
           </CardHeader>
-          <CardContent>{loading || !summary ? <Skeleton className="h-72" /> : <TopicChangeChart rows={rows} />}</CardContent>
+          <CardContent className="space-y-3">
+            {loading || !summary ? <Skeleton className="h-72" /> : <TopicChangeChart rows={rows} />}
+            <ChartNote text={notes?.change} />
+          </CardContent>
         </Card>
 
         <Card>
@@ -249,12 +291,13 @@ export function TrendsDashboard() {
               </SelectContent>
             </Select>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
             {loading || !charts ? (
               <Skeleton className="h-64" />
             ) : (
               <ShareLineChart data={charts.topic} config={charts.lineConfig} />
             )}
+            <ChartNote text={notes?.topic} />
           </CardContent>
         </Card>
 
@@ -263,12 +306,13 @@ export function TrendsDashboard() {
             <CardTitle>업무 관련 메시지 비중</CardTitle>
             <CardDescription>전체 메시지 중 업무와 관련된 메시지 (월별)</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
             {loading || !charts ? (
               <Skeleton className="h-64" />
             ) : (
               <ShareLineChart data={charts.work} config={charts.lineConfig} />
             )}
+            <ChartNote text={notes?.work} />
           </CardContent>
         </Card>
 
@@ -277,14 +321,23 @@ export function TrendsDashboard() {
             <CardTitle>업무 메시지의 요청 방식</CardTitle>
             <CardDescription>{name} 업무 메시지 중 질문 · 작업 요청 · 표현 비중 (월별)</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
             {loading || !charts ? (
               <Skeleton className="h-64" />
             ) : (
               <ShareLineChart data={charts.intent} config={charts.intentConfig} />
             )}
+            <ChartNote text={notes?.intent} />
           </CardContent>
         </Card>
+      </div>
+
+      <div className="flex justify-end">
+        <Button asChild size="lg">
+          <Link href="/radar">
+            이 트렌드로 사업 기회 찾기 <ArrowRightIcon />
+          </Link>
+        </Button>
       </div>
 
       <p className="text-xs text-muted-foreground">
@@ -292,10 +345,14 @@ export function TrendsDashboard() {
         <a href={meta?.source.url ?? 'https://openai.com/signals/data-download/'} className="underline" target="_blank" rel="noreferrer">
           OpenAI Signals v2.0
         </a>{' '}
-        (CC BY 4.0). 개인 계정(Free·Go·Plus·Pro) 메시지 표본 기준이며 기업 계정은 포함되지 않습니다. 차등 프라이버시 노이즈가 적용된 값입니다.
+        (CC BY 4.0). 개인 계정(Free·Go·Plus·Pro) 메시지 표본 기준이고 기업 계정은 포함되지 않아요. 차등 프라이버시 노이즈가 적용된 값이에요.
       </p>
     </div>
   )
+}
+
+function ChartNote({ text }: { text?: string }) {
+  return text ? <p className="text-sm text-muted-foreground">{text}</p> : null
 }
 
 function StatTile({ label, value, detail, trend }: { label: string; value: string; detail: string; trend: number }) {
