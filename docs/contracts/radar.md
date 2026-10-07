@@ -80,6 +80,7 @@ RadarSnapshot = { company_id: string, country: string, snapshot: SnapshotInfo, o
 ## 화면 간 전달 (frontend)
 `/radar`에서 "프로덕트 설계"를 누르면 고른 `Opportunity`를 `sessionStorage`의 `radar:selected-opportunity` 키(JSON)에 저장하고 `/product`로 이동한다.
 `features/radar/api.ts`의 `saveSelectedOpportunity` · `loadSelectedOpportunity`를 쓴다. 저장소를 못 쓰면 탭 메모리 값을 쓴다.
+화면을 오가도 결과가 남게, 마지막 결과도 같은 방식으로 저장한다: radar는 `radar:last-result`(`saveRadarResult`), product는 `product:last-result`(같은 기회일 때만 다시 보여 준다, [product](product.md)). 저장은 `@/lib/session`. 서버 API와는 무관하다.
 
 ## 그룹사 데이터
 v1은 DB 대신 `backend/data/companies.json`(공개 자료 요약)을 읽는다. 공개 읽기 전용이고 5개뿐이라서다.

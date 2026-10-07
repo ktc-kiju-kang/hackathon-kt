@@ -5,9 +5,7 @@ import Link from 'next/link'
 import {
   ArchiveIcon,
   ArrowRightIcon,
-  ChartColumnIcon,
   CheckIcon,
-  CircleAlertIcon,
   CircleIcon,
   CopyIcon,
   DownloadIcon,
@@ -16,12 +14,23 @@ import {
   SquareIcon,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { AiGeneratedLabel } from '@/components/ai-generated-label'
+import { ErrorLine } from '@/components/error-line'
+import { PageHeader } from '@/components/page-header'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
-import { type Opportunity, type SnapshotInfo, formatSnapshotTime, loadSelectedOpportunity } from '@/features/radar/api'
+import {
+  type Opportunity,
+  type SnapshotInfo,
+  formatSnapshotTime,
+  getCompanies,
+  loadSelectedOpportunity,
+  saveSelectedOpportunity,
+} from '@/features/radar/api'
+import { EvidenceSheet } from '@/features/radar/EvidenceSheet'
 import {
   type ProductCard,
   type ProductSnapshot,
@@ -29,6 +38,8 @@ import {
   SAMPLE_OPPORTUNITY,
   generateProduct,
   getProductSnapshot,
+  loadProductResult,
+  saveProductResult,
   toMarkdown,
 } from './api'
 
@@ -57,15 +68,42 @@ export function ProductView() {
   const [error, setError] = useState<string | null>(null)
   const [fallback, setFallback] = useState<ProductSnapshot | null>(null) // 실패 시 보여줄 수 있는 저장된 결과
   const [saved, setSaved] = useState<SnapshotInfo | null>(null) // 지금 저장된 결과를 보여주는 중
+  const [sources, setSources] = useState<string[]>([]) // 기회를 낸 그룹사의 공개 자료 URL
   const abortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     // sessionStorage는 브라우저에서만 읽을 수 있다 (effect 안에서 비동기로 반영)
     Promise.resolve()
       .then(loadSelectedOpportunity)
-      .then(setOpp)
+      .then(selectOpportunity)
     return () => abortRef.current?.abort()
   }, [])
+
+  // 기회를 정하고, /radar에 다녀왔으면 같은 기회의 마지막 결과를 다시 보여 준다
+  function selectOpportunity(o: Opportunity | null) {
+    setOpp(o)
+    const r = o && loadProductResult(o.id)
+    if (r) {
+      const summary = r.snapshot ? '저장된 결과' : '이전 결과'
+      setCard(r.product)
+      setSaved(r.snapshot)
+      setStages({ design: { status: 'done', summary }, poc: { status: 'done', summary } })
+    }
+  }
+
+  const companyId = opp?.company_id
+  useEffect(() => {
+    if (!companyId) return
+    let cancelled = false
+    getCompanies()
+      .then((list) => {
+        if (!cancelled) setSources(list.find((c) => c.id === companyId)?.sources ?? [])
+      })
+      .catch(() => {}) // 출처 링크는 없어도 화면을 막지 않는다
+    return () => {
+      cancelled = true
+    }
+  }, [companyId])
 
   async function run() {
     if (!opp) return
@@ -89,8 +127,9 @@ export function ProductView() {
             setNotice(null)
           } else if (ev.type === 'product') {
             setCard(ev.data.product)
+            saveProductResult({ product: ev.data.product, snapshot: null })
           } else if (ev.type === 'retry') {
-            setNotice(`AI 서버가 바빠서 ${ev.data.wait_seconds}초 뒤 다시 시도합니다`)
+            setNotice(`AI 서버가 바빠서 ${ev.data.wait_seconds}초 뒤 다시 시도해요`)
           } else if (ev.type === 'error') {
             setError(ev.data.message)
             setStages(halt)
@@ -101,7 +140,7 @@ export function ProductView() {
       )
     } catch (e) {
       if ((e as Error).name !== 'AbortError') {
-        setError((e as Error).message || '요청에 실패했습니다')
+        setError((e as Error).message || '요청에 실패했어요')
         setStages(halt)
         offerFallback(opp.id, controller)
       }
@@ -124,6 +163,7 @@ export function ProductView() {
     setSaved(snap.snapshot)
     setError(null)
     setFallback(null)
+    saveProductResult(snap)
   }
 
   function stop() {
@@ -135,13 +175,13 @@ export function ProductView() {
   function copyMarkdown() {
     if (!card) return
     if (!navigator.clipboard) {
-      toast.error('이 브라우저에서는 복사할 수 없습니다. .md로 내려받으세요')
+      toast.error('이 브라우저에서는 복사할 수 없어요. Markdown으로 내려받아 주세요')
       return
     }
     navigator.clipboard
       .writeText(toMarkdown(card, opp ?? null))
-      .then(() => toast.success('Markdown을 복사했습니다'))
-      .catch(() => toast.error('복사하지 못했습니다'))
+      .then(() => toast.success('Markdown을 복사했어요'))
+      .catch(() => toast.error('복사하지 못했어요'))
   }
 
   function downloadMarkdown() {
@@ -160,20 +200,18 @@ export function ProductView() {
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-4 p-4 md:p-6">
-      <div>
-        <h1 className="text-xl font-semibold">Product Generator</h1>
-        <p className="text-sm text-muted-foreground">
-          고른 사업 기회를 실제 프로덕트 설계와 PoC 계획으로 바꿉니다
-        </p>
-      </div>
+      <PageHeader
+        title="Product Generator"
+        description="고른 사업 기회를 실제 프로덕트 설계와 PoC 계획으로 바꿔요"
+      />
 
       {opp === undefined ? (
         <Skeleton className="h-40" />
       ) : opp === null ? (
         <Card>
           <CardHeader>
-            <CardTitle>선택한 사업 기회가 없습니다</CardTitle>
-            <CardDescription>Opportunity Radar에서 기회를 고르거나, 샘플로 먼저 볼 수 있습니다</CardDescription>
+            <CardTitle>선택한 사업 기회가 없어요</CardTitle>
+            <CardDescription>Opportunity Radar에서 기회를 고르거나, 샘플로 먼저 볼 수 있어요</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-wrap gap-2">
             <Button asChild>
@@ -181,7 +219,13 @@ export function ProductView() {
                 Opportunity Radar로 <ArrowRightIcon />
               </Link>
             </Button>
-            <Button variant="outline" onClick={() => setOpp(SAMPLE_OPPORTUNITY)}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                saveSelectedOpportunity(SAMPLE_OPPORTUNITY) // 화면을 오가도 샘플을 유지
+                selectOpportunity(SAMPLE_OPPORTUNITY)
+              }}
+            >
               샘플로 보기 (Cloud 장애 대응 자동화)
             </Button>
           </CardContent>
@@ -233,7 +277,7 @@ export function ProductView() {
               {STAGES.map((s) => {
                 const st = stages[s.id]
                 return (
-                  <li key={s.id} className="flex gap-3 rounded-lg border p-3">
+                  <li key={s.id} className="flex gap-3">
                     <StageIcon status={st.status} />
                     <div className="min-w-0 space-y-1">
                       <div className="text-sm font-medium">{s.label}</div>
@@ -249,29 +293,27 @@ export function ProductView() {
       )}
 
       {error && (
-        <Card className="border-destructive/50">
-          <CardContent className="flex items-center gap-2 text-sm text-destructive">
-            <CircleAlertIcon className="size-4 shrink-0" /> {error}
-            {fallback && fallback.product.opportunity_id === opp?.id && (
-              <Button variant="outline" size="sm" className="ml-auto" onClick={() => showSaved(fallback)}>
-                <ArchiveIcon /> 저장된 결과 보기
-              </Button>
-            )}
-          </CardContent>
-        </Card>
+        <ErrorLine message={error} onRetry={run}>
+          {fallback && fallback.product.opportunity_id === opp?.id && (
+            <Button variant="ghost" size="sm" onClick={() => showSaved(fallback)}>
+              <ArchiveIcon /> 저장된 결과 보기
+            </Button>
+          )}
+        </ErrorLine>
       )}
 
       {saved && (
-        <Card className="border-dashed">
-          <CardContent className="flex items-center gap-2 text-sm text-muted-foreground">
-            <ArchiveIcon className="size-4 shrink-0" />
-            실시간 생성이 아니라 {formatSnapshotTime(saved.created_at)}에 {saved.model}로 미리 만든 결과입니다. AI가 만든 예시이며 실제 사업 계획이 아닙니다
-          </CardContent>
-        </Card>
+        <p className="flex items-center gap-2 text-sm text-muted-foreground">
+          <ArchiveIcon className="size-4 shrink-0" />
+          실시간 생성이 아니라 {formatSnapshotTime(saved.created_at)}에 {saved.model}로 미리 만든 결과예요. AI가 만든
+          예시이고 실제 사업 계획이 아니에요
+        </p>
       )}
 
       {running && !card && <Skeleton className="h-96" />}
-      {card && <ProductCardView card={card} onCopy={copyMarkdown} onDownload={downloadMarkdown} />}
+      {card && (
+        <ProductCardView card={card} sources={sources} onCopy={copyMarkdown} onDownload={downloadMarkdown} />
+      )}
     </div>
   )
 }
@@ -303,10 +345,21 @@ function Bullets({ items }: { items: string[] }) {
   )
 }
 
-function ProductCardView({ card, onCopy, onDownload }: { card: ProductCard; onCopy: () => void; onDownload: () => void }) {
+function ProductCardView({
+  card,
+  sources,
+  onCopy,
+  onDownload,
+}: {
+  card: ProductCard
+  sources: string[]
+  onCopy: () => void
+  onDownload: () => void
+}) {
   const name = (id: string) => card.architecture.components.find((c) => c.id === id)?.name ?? id
   return (
     <section className="space-y-4">
+      <AiGeneratedLabel withNotice />
       <Card>
         <CardHeader className="flex flex-row items-start justify-between gap-3">
           <div className="space-y-1.5">
@@ -314,12 +367,13 @@ function ProductCardView({ card, onCopy, onDownload }: { card: ProductCard; onCo
             <CardTitle className="text-2xl">{card.name}</CardTitle>
             <p className="text-sm text-muted-foreground">{card.tagline}</p>
           </div>
-          <div className="flex shrink-0 gap-2">
+          <div className="flex shrink-0 flex-wrap justify-end gap-2">
+            {card.evidence.length > 0 && <EvidenceSheet evidence={card.evidence} sources={sources} title={card.name} />}
             <Button variant="outline" size="sm" onClick={onCopy}>
-              <CopyIcon /> 복사
+              <CopyIcon /> Markdown 복사
             </Button>
             <Button variant="outline" size="sm" onClick={onDownload}>
-              <DownloadIcon /> .md
+              <DownloadIcon /> Markdown 내려받기
             </Button>
           </div>
         </CardHeader>
@@ -348,9 +402,7 @@ function ProductCardView({ card, onCopy, onDownload }: { card: ProductCard; onCo
           <ul className="space-y-2">
             {card.features.map((f, i) => (
               <li key={`${i}-${f.name}`} className="flex gap-2">
-                <Badge variant={f.priority === 'must' ? 'default' : 'secondary'} className="shrink-0">
-                  {PRIORITY_LABEL[f.priority]}
-                </Badge>
+                <span className="w-8 shrink-0 text-xs leading-5 text-muted-foreground">{PRIORITY_LABEL[f.priority]}</span>
                 <span>
                   <span className="font-medium">{f.name}</span>
                   <span className="text-muted-foreground"> — {f.description}</span>
@@ -373,14 +425,14 @@ function ProductCardView({ card, onCopy, onDownload }: { card: ProductCard; onCo
         </Section>
 
         <Section title="아키텍처">
-          <div className="flex flex-wrap gap-2">
+          <ul className="space-y-1">
             {card.architecture.components.map((c, i) => (
-              <div key={`${i}-${c.id}`} className="rounded-md border px-3 py-2">
-                <div className="font-medium">{c.name}</div>
-                <div className="text-xs text-muted-foreground">{c.role}</div>
-              </div>
+              <li key={`${i}-${c.id}`}>
+                <span className="font-medium">{c.name}</span>
+                <span className="text-muted-foreground"> — {c.role}</span>
+              </li>
             ))}
-          </div>
+          </ul>
           {card.architecture.edges.length > 0 && (
             <ul className="mt-3 space-y-1 text-xs text-muted-foreground">
               {card.architecture.edges.map((e, i) => (
@@ -398,7 +450,11 @@ function ProductCardView({ card, onCopy, onDownload }: { card: ProductCard; onCo
               <li key={`${i}-${d.name}`} className="flex flex-wrap items-center gap-2">
                 <span className="font-medium">{d.name}</span>
                 <span className="text-muted-foreground">{d.source}</span>
-                <Badge variant="outline">{AVAILABILITY_LABEL[d.availability]}</Badge>
+                {d.availability === 'to_collect' ? (
+                  <Badge variant="outline">{AVAILABILITY_LABEL[d.availability]}</Badge>
+                ) : (
+                  <span className="text-xs text-muted-foreground">· {AVAILABILITY_LABEL[d.availability]}</span>
+                )}
               </li>
             ))}
           </ul>
@@ -447,23 +503,12 @@ function ProductCardView({ card, onCopy, onDownload }: { card: ProductCard; onCo
         </Section>
       </div>
 
-      <Card>
-        <CardContent className="space-y-1">
-          <div className="flex items-center gap-1 text-xs font-medium">
-            <ChartColumnIcon className="size-3.5" /> 데이터 근거 (서버가 OpenAI Signals로 다시 검증한 값)
-          </div>
-          {card.evidence.length ? (
-            <ul className="space-y-0.5 text-xs text-muted-foreground">
-              {card.evidence.map((e) => (
-                <li key={`${e.metric}-${e.key}-${e.country}`}>{e.label}</li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-xs text-muted-foreground">검증된 근거가 없습니다</p>
-          )}
-          <p className="pt-1 text-xs text-muted-foreground">Data: OpenAI Signals v2.0 (CC BY 4.0)</p>
-        </CardContent>
-      </Card>
+      <p className="text-xs text-muted-foreground">
+        {card.evidence.length > 0
+          ? `데이터 근거 ${card.evidence.length}개는 서버가 OpenAI Signals로 다시 확인한 값이에요 (위 "출처"에서 볼 수 있어요).`
+          : '확인된 데이터 근거가 없어요.'}{' '}
+        Data: OpenAI Signals v2.0 (CC BY 4.0)
+      </p>
     </section>
   )
 }
