@@ -1,15 +1,17 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+@import "../styles/kds-tokens.css";
 
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
+  --font-sans: var(--font-family-default);
   --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --font-heading: var(--font-family-default);
+  --font-brand: var(--font-family-brand);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -39,82 +41,81 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
+  /* KDS 모서리: 태그 4 · 버튼·입력창 8 · 카드·팝업 12 · 시트 16 · 피드 카드 20 */
+  --radius-sm: var(--radius-4);
+  --radius-md: var(--radius-6);
+  --radius-lg: var(--radius-8);
+  --radius-xl: var(--radius-12);
+  --radius-2xl: var(--radius-16);
+  --radius-3xl: var(--radius-20);
+  --radius-4xl: var(--radius-circle);
+  /* KDS 그림자는 떠 있는 요소(팝업·드롭다운·시트·툴팁)에만 */
+  --shadow-sm: var(--shadow-1);
+  --shadow-md: var(--shadow-2);
+  --shadow-lg: var(--shadow-3);
+  --shadow-xl: var(--shadow-3);
 }
 
+/*
+ * KT Flow는 해커톤 참가자 전용 서체라 레포·배포에 파일을 넣지 않는다(공개 업로드 금지).
+ * 설치된 PC(시연 PC)에서만 local()로 쓰이고, 나머지는 Pretendard로 보인다.
+ * 큰 제목에만 `font-brand` 클래스로 쓴다.
+ */
+@font-face {
+  font-family: 'KT Flow';
+  font-weight: 500;
+  font-display: swap;
+  src: local('KT Flow Medium'), local('KTFlow-Medium');
+}
+@font-face {
+  font-family: 'KT Flow';
+  font-weight: 700;
+  font-display: swap;
+  src: local('KT Flow Bold'), local('KTFlow-Bold');
+}
+
+/*
+ * shadcn 변수 → KDS 2.0 시맨틱 토큰(src/styles/kds-tokens.css, 수정 금지).
+ * 다크모드는 next-themes가 <html data-mode="dark">를 함께 붙여 KDS 토큰이 다크 값으로 바뀐다.
+ * 주요 버튼은 검정(--fill-primary), KT 레드(--fill-accent-primary)는 기본 매핑에 쓰지 않는다.
+ */
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-}
+  --font-family-default: 'Pretendard Variable', Pretendard, system-ui, -apple-system, 'Apple SD Gothic Neo', sans-serif;
+  --font-family-brand: 'KT Flow', var(--font-family-default);
+  --radius: var(--radius-8);
 
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background: var(--background-default);
+  --foreground: var(--text-primary);
+  --card: var(--surface-primary-01);
+  --card-foreground: var(--text-primary);
+  --popover: var(--surface-primary-01);
+  --popover-foreground: var(--text-primary);
+  --primary: var(--fill-primary);
+  --primary-foreground: var(--text-inverse);
+  --secondary: var(--fill-secondary-01);
+  --secondary-foreground: var(--text-primary);
+  --muted: var(--surface-primary-02);
+  --muted-foreground: var(--text-secondary-01);
+  --accent: var(--fill-tertiary-hover-01);
+  --accent-foreground: var(--text-primary);
+  --destructive: var(--text-feedback-critical-01);
+  --border: var(--border-secondary-01);
+  --input: var(--border-primary-01);
+  --ring: var(--border-primary-focused);
+  /* 차트 계열: teal → yellow → blue → purple → red (KDS 차트 순서) */
+  --chart-1: var(--data-visual-default-teal);
+  --chart-2: var(--data-visual-default-yellow);
+  --chart-3: var(--data-visual-default-blue);
+  --chart-4: var(--data-visual-default-purple);
+  --chart-5: var(--data-visual-default-red);
+  --sidebar: var(--surface-primary-02);
+  --sidebar-foreground: var(--text-primary);
+  --sidebar-primary: var(--fill-primary);
+  --sidebar-primary-foreground: var(--text-inverse);
+  --sidebar-accent: var(--fill-secondary-01);
+  --sidebar-accent-foreground: var(--text-primary);
+  --sidebar-border: var(--border-secondary-01);
+  --sidebar-ring: var(--border-primary-focused);
 }
 
 @layer base {
