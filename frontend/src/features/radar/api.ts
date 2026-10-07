@@ -1,5 +1,6 @@
 // 계약: docs/contracts/radar.md (Evidence는 docs/contracts/trends.md)
 import { apiUrl, isMock, request } from '@/lib/api-client'
+import { loadSession, saveSession } from '@/lib/session'
 import { postSse } from '@/lib/sse'
 
 export type Company = {
@@ -79,29 +80,25 @@ export async function streamOpportunities(
   return postSse<RadarEvent>(apiUrl('/api/radar/opportunities'), body, onEvent, { signal })
 }
 
-// ---- 화면 간 전달: /radar에서 고른 Opportunity를 /product가 읽는다 (계약 radar.md) ----
+// ---- 화면 간 전달·결과 유지: sessionStorage, 못 쓰면 탭 메모리 (계약 radar.md "화면 간 전달") ----
 
 const SELECTED_KEY = 'radar:selected-opportunity'
-let memorySelected: Opportunity | null = null // sessionStorage를 못 쓰면 탭 메모리
 
-export function saveSelectedOpportunity(opp: Opportunity): void {
-  memorySelected = opp
-  try {
-    sessionStorage.setItem(SELECTED_KEY, JSON.stringify(opp))
-  } catch {
-    // 시크릿 모드 등: 메모리 값만 쓴다
-  }
+export const saveSelectedOpportunity = (opp: Opportunity) => saveSession(SELECTED_KEY, opp)
+export const loadSelectedOpportunity = () => loadSession<Opportunity>(SELECTED_KEY)
+
+// /product에 다녀와도 마지막 결과를 다시 보여 준다
+export type RadarResult = {
+  company_id: string
+  focus: string
+  opportunities: Opportunity[]
+  snapshot: SnapshotInfo | null // 저장된 결과를 보던 중이면 그 정보
 }
 
-export function loadSelectedOpportunity(): Opportunity | null {
-  try {
-    const raw = sessionStorage.getItem(SELECTED_KEY)
-    if (raw) return JSON.parse(raw) as Opportunity
-  } catch {
-    // 무시하고 메모리 값
-  }
-  return memorySelected
-}
+const RESULT_KEY = 'radar:last-result'
+
+export const saveRadarResult = (r: RadarResult) => saveSession(RESULT_KEY, r)
+export const loadRadarResult = () => loadSession<RadarResult>(RESULT_KEY)
 
 // ---- mock (백엔드 없이 화면 개발용, 계약 형태) ----
 

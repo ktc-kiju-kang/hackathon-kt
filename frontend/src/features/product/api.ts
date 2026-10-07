@@ -1,6 +1,7 @@
 // 계약: docs/contracts/product.md (Opportunity·Evidence는 radar 계약)
 import { apiUrl, isMock, request } from '@/lib/api-client'
 import type { Evidence, Opportunity, SnapshotInfo } from '@/features/radar/api'
+import { loadSession, saveSession } from '@/lib/session'
 import { postSse } from '@/lib/sse'
 
 export type ProductCard = {
@@ -46,6 +47,18 @@ export const getProductSnapshot = (opportunityId: string): Promise<ProductSnapsh
   isMock
     ? Promise.resolve(null)
     : request<ProductSnapshot>(`/api/product/snapshot/${encodeURIComponent(opportunityId)}`).catch(() => null)
+
+// /radar에 다녀와도 같은 기회의 마지막 결과를 다시 보여 준다
+export type ProductResult = { product: ProductCard; snapshot: SnapshotInfo | null }
+
+const RESULT_KEY = 'product:last-result'
+
+export const saveProductResult = (r: ProductResult) => saveSession(RESULT_KEY, r)
+/** 지금 고른 기회의 결과일 때만 돌려준다. */
+export const loadProductResult = (opportunityId: string) => {
+  const r = loadSession<ProductResult>(RESULT_KEY)
+  return r?.product.opportunity_id === opportunityId ? r : null
+}
 
 /** Product Card 생성을 요청하고 SSE 이벤트를 하나씩 onEvent로 넘긴다. */
 export async function generateProduct(

@@ -5,16 +5,15 @@ import { useRouter } from 'next/navigation'
 import {
   ArchiveIcon,
   ArrowRightIcon,
-  BrainIcon,
-  ChartColumnIcon,
   CheckIcon,
-  CircleAlertIcon,
   CircleIcon,
   LoaderCircleIcon,
   RadarIcon,
   SquareIcon,
 } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
+import { AiGeneratedLabel } from '@/components/ai-generated-label'
+import { ErrorLine } from '@/components/error-line'
+import { PageHeader } from '@/components/page-header'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -29,9 +28,12 @@ import {
   formatSnapshotTime,
   getCompanies,
   getRadarSnapshot,
+  loadRadarResult,
+  saveRadarResult,
   saveSelectedOpportunity,
   streamOpportunities,
 } from './api'
+import { EvidenceSheet } from './EvidenceSheet'
 
 const STAGES: { id: Stage; label: string; detail: string }[] = [
   { id: 'trend', label: '트렌드 분석', detail: 'Signals 데이터에서 관련 트렌드 추출' },
@@ -66,10 +68,33 @@ export function RadarView() {
   const [saved, setSaved] = useState<SnapshotInfo | null>(null) // 지금 저장된 결과를 보여주는 중
   const abortRef = useRef<AbortController | null>(null)
 
+  function loadCompanies() {
+    setError(null)
+    getCompanies()
+      .then(setCompanies)
+      .catch(() => setError('그룹사 목록을 불러오지 못했어요'))
+  }
+
   useEffect(() => {
     getCompanies()
       .then(setCompanies)
-      .catch(() => setError('그룹사 목록을 불러오지 못했습니다'))
+      .catch(() => setError('그룹사 목록을 불러오지 못했어요'))
+    // /product에 다녀왔으면 마지막 결과를 다시 보여 준다 (sessionStorage는 effect 안에서 비동기로)
+    Promise.resolve()
+      .then(loadRadarResult)
+      .then((r) => {
+        if (!r || r.opportunities.length === 0) return
+        const summary = r.snapshot ? '저장된 결과' : '이전 결과'
+        setCompanyId(r.company_id)
+        setFocus(r.focus)
+        setOpps(r.opportunities)
+        setSaved(r.snapshot)
+        setStages({
+          trend: { status: 'done', summary },
+          match: { status: 'done', summary },
+          opportunity: { status: 'done', summary: `${summary} ${r.opportunities.length}건` },
+        })
+      })
     return () => abortRef.current?.abort()
   }, [])
 
@@ -97,18 +122,21 @@ export function RadarView() {
     setError(null)
     setNotice(null)
     setSaved(null)
+    const request = { company_id: companyId, focus: focus.trim() }
+    const found: Opportunity[] = []
     try {
       await streamOpportunities(
-        { company_id: companyId, focus: focus.trim() || undefined },
+        { company_id: request.company_id, focus: request.focus || undefined },
         (ev) => {
           if (ev.type === 'stage') {
             const { stage, status, summary } = ev.data
             setStages((s) => ({ ...s, [stage]: { status: status === 'start' ? 'running' : 'done', summary } }))
             setNotice(null)
           } else if (ev.type === 'opportunity') {
+            found.push(ev.data.opportunity)
             setOpps((o) => [...o, ev.data.opportunity])
           } else if (ev.type === 'retry') {
-            setNotice(`AI 서버가 바빠서 ${ev.data.wait_seconds}초 뒤 다시 시도합니다`)
+            setNotice(`AI 서버가 바빠서 ${ev.data.wait_seconds}초 뒤 다시 시도해요`)
           } else if (ev.type === 'error') {
             setError(ev.data.message)
             setStages(halt)
@@ -118,11 +146,15 @@ export function RadarView() {
       )
     } catch (e) {
       if ((e as Error).name !== 'AbortError') {
-        setError((e as Error).message || '요청에 실패했습니다')
+        setError((e as Error).message || '요청에 실패했어요')
         setStages(halt)
       }
     } finally {
-      if (abortRef.current === controller) setRunning(false)
+      // 새 실행에 밀려난 실행은 저장하지 않는다. 화면을 떠나 끊긴 경우는 받은 기회까지 남긴다 (0건이면 복원 안 함)
+      if (abortRef.current === controller) {
+        setRunning(false)
+        saveRadarResult({ ...request, opportunities: found, snapshot: null })
+      }
     }
   }
 
@@ -133,6 +165,7 @@ export function RadarView() {
     setSaved(snap.snapshot)
     setError(null)
     setNotice(null)
+    saveRadarResult({ company_id: snap.company_id, focus: '', opportunities: snap.opportunities, snapshot: snap.snapshot })
   }
 
   function stop() {
@@ -150,12 +183,10 @@ export function RadarView() {
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-4 p-4 md:p-6">
-      <div>
-        <h1 className="text-xl font-semibold">AI Opportunity Radar</h1>
-        <p className="text-sm text-muted-foreground">
-          그룹사를 고르면 AI 활용 트렌드 데이터와 사업을 연결해 새로운 AI 사업 기회를 찾습니다
-        </p>
-      </div>
+      <PageHeader
+        title="Opportunity Radar"
+        description="그룹사를 고르면 AI 활용 트렌드 데이터와 사업을 연결해 새로운 AI 사업 기회를 찾아요"
+      />
 
       <Card>
         <CardHeader>
@@ -223,7 +254,7 @@ export function RadarView() {
               {STAGES.map((s) => {
                 const st = stages[s.id]
                 return (
-                  <li key={s.id} className="flex gap-3 rounded-lg border p-3">
+                  <li key={s.id} className="flex gap-3">
                     <StageIcon status={st.status} />
                     <div className="min-w-0 space-y-1">
                       <div className="text-sm font-medium">{s.label}</div>
@@ -239,26 +270,31 @@ export function RadarView() {
       )}
 
       {error && (
-        <Card className="border-destructive/50">
-          <CardContent className="flex items-center gap-2 text-sm text-destructive">
-            <CircleAlertIcon className="size-4 shrink-0" /> {error}
-            {available && (
-              <Button variant="outline" size="sm" className="ml-auto" onClick={() => showSaved(available)}>
-                <ArchiveIcon /> 저장된 결과 보기
-              </Button>
-            )}
-          </CardContent>
-        </Card>
+        <ErrorLine message={error} onRetry={companies ? run : loadCompanies}>
+          {companies && available && (
+            <Button variant="ghost" size="sm" onClick={() => showSaved(available)}>
+              <ArchiveIcon /> 저장된 결과 보기
+            </Button>
+          )}
+        </ErrorLine>
       )}
 
       {saved && <SavedNotice info={saved} />}
 
       {(opps.length > 0 || stages.opportunity.status === 'running') && (
         <section className="space-y-3">
-          <h2 className="font-semibold">3. 사업 기회</h2>
+          <div className="space-y-1">
+            <h2 className="text-xl font-semibold">3. 사업 기회</h2>
+            <AiGeneratedLabel withNotice />
+          </div>
           <div className="grid gap-4 lg:grid-cols-2">
             {opps.map((o) => (
-              <OpportunityCard key={o.id} opp={o} onDesign={() => design(o)} />
+              <OpportunityCard
+                key={o.id}
+                opp={o}
+                sources={companies?.find((c) => c.id === o.company_id)?.sources}
+                onDesign={() => design(o)}
+              />
             ))}
             {stages.opportunity.status === 'running' && <Skeleton className="h-72" />}
           </div>
@@ -270,12 +306,11 @@ export function RadarView() {
 
 function SavedNotice({ info }: { info: SnapshotInfo }) {
   return (
-    <Card className="border-dashed">
-      <CardContent className="flex items-center gap-2 text-sm text-muted-foreground">
-        <ArchiveIcon className="size-4 shrink-0" />
-        실시간 생성이 아니라 {formatSnapshotTime(info.created_at)}에 {info.model}로 미리 만든 결과입니다. AI가 만든 예시이며 실제 사업 계획이 아닙니다
-      </CardContent>
-    </Card>
+    <p className="flex items-center gap-2 text-sm text-muted-foreground">
+      <ArchiveIcon className="size-4 shrink-0" />
+      실시간 생성이 아니라 {formatSnapshotTime(info.created_at)}에 {info.model}로 미리 만든 결과예요. AI가 만든 예시이고
+      실제 사업 계획이 아니에요
+    </p>
   )
 }
 
@@ -293,7 +328,24 @@ function Score({ label, value }: { label: string; value: number }) {
   )
 }
 
-function OpportunityCard({ opp, onDesign }: { opp: Opportunity; onDesign: () => void }) {
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="text-xs font-medium text-muted-foreground">{label}</div>
+      <div>{children}</div>
+    </div>
+  )
+}
+
+function OpportunityCard({
+  opp,
+  sources,
+  onDesign,
+}: {
+  opp: Opportunity
+  sources?: string[]
+  onDesign: () => void
+}) {
   return (
     <Card className="flex flex-col">
       <CardHeader>
@@ -304,52 +356,23 @@ function OpportunityCard({ opp, onDesign }: { opp: Opportunity; onDesign: () => 
             <Score label="실현성" value={opp.score.feasibility} />
           </div>
         </div>
-        <div className="flex flex-wrap gap-1">
-          {opp.target.map((t) => (
-            <Badge key={t} variant="secondary">
-              {t}
-            </Badge>
-          ))}
-        </div>
+        <p className="text-xs text-muted-foreground">대상 · {opp.target.join(' · ')}</p>
       </CardHeader>
       <CardContent className="flex-1 space-y-3 text-sm">
-        <div>
-          <div className="text-xs font-medium text-muted-foreground">문제</div>
-          <p>{opp.problem}</p>
-        </div>
-        <div>
-          <div className="text-xs font-medium text-muted-foreground">해결</div>
-          <p>{opp.solution}</p>
-        </div>
-        {opp.kt_assets.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1">
-            <span className="text-xs font-medium text-muted-foreground">활용 자산</span>
-            {opp.kt_assets.map((a) => (
-              <Badge key={a} variant="outline">
-                {a}
-              </Badge>
-            ))}
-          </div>
-        )}
-        <div className="rounded-md border p-2">
-          <div className="mb-1 flex items-center gap-1 text-xs font-medium">
-            <ChartColumnIcon className="size-3.5" /> 데이터 근거
-          </div>
-          <ul className="space-y-0.5 text-xs text-muted-foreground">
-            {opp.evidence.map((e) => (
-              <li key={`${e.metric}-${e.key}-${e.country}`}>{e.label}</li>
-            ))}
-          </ul>
-        </div>
-        <div className="rounded-md bg-muted p-2">
-          <div className="mb-1 flex items-center gap-1 text-xs font-medium">
-            <BrainIcon className="size-3.5" /> AI 추론
-          </div>
-          <p className="text-xs text-muted-foreground">{opp.rationale}</p>
-        </div>
+        <Field label="문제">{opp.problem}</Field>
+        <Field label="해결">{opp.solution}</Field>
+        {opp.kt_assets.length > 0 && <Field label="활용 자산">{opp.kt_assets.join(' · ')}</Field>}
+        <Field label="AI 추론">
+          <span className="text-muted-foreground">{opp.rationale}</span>
+        </Field>
       </CardContent>
-      <CardFooter>
-        <Button variant="outline" className="ml-auto" onClick={onDesign}>
+      <CardFooter className="justify-between gap-2">
+        {opp.evidence.length > 0 ? (
+          <EvidenceSheet evidence={opp.evidence} sources={sources} title={opp.title} />
+        ) : (
+          <span />
+        )}
+        <Button variant="outline" onClick={onDesign}>
           프로덕트 설계 <ArrowRightIcon />
         </Button>
       </CardFooter>
