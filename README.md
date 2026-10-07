@@ -46,7 +46,7 @@ claude   # 세션 시작 시 내 이슈·열린 PR 표시
 ## 화면
 | 경로 | 내용 | 기능 폴더 |
 |---|---|---|
-| `/` | 홈 (API·DB 상태) | `features/health` |
+| `/` | 홈 (서비스 소개·시연 3단계 안내) | `app/page.tsx` |
 | `/trends` | AI 활용 트렌드 (OpenAI Signals 지표 대시보드) | `features/trends` ↔ `/api/trends` |
 | `/radar` | Opportunity Radar (그룹사 선택 → 근거 있는 AI 사업 기회) | `features/radar` ↔ `/api/radar` |
 | `/product` | Product Generator (기회 → Product Card·PoC, Markdown 내보내기) | `features/product` ↔ `/api/product` |

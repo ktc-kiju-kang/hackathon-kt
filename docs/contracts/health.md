@@ -1,6 +1,6 @@
 # health
 - 담당: @ktc-kiju-kang
-- 사용처: frontend 홈 `features/health/HealthCard`
+- 사용처: 운영 상태 확인(`/deploy-status`·스모크). frontend `features/health/HealthCard`는 현재 화면에 붙어 있지 않음
 
 ## GET /api/health — v1
 Response 200: `{ "status": "ok", "time": string(ISO 8601), "version": string | null, "db": "ok" | "error" | "unconfigured", "llm": string | null, "client_ip": string | null }`

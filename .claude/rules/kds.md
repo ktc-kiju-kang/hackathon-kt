@@ -17,6 +17,7 @@ paths:
 ## 글꼴 — ⚠️ KT Flow 공개 금지
 - 본문·버튼·폼·표: **Pretendard**(npm `pretendard`, 기본 `font-sans`).
 - 큰 제목(페이지 타이틀·히어로)만 `font-brand`(KT Flow). 카드 제목·본문·버튼에는 쓰지 않는다.
+- 페이지 제목은 공용 `PageHeader`(`@/components/page-header`)를 쓴다 — 32px `font-brand`, 설명은 보조 글자색, 필터·버튼은 `actions`에.
 - **KT Flow 폰트 파일(`KTFLOW*`)은 레포·`public/`·배포에 절대 넣지 않는다**(참가자 전용, 공개 업로드 금지). `globals.css`의 `@font-face`는 `local()`만 쓰므로 폰트를 설치한 시연 PC에서만 KT Flow로, 나머지는 Pretendard로 보인다.
 
 ## 점검 기준 (주최 측 6가지 + 자주 고치는 것)
@@ -35,6 +36,7 @@ paths:
 | 글자 크기 4~5단계 | 32 제목 / 20·24 섹션 / 15·16 본문 / 13·14 보조 / 12 캡션. 위계는 크기보다 **글자색**(`text-foreground` → `text-muted-foreground`)으로 |
 | 간격은 바깥이 크게 | 안쪽 8·16 < 요소 사이 24 < 덩어리 사이 40 < 큰 구역 64 |
 | 폭 고정 | 대화 748, 폼 932, 콘솔 1200. 화면을 꽉 채우지 않는다 |
+| AI 생성 결과 표시 | LLM이 만든 결과 위에 `AiGeneratedLabel`(`@/components/ai-generated-label`, 회색). 실시간 생성 결과에는 `withNotice`로 "AI는 실수할 수 있어요" 안내까지 |
 | 왼쪽 메뉴 선택 | 연회색 면 + 검정 글자(사이드바 `--sidebar-accent`). 검정 면 금지 |
 
 ## 색이 테마 클래스로 안 될 때
