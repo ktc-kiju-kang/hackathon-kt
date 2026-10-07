@@ -5,6 +5,9 @@ CLAUDE.local.md
 .env.*
 !.env.example
 
+# 해커톤 배포 자료 (KT Flow 폰트·포털 비밀번호 포함 — 공개 업로드 금지)
+hackathon-rules/
+
 # worktree
 
 # 일반
