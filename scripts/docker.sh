@@ -16,6 +16,7 @@ need_docker() {
 }
 have_docker() { command -v docker >/dev/null && docker info >/dev/null 2>&1; }
 export API_PORT WEB_PORT
+GIT_REMOTE_URL=$(git -C "$ROOT" remote get-url origin 2>/dev/null || true); export GIT_REMOTE_URL
 dc() { docker compose "$@"; }
 dcdev() { docker compose -f compose.yaml -f compose.dev.yaml "$@"; }
 running() { [ -n "$(dc ps -q api web 2>/dev/null)" ]; }  # db만 떠 있는 것(make db·verify)은 실행 중 아님
@@ -31,7 +32,7 @@ check_ports() {
 prepare() {  # dev·up 전용 — stop·status는 파일을 만들지 않는다
   need_docker; check_ports
   [ -x "$PY" ] || die "먼저 make setup (스모크·검사에 로컬 도구가 필요합니다)"
-  mkdir -p backend/data
+  mkdir -p backend/data .run/evidence  # 마운트할 폴더 (없으면 docker가 root 소유로 만든다)
   [ -f backend/.env ] || { cp backend/.env.example backend/.env; ok "backend/.env 생성 (키가 없으면 mock LLM)"; }
 }
 # wait_up <url> <초> <pid> — 200이 오거나, compose가 먼저 죽으면(빌드 실패 등) 바로 실패
