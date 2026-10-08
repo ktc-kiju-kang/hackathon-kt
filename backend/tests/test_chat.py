@@ -71,3 +71,28 @@ def test_conversation_length_cap(monkeypatch):
     url = f"/api/chat/conversations/{conv['id']}/messages"
     assert client.post(url, json={"content": "hi"}, headers=H).status_code == 200  # user+assistant
     assert client.post(url, json={"content": "again"}, headers=H).status_code == 409
+
+
+def _new_conv_url() -> str:
+    conv = client.post("/api/chat/conversations", json={}, headers=H).json()
+    return f"/api/chat/conversations/{conv['id']}/messages"
+
+
+def test_chat_limit_content_empty():
+    """계약: content 는 1자 이상 — 빈 문자열은 422."""
+    r = client.post(_new_conv_url(), json={"content": ""}, headers=H)
+    assert r.status_code == 422
+
+
+def test_chat_limit_content_max():
+    """계약: content 최대 8000자 — 8000자는 통과, 8001자는 422."""
+    url = _new_conv_url()
+    assert client.post(url, json={"content": "a" * 8000}, headers=H).status_code == 200
+    assert client.post(url, json={"content": "a" * 8001}, headers=H).status_code == 422
+
+
+def test_chat_limit_title_max():
+    """계약: title 최대 100자 — 100자는 통과, 101자는 422."""
+    url = "/api/chat/conversations"
+    assert client.post(url, json={"title": "t" * 100}, headers=H).status_code == 201
+    assert client.post(url, json={"title": "t" * 101}, headers=H).status_code == 422
