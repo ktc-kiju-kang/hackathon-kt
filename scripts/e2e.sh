@@ -13,6 +13,8 @@ E2E_API_PORT=${E2E_API_PORT:-$(free_port 18000)}
 E2E_WEB_PORT=${E2E_WEB_PORT:-$(free_port 13000)}
 export E2E_API_PORT E2E_WEB_PORT
 
+ensure_db
+
 say "1/3 단위·API 시험"
 (cd "$ROOT/backend" && .venv/bin/pytest -q --junitxml="$OUT/backend.xml" >"$OUT/backend.log" 2>&1); be=$?
 (cd "$ROOT/frontend" && npx vitest run --reporter=default --reporter=junit --outputFile.junit="$OUT/frontend.xml" >"$OUT/frontend.log" 2>&1); fe=$?
@@ -23,8 +25,9 @@ cleanup() { RUN_DIR="$ROOT/.run/e2e-serve" "$ROOT/scripts/stop.sh" >/dev/null 2>
 cleanup  # 지난 실행이 남긴 격리 서버부터 끈다 (pid 파일을 지우기 전에)
 trap cleanup EXIT
 rm -rf "$ROOT/.run/e2e-serve"
+(cd "$ROOT/backend" && "$PY" -c 'from app.core import db; db.drop_schema("e2e")')  # 새 DB = 빈 e2e schema
 if RUN_DIR="$ROOT/.run/e2e-serve" API_PORT=$E2E_API_PORT WEB_PORT=$E2E_WEB_PORT \
-   DATABASE_PATH="$ROOT/.run/e2e-serve/e2e.db" NEXT_DIST_DIR=.next-e2e LLM_PROVIDER="${E2E_LLM_PROVIDER:-mock}" \
+   DATABASE_SCHEMA=e2e NEXT_DIST_DIR=.next-e2e LLM_PROVIDER="${E2E_LLM_PROVIDER:-mock}" \
    "$ROOT/scripts/serve.sh" >"$OUT/serve.log" 2>&1; then
   E2E_API_URL="http://localhost:$E2E_API_PORT" E2E_WEB_URL="http://localhost:$E2E_WEB_PORT" \
   E2E_EXPECT_VERSION="$VERSION" E2E_REQUIRED=1 \

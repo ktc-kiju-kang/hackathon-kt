@@ -2,7 +2,9 @@
 # docker compose로 로컬 실행 — make dev / make serve / make stop / make status 가 부른다.
 #   dev   : 소스 마운트 + 핫 리로드, 포그라운드 (Ctrl+C로 종료)
 #   up    : 프로덕션 빌드로 백그라운드 + 스모크 (make serve)
-#   down  : 끈다 (DB 파일 backend/data/app.db는 남는다)
+#   down  : 끈다 (db 포함. 데이터는 docker volume pgdata에 남는다)
+#   db    : PostgreSQL만 띄운다 (NATIVE=1 실행·pytest용 — make verify·e2e는 알아서 띄운다)
+#   reset : DB 데이터 전부 삭제 (volume 삭제)
 #   status: 컨테이너·health
 # 시험(make e2e)·검사(make verify)·ship은 docker를 쓰지 않는다 — CI와 같은 네이티브 도구로 돈다.
 set -euo pipefail
@@ -16,7 +18,7 @@ have_docker() { command -v docker >/dev/null && docker info >/dev/null 2>&1; }
 export API_PORT WEB_PORT
 dc() { docker compose "$@"; }
 dcdev() { docker compose -f compose.yaml -f compose.dev.yaml "$@"; }
-running() { [ -n "$(dc ps -q 2>/dev/null)" ]; }
+running() { [ -n "$(dc ps -q api web 2>/dev/null)" ]; }  # db만 떠 있는 것(make db·verify)은 실행 중 아님
 check_ports() {
   running && die "이미 docker로 떠 있습니다 → make stop"
   for p in "$API_PORT" "$WEB_PORT"; do port_busy "$p" && die "포트 $p 사용 중 → make stop (또는 API_PORT/WEB_PORT 지정)"; done
@@ -69,14 +71,24 @@ case "${1:-}" in
     echo "   로그 docker compose logs -f   종료: make stop"
     ;;
   down)
-    have_docker && running || exit 0
+    have_docker && [ -n "$(dc ps -q 2>/dev/null)" ] || exit 0
     dcdev down --remove-orphans >/dev/null 2>&1 || true
     rm -f "$RUN_DIR/serve.version"
-    ok "docker 종료 (DB는 backend/data/app.db에 남음)"
+    ok "docker 종료 (DB 데이터는 volume pgdata에 남음 — 지우려면 make db-reset)"
+    ;;
+  db)
+    need_docker
+    dc up -d --wait --quiet-pull db >/dev/null 2>&1 && ok "PostgreSQL 127.0.0.1:${DB_PORT:-55432} (app/app, db app)"
+    ;;
+  reset)
+    need_docker
+    dcdev down -v --remove-orphans >/dev/null 2>&1 || true
+    rm -f "$RUN_DIR/serve.version"
+    ok "DB 데이터 삭제 (서버도 내림) — 다음 실행 때 마이그레이션이 처음부터 적용된다"
     ;;
   status)
-    have_docker && running || { echo "  docker: 꺼짐"; exit 0; }
+    have_docker && [ -n "$(dc ps -q 2>/dev/null)" ] || { echo "  docker: 꺼짐"; exit 0; }
     dc ps --format '  {{.Service}}: {{.State}} {{.Status}}'
     ;;
-  *) die "사용: scripts/docker.sh dev|up|down|status";;
+  *) die "사용: scripts/docker.sh dev|up|down|db|reset|status";;
 esac

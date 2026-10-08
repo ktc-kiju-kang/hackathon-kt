@@ -10,7 +10,7 @@
 |---|---|
 | 프론트 | Next.js 16 + TS + Tailwind v4 + shadcn/ui + **KDS 2.0 토큰**, 공용 레이아웃·사이드바(메뉴는 `menu-items.ts`, merge=union)·PageHeader·ErrorLine·AI 라벨·`api-client`(ApiError·detail·204), `/agent`(AI 채팅), `/samples/*`, Vitest |
 | 백엔드 | FastAPI(라우터 자동 등록), AI 에이전트 엔진(Claude·Gemini·OpenAI 호환·**mock**), 사용량 한도, `/api/health`(`version`=git SHA), pytest |
-| DB | **SQLite** (`backend/data/app.db`), `database/migrations/YYYYMMDDHHMM_*.sql` 서버 시작 시 자동 적용 |
+| DB | **PostgreSQL** (docker compose `db`, 127.0.0.1:55432), `database/migrations/YYYYMMDDHHMM_*.sql` 서버 시작 시 자동 적용 |
 | 파이프라인 | `make setup·dev·sync·verify·serve·e2e·ship·record·claims·submit-check`, `e2e/`, `scripts/e2e-report.py`(TC 결과 자동 기록), `scripts/ai-review.py`(헤드리스 AI 리뷰), `scripts/claim.sh`(Issue 선점), 머지 잠금, `docs/pipeline.md` |
 | 작업 규칙 | 팀 `CLAUDE.md`(채점 근거·충돌 방지 규칙), `.claude/` 규칙·스킬(`/plan-topic`→`/new-issue`→`/start-task`→`/handoff`=`make ship`→`/submit`)·reviewer(채점 기준) |
 | 제출 문서 | `README.md` + `docs/` 7개, `scripts/check-docs.py`, `docs/submission-guide.md` (`templates/submission/`) |

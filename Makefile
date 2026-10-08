@@ -1,6 +1,6 @@
 # 파이프라인 입구. 상세: docs/pipeline.md
 .DEFAULT_GOAL := help
-.PHONY: help setup dev sync verify serve stop status smoke e2e ship record lock-status claims release docs submit-check
+.PHONY: help setup dev sync verify serve stop status smoke e2e ship record lock-status claims release db db-reset docs submit-check
 
 help: ## 명령 목록
 	@grep -E '^[a-z0-9-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-13s %s\n", $$1, $$2}'
@@ -25,6 +25,12 @@ stop: ## 로컬 배포 종료 (docker·로컬 둘 다)
 
 status: ## 로컬 배포 상태 (docker·로컬)
 	@scripts/docker.sh status; scripts/status.sh
+
+db: ## PostgreSQL만 띄우기 (docker, NATIVE=1 실행·pytest 직접 실행용 — verify·e2e는 알아서 띄움)
+	@scripts/docker.sh db
+
+db-reset: ## DB 데이터 전부 삭제 (docker volume) — 서버도 내린다
+	@scripts/docker.sh reset
 
 smoke: ## 떠 있는 서버 스모크 확인
 	@scripts/smoke.sh

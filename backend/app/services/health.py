@@ -16,12 +16,12 @@ _STARTED_AT = time.monotonic()  # 모듈 import 시각 = 서버 프로세스 시
 
 
 def check_db() -> Literal["ok", "error"]:
-    """SQLite 연결과 마이그레이션 적용 확인."""
+    """PostgreSQL 연결과 마이그레이션 적용 확인."""
     try:
         with get_db() as db:
             db.execute("select version from schema_migrations limit 1").fetchall()
         return "ok"
-    except Exception as e:  # 파일 권한·마이그레이션 오류 모두 error (health 자체는 200 유지)
+    except Exception as e:  # 접속 실패·마이그레이션 오류 모두 error (health 자체는 200 유지)
         log.warning("db health check failed: %s", e)
         return "error"
 
