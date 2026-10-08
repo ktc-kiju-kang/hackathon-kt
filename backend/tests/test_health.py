@@ -30,3 +30,19 @@ def test_check_db_error(monkeypatch):
 
     monkeypatch.setattr(health, "get_db", boom)
     assert health.check_db() == "error"
+
+
+def test_health_uptime_seconds():
+    uptime = client.get("/api/health").json()["uptime_seconds"]
+    assert isinstance(uptime, int)
+    assert uptime >= 0
+
+
+def test_health_uptime_uses_started_at(monkeypatch):
+    import time
+
+    from app.services import health
+
+    monkeypatch.setattr(health, "_STARTED_AT", time.monotonic() - 100)
+    uptime = client.get("/api/health").json()["uptime_seconds"]
+    assert 100 <= uptime < 110
