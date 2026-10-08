@@ -23,6 +23,7 @@ step() {  # step <이름> <디렉터리> <명령...>
 }
 
 B="$ROOT/backend"; F="$ROOT/frontend"
+ensure_db  # pytest가 PostgreSQL을 쓴다 (테스트마다 새 schema)
 say "backend"
 step ruff-check "$B" .venv/bin/ruff check .
 step ruff-format "$B" .venv/bin/ruff format --check .

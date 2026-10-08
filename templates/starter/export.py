@@ -47,14 +47,14 @@ PATCHES = [
         "# 4. 시험 (결과는 docs/e2e-test.md)\n{{명령}}\n"
         "# 5. 종료·정리\n{{명령}}\n```",
         "요구 환경: Docker Desktop, Node 20+, Python 3.11+"
-        " (외부 서비스 없음 — DB는 SQLite, LLM 키가 없으면 mock).\n"
+        " (외부 서비스 없음 — DB는 docker의 PostgreSQL, LLM 키가 없으면 mock).\n"
         "단계·게이트·장애 대응: [docs/pipeline.md](docs/pipeline.md)\n\n"
         "```sh\n"
         "make setup    # 1. 설치 (의존성·.env)\n"
         "make verify   # 2. 검사 전부 (lint·type·test·build·문서)\n"
         "make serve    # 3. 로컬 배포 (docker compose) → http://localhost:3000 , API http://localhost:8000/api/docs\n"
         "make e2e      # 4. 시험 + 결과 기록 (docs/e2e-test.md, docs/evidence/)\n"
-        "make stop     # 5. 종료 (DB 초기화: rm backend/data/app.db)\n"
+        "make stop     # 5. 종료 (DB 초기화: make db-reset)\n"
         "```\n\n"
         "개발 중에는 `make dev` (docker, 핫 리로드). docker 없이 `NATIVE=1 make dev` / `NATIVE=1 make serve`. 명령 목록 `make help`.",
     ),

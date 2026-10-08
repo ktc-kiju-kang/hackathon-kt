@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # 로컬 배포: 프로덕션 빌드로 backend(:8000)·frontend(:3000)를 백그라운드로 띄우고 스모크 확인까지 한다.
 #   make serve / make stop / make status
-#   API_PORT·WEB_PORT·DATABASE_PATH·LLM_PROVIDER 환경변수로 바꿀 수 있다 (e2e.sh가 격리 실행에 쓴다).
+#   API_PORT·WEB_PORT·DATABASE_SCHEMA·LLM_PROVIDER 환경변수로 바꿀 수 있다 (e2e.sh가 격리 실행에 쓴다).
 #   이 PC에서만 열린다(127.0.0.1) — 행사장 네트워크의 다른 사람이 붙어 LLM 비용을 쓰지 못하게.
 set -euo pipefail
 . "$(dirname "$0")/lib.sh"
 need_setup
+ensure_db
 for p in "$API_PORT" "$WEB_PORT"; do port_busy "$p" && die "포트 $p 사용 중 → make stop (또는 API_PORT/WEB_PORT 지정)"; done
 mkdir -p "$RUN_DIR"
 VERSION=$(source_version)
