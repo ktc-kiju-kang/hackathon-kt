@@ -15,8 +15,9 @@
 2. **실행한 것만 결과로 적는다.** TC의 실제 결과·PASS/FAIL은 명령을 실제로 실행한 출력으로만 채운다. 실행하지 않았으면 `미실행`, 확인 못 했으면 `미검증`. 계획·예시를 완료로 쓰지 않는다.
 3. **보안**: `docs/security-policy.md`(주최 제공)는 **수정하지 않는다**. SEC별 적용·코드 위치·정상/거부 시험 결과를 `docs/security-compliance.md`에 남긴다.
 4. **AI 활용 기록**: AI가 틀린 것을 사람이 잡았거나 고친 사례는 바로 `docs/development.md` "AI 활용 기록"에 한 줄 추가한다 (작업·AI가 한 것·확인 방법·고친 것·커밋).
-5. 문서 검사: `python3 scripts/check-docs.py --draft` (작성 중) / `python3 scripts/check-docs.py` (제출 직전, 오류 0). 사용법: `docs/submission-guide.md`
-6. AI 사용 기록 수집기(kode:ton)가 켜져 있어야 한다. PC 재시작 후 앱을 다시 실행한다.
+5. 문서 검사: `make docs` (작성 중) / `make submit-check` (제출 직전, strict). 사용법: `docs/submission-guide.md`
+6. **시험 결과는 `make e2e`가 기록한다**: 테스트 이름에 TC ID(`test_tc_01_3_...`)를 넣으면 `docs/e2e-test.md` 상태·근거와 `docs/prd.md` REQ 상태가 실행 결과로 채워지고 `docs/evidence/`에 원본이 남는다. 손으로 PASS를 적지 않는다 (수동 시험만 예외, 명령·결과를 함께).
+7. AI 사용 기록 수집기(kode:ton)가 켜져 있어야 한다. PC 재시작 후 앱을 다시 실행한다.
 
 ## 작업 방식: 기능 단위 담당
 - **Issue 하나 = REQ 하나**를 한 사람이 frontend + backend + DB + 시험까지 끝까지 맡는다. 담당자 = Issue assignee.
@@ -30,6 +31,7 @@
 | frontend 코드 | `.claude/rules/frontend.md`, `.claude/rules/kds.md` | `frontend/**`를 다룰 때 자동 |
 | backend 코드·테스트·DB | `.claude/rules/backend.md`, `database/README.md` | `backend/**`를 다룰 때 자동 |
 | AI 에이전트·LLM | `.claude/rules/agent.md` | 자동 |
+| **파이프라인 (단계·게이트·시간표·장애 대응)** | `docs/pipeline.md` | 링크 |
 | 제출 문서 8개 | `README.md`, `docs/{project-brief,prd,arch,experience,development,security-compliance,e2e-test}.md`, 사용법 `docs/submission-guide.md` | 링크 |
 | API 계약 | `docs/contracts/` | 링크 |
 
@@ -37,16 +39,20 @@
 - `frontend/` Next.js(App Router)+TS+Tailwind v4+shadcn/ui (KDS 2.0 토큰): `src/app/<route>/`(화면) · `src/features/<feature>/`(기능, `api.ts`) · `src/components/`·`src/lib/`(공용)
 - `backend/` FastAPI: `app/{routers,services,schemas}/<feature>.py`(기능, 라우터 자동 등록) · `app/core/`(config·db·quota) · `app/agent/`(AI 엔진) · `tests/`
 - `database/migrations/` SQLite 마이그레이션 (서버 시작 시 자동 적용)
+- `e2e/` 배포된 서버에 HTTP로 붙는 E2E 시험 (`make e2e`) · `scripts/` 파이프라인 스크립트 · `docs/evidence/` 시험 근거 (자동 생성, 커밋한다)
 - 핵심: **features끼리 직접 import 금지**, 공용 코드는 기능 폴더에 두지 않는다.
 
-## 명령
-| | frontend (`cd frontend`) | backend (`cd backend`) |
-|---|---|---|
-| 셋업 | `npm install && cp .env.example .env.local` | `python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt && cp .env.example .env` |
-| 실행 | `npm run dev` → :3000 | `.venv/bin/fastapi dev app/main.py` → :8000 (`/api/docs`) |
-| 검증 | `npm run lint && npm test && npm run build` | `.venv/bin/ruff check . && .venv/bin/ruff format --check . && .venv/bin/ty check app tests && .venv/bin/pytest` |
+## 명령 (입구는 `make`, 상세 `docs/pipeline.md`)
+| 명령 | 언제 |
+|---|---|
+| `make setup` | 처음 한 번, 의존성이 바뀌면 다시 |
+| `make dev` | 개발 (핫 리로드, api :8000 + web :3000) |
+| `make verify` | **PR 전 반드시** — CI와 같은 검사 전부 (lint·type·test·build·문서) |
+| `make serve` / `make stop` / `make status` | 로컬 배포 (프로덕션 빌드 + 스모크) |
+| `make e2e` | 시험 전부 + 격리 배포 E2E → 결과·근거 기록 (main에서 2~3시간마다, 제출 전) |
+| `make submit-check` | 제출 직전 → 포털에 넣을 SHA |
 
-**PR 전 변경한 쪽의 검증 명령을 반드시 통과시킨다.** CI가 있으면 같은 명령을 실행한다.
+개별 명령: frontend `npm run lint && npm test && npm run build`, backend `.venv/bin/ruff check . && .venv/bin/ruff format --check . && .venv/bin/ty check app tests && .venv/bin/pytest`, E2E `backend/.venv/bin/python -m pytest e2e` (서버가 떠 있을 때).
 
 ## 협업 규칙 (Claude도 반드시 따를 것)
 1. **Issue 없이 기능 작업을 시작하지 않는다.** (`/new-issue`)
@@ -60,7 +66,7 @@
 9. 커밋: `<type>(<feature>): <요약>` — 예: `feat(todo): 할 일 등록 API (REQ-01)`
 
 ## Claude 작업 방식
-- 스킬 흐름: `/new-issue` → `/start-task` → (`/add-endpoint`·`/add-page`·`/add-agent-tool`) → `/pr-check` → `/handoff`. 보조: `/sync`·`/team-status`.
+- 스킬 흐름: `/plan-topic`(기획) → `/new-issue` → `/start-task` → (`/add-endpoint`·`/add-page`·`/add-agent-tool`) → `/pr-check` → `/handoff` → … → `/submit`(제출). 보조: `/sync`·`/team-status`.
 - PR 전에는 `reviewer` 서브에이전트로 셀프 리뷰.
 - Issue 생성·push·PR 생성은 사용자 확인 후. PR 머지는 사람이 한다.
 - 사내 GitHub Enterprise면 `gh`가 그 호스트를 보게 한다: `gh auth login --hostname <호스트>` 후 레포 안에서 실행 (또는 `GH_HOST=<호스트>`).

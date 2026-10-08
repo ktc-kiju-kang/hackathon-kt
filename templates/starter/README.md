@@ -11,7 +11,8 @@
 | DB | **SQLite** (`backend/data/app.db`), `database/migrations/*.sql` 서버 시작 시 자동 적용, 대화 저장 | 덮어쓰기 |
 | 작업 규칙 | `CLAUDE.md`(채점 근거 규칙 포함), `.claude/` 규칙·스킬(`/new-issue`→`/start-task`→`/add-endpoint`→`/handoff`)·reviewer | 이 레포 + 덮어쓰기 |
 | 제출 문서 | `README.md` + `docs/` 7개, `scripts/check-docs.py`, `docs/submission-guide.md` | `templates/submission/` |
-| CI | frontend·backend·docs 검사 (`.github/workflows/ci.yml`), gitleaks | 덮어쓰기 |
+| **파이프라인** | `make setup·dev·verify·serve·stop·status·e2e·submit-check`, `scripts/*.sh`, `e2e/`(배포 서버 대상 HTTP 시험), `scripts/e2e-report.py`(TC 결과 자동 기록), `docs/pipeline.md`(단계·게이트·시간표·장애 대응), 스킬 `/plan-topic`·`/submit` | 덮어쓰기 |
+| CI | frontend·backend·docs·**e2e**(설치 → 격리 배포 → E2E) (`.github/workflows/ci.yml`), gitleaks | 덮어쓰기 |
 
 빠지는 것: 이 레포의 주제 기능(trends·radar·product)과 데이터, Vercel·Render·Supabase 배포 설정, 칸반 자동화, evals, `deploy-status` 스킬.
 
@@ -29,21 +30,25 @@ python3 templates/starter/export.py ~/team-repo
 - `docs/security-policy.md`, `.github/ISSUE_TEMPLATE/**`(주최 측 제공)는 `--force`여도 건드리지 않는다.
 
 ```sh
-# 2. 실행 확인 (README.md "실행"과 같음)
+# 2. 실행 확인
 cd ~/team-repo
-(cd backend && python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt && cp .env.example .env && .venv/bin/pytest -q)
-(cd frontend && npm install && cp .env.example .env.local && npm run build)
-python3 scripts/check-docs.py --draft
+make setup && make verify && make serve   # 브라우저 http://localhost:3000 확인 후 make stop
 
 # 3. 첫 커밋 (main 보호가 있으면 브랜치 → PR)
 git switch -c chore/starter-kit && git add -A && git commit -m "chore: 시작 키트" && git push -u origin chore/starter-kit
 ```
-4. `CLAUDE.md`·`README.md`·`docs/`의 `{{자리표시}}`를 채운다 → 순서는 `docs/submission-guide.md`.
+4. 주제가 나오면 `/plan-topic <주제 원문>` → 기획 게이트 통과 후 `/new-issue`. 이후 단계는 `docs/pipeline.md` (개발 → `make e2e` → `/submit`).
 5. 서비스 이름을 바꿀 곳: `frontend/src/app/layout.tsx`(title), `components/app-sidebar.tsx`(배너), `src/app/page.tsx`(홈), `backend/app/agent/prompts.py`(에이전트 역할), `features/chat/ChatView.tsx`(예시 질문).
 6. AI 기능이 필요 없는 주제면 `/agent`를 메뉴에서 빼면 된다 (코드는 남겨도 무방). 주제에 맞는 기능은 `/add-endpoint`·`/add-page`로 추가.
 
 ## 사내 GHE에서 CI가 안 돌면
 첫 push 뒤 Actions 탭을 확인한다. `actions/checkout` 등을 쓸 수 없어 CI가 시작하지 않으면, PR 전에 `CLAUDE.md` "명령"의 검증을 로컬에서 실행하고 결과를 PR 본문에 붙인다 (`/handoff`가 실행한다).
+
+## 파이프라인 확인 (2026-10-08, 원격 저장소까지 흉내 낸 시뮬레이션)
+내보내기 → `make setup` → 문서 채우기 → 테스트 이름에 TC ID → `make e2e` → 근거 커밋·push → `make submit-check`:
+- `make verify` 9개 검사 PASS (gitleaks는 미설치 시 SKIP), `make serve` 스모크(버전 = HEAD) PASS, 같은 포트 재실행 거부, `make stop` 후 포트 해제
+- `make e2e`: TC 6개 자동 기록(backend 4·e2e 2) → `e2e-test.md` 상태·근거·환경·요약 개수, `prd.md` REQ 3개 `계획 → 검증됨`, `docs/evidence/<실행>/`에 XML·로그·요약. 일부러 실패시킨 TC는 FAIL로 기록되고 `make e2e`가 실패로 끝남. 시험 후 작업 트리에는 문서·근거만 남음
+- `make submit-check`: 정상이면 SHA 출력. 막는 경우 확인 — 커밋 안 된 변경, push 안 함, 근거 이후 코드 변경, 포맷 오류(verify --strict), dirty 상태 시험 결과는 근거로 안 씀
 
 ## 확인된 것 (2026-10-08, 빈 폴더로 내보내기)
 - backend: ruff·ty 통과, pytest 54개 통과

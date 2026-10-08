@@ -5,12 +5,12 @@ disable-model-invocation: true
 ---
 1. 브랜치명에서 Issue 번호를 확인하고(`feat/<번호>-...`) `gh issue view <번호>`의 완료 조건(AC)과 대조한다. 못 채운 AC가 있으면 알린다.
 2. `git diff --stat origin/main...HEAD`로 변경 범위를 확인한다. 다른 기능의 파일·공용 파일·`database/migrations/` 추가가 있으면 표시한다.
-3. 변경한 쪽의 검증을 **실제로 실행**하고 모두 통과시킨다:
-   - `frontend/`: `cd frontend && npm run lint && npm test && npm run build`
-   - `backend/`: `cd backend && .venv/bin/ruff check . && .venv/bin/ruff format --check . && .venv/bin/ty check app tests && .venv/bin/pytest`
+3. `make verify`를 **실제로 실행**하고 모두 PASS시킨다 (CI와 같은 검사). 사내 CI가 안 돌면 마지막 요약 줄을 PR 본문에 붙인다.
 4. **근거 기록** (채점 근거):
-   - `docs/e2e-test.md`: 이 REQ의 TC마다 실행 명령·실제 결과·상태(PASS/FAIL/SKIP(이유))·근거 경로를 **방금 실행한 출력으로** 채운다. 실행 안 한 것은 `미실행`.
-   - `docs/prd.md`: TC가 모두 PASS면 REQ 상태를 `검증됨`, 아니면 `구현됨-미검증`.
+   - 이 REQ의 테스트 이름에 TC ID가 들어갔는지 확인한다 (`test_tc_01_3_...`, e2e는 `e2e/test_<feature>.py`).
+   - `make e2e`로 이 REQ의 TC가 PASS인지 **확인만** 한다. 이때 바뀌는 `docs/e2e-test.md`·`docs/prd.md`·`docs/evidence/`는 PR에 넣지 않는다 (`git checkout docs/e2e-test.md docs/prd.md && git clean -fd docs/evidence`) — 여러 PR이 같은 표를 고쳐 충돌하므로, **기록 커밋은 main에서** 한다 (`docs/pipeline.md` 5단계, `/submit`). PR 본문에는 `make e2e` 요약 줄과 TC 결과를 붙인다.
+   - 수동 시험 TC는 명령·결과를 `docs/e2e-test.md`에 직접 적어 PR에 넣는다.
+   - FAIL이 있으면 고친다. 못 고치면 사용자에게 알리고 REQ를 `구현됨-미검증`으로 둔다 (테스트를 지우거나 skip으로 숨기지 않는다).
    - `docs/arch.md` "REQ별 코드 위치", 보안 해당 시 `docs/security-compliance.md`.
    - AI가 틀려서 고친 일이 있었으면 `docs/development.md` "AI 활용 기록"에 한 줄.
    - `python3 scripts/check-docs.py --draft`로 끊긴 ID가 없는지 확인.

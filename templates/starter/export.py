@@ -173,7 +173,9 @@ PATCHES = [
     (
         ".claude/settings.json",
         '      "Bash(scripts/smoke.sh:*)",\n',
-        '      "Bash(python3 scripts/check-docs.py:*)",\n',
+        '      "Bash(python3 scripts/check-docs.py:*)",\n'
+        '      "Bash(make help)",\n      "Bash(make verify)",\n      "Bash(make status)",\n'
+        '      "Bash(make docs)",\n      "Bash(make smoke)",\n',
     ),
     (
         ".claude/rules/frontend.md",
@@ -263,9 +265,16 @@ PATCHES = [
         "(실제로 정체불명의 긴 값이 들어갈 뻔한 적이 있음).",
     ),
     (
+        "frontend/eslint.config.mjs",
+        '    ".next/**",\n',
+        '    ".next/**",\n    ".next-e2e/**", // scripts/e2e.sh 격리 빌드\n',
+    ),
+    (
         ".gitignore",
         "# 일반\n",
-        "# 로컬 DB (SQLite)\nbackend/data/*.db\nbackend/data/*.db-*\n\n# 일반\n",
+        "# 로컬 DB (SQLite)\nbackend/data/*.db\nbackend/data/*.db-*\n\n"
+        "# 로컬 배포·시험 실행 파일 (scripts/serve.sh·e2e.sh)\n"
+        ".run/\nfrontend/.next-e2e/\n\n# 일반\n",
     ),
     (
         "README.md",
@@ -276,25 +285,27 @@ PATCHES = [
         "# 4. 시험 (결과는 docs/e2e-test.md)\n{{명령}}\n"
         "# 5. 종료·정리\n{{명령}}\n```",
         "요구 환경: Node 20+, Python 3.11+"
-        " (외부 서비스 없음 — DB는 SQLite, LLM 키가 없으면 mock)\n\n"
+        " (외부 서비스 없음 — DB는 SQLite, LLM 키가 없으면 mock).\n"
+        "단계·게이트·장애 대응: [docs/pipeline.md](docs/pipeline.md)\n\n"
         "```sh\n"
-        "# 1. 설치\n"
-        "(cd backend && python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt)\n"
-        "(cd frontend && npm install)\n"
-        "# 2. 환경변수 (실제 키는 커밋하지 않음)\n"
-        "cp backend/.env.example backend/.env\n"
-        "cp frontend/.env.example frontend/.env.local\n"
-        "# 3. 기동 (터미널 두 개)\n"
-        "(cd backend && .venv/bin/fastapi dev app/main.py)   # → http://localhost:8000/api/docs\n"
-        "(cd frontend && npm run dev)                        # → http://localhost:3000\n"
-        "# 4. 시험 (결과는 docs/e2e-test.md)\n"
-        "(cd backend && .venv/bin/pytest)\n"
-        "(cd frontend && npm run lint && npm test && npm run build)\n"
-        "python3 scripts/check-docs.py\n"
-        "# 5. 종료·정리: 각 터미널 Ctrl+C, DB 초기화는 rm backend/data/app.db\n"
-        "```",
+        "make setup    # 1. 설치 (의존성·.env)\n"
+        "make verify   # 2. 검사 전부 (lint·type·test·build·문서)\n"
+        "make serve    # 3. 로컬 배포 → http://localhost:3000 , API http://localhost:8000/api/docs\n"
+        "make e2e      # 4. 시험 + 결과 기록 (docs/e2e-test.md, docs/evidence/)\n"
+        "make stop     # 5. 종료 (DB 초기화: rm backend/data/app.db)\n"
+        "```\n\n"
+        "개발 중에는 `make dev` (핫 리로드). 명령 목록 `make help`.",
     ),
 ]
+
+
+JUNK = {".ruff_cache", "__pycache__", ".pytest_cache", ".DS_Store", "node_modules", ".venv"}
+
+
+def files_under(base: Path) -> list[Path]:
+    """overlay·submission 파일 (도구 캐시 제외 — git 추적 여부와 무관하게 폴더째 읽으므로)."""
+    files = (p for p in base.rglob("*") if p.is_file())
+    return [p for p in files if not JUNK & set(p.relative_to(base).parts)]
 
 
 def matches(path: str, patterns: list[str]) -> bool:
@@ -335,19 +346,17 @@ def build(stage: Path) -> None:
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(REPO / rel, dst)
     # 제출 문서 8개 + 검사기 (GUIDE.md는 docs/submission-guide.md로)
-    for src in SUBMISSION.rglob("*"):
-        if src.is_file():
-            rel = src.relative_to(SUBMISSION)
-            dst = stage / ("docs/submission-guide.md" if rel.as_posix() == "GUIDE.md" else rel)
-            dst.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(src, dst)
+    for src in files_under(SUBMISSION):
+        rel = src.relative_to(SUBMISSION)
+        dst = stage / ("docs/submission-guide.md" if rel.as_posix() == "GUIDE.md" else rel)
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dst)
     # 로컬 실행용 덮어쓰기
     overlay = KIT / "overlay"
-    for src in overlay.rglob("*"):
-        if src.is_file():
-            dst = stage / src.relative_to(overlay)
-            dst.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(src, dst)
+    for src in files_under(overlay):
+        dst = stage / src.relative_to(overlay)
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dst)
     for rel, old, new in PATCHES:
         p = stage / rel
         if not p.exists():
