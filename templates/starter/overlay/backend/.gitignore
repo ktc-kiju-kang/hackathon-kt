@@ -1,0 +1,10 @@
+# 비밀값·로컬 DB — 루트 .gitignore가 따로 있어도 backend에서 확실히 막는다
+.env
+.env.*
+!.env.example
+.venv/
+data/*.db
+data/*.db-*
+__pycache__/
+.pytest_cache/
+.ruff_cache/

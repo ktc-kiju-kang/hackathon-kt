@@ -25,10 +25,12 @@
 
 ## 본선 당일 순서 (주제 공개 → 마감 10/15 00:00)
 0. **배정 레포를 먼저 확인한다.** 주최 측이 이미 넣어 둔 파일(`docs/security-policy.md`, `.github/ISSUE_TEMPLATE/development-task.md`, 혹시 문서 양식)이 있으면 **그쪽 양식을 우선**하고 이 템플릿의 내용만 옮긴다. `security-policy.md`는 고치지 않는다.
-1. `templates/submission/` 아래를 배정 레포 루트로 복사한다 (`GUIDE.md` 제외).
+1. 시작 키트로 내보낸다 — 문서 8개·검사기가 개발 환경과 함께 들어간다 (`templates/starter/README.md`). 이 파일은 `docs/submission-guide.md`가 된다.
    ```sh
-   rsync -a --exclude GUIDE.md templates/submission/ <배정레포>/
+   python3 templates/starter/export.py <배정레포> --dry-run   # 미리보기
+   python3 templates/starter/export.py <배정레포>
    ```
+   키트 없이 문서만: `rsync -a --exclude GUIDE.md templates/submission/ <배정레포>/`
 2. `project-brief.md` → `prd.md`: 주제 요구를 REQ로 옮기고(출처=주최), 팀 아이디어는 출처=팀으로 따로 적는다. REQ마다 AC를 1개 이상.
 3. REQ마다 GitHub Issue를 주최 양식(개발 작업·검증)으로 만든다. Issue 제목에 `[REQ-01]`.
 4. `e2e-test.md`에 TC 시나리오(GIVEN/WHEN/THEN)를 **구현 전에** 적는다. 상태는 `미실행`.
