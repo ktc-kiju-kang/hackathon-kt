@@ -516,6 +516,8 @@ def take_snapshot(repo: str, root, old_state: dict, watch: bool = False) -> dict
         gh(
             "pr",
             "list",
+            "-R",
+            repo,  # 지정하지 않으면 현재 폴더의 저장소를 읽는다 (감시 저장소 버그)
             "--state",
             "all",
             "--limit",

@@ -226,6 +226,28 @@ class WatchTest(unittest.TestCase):
         self.assertIn("머지됨", im.diff_pr(9, pr(checks="none"), merged)[0])
 
 
+class SnapshotRepoTest(unittest.TestCase):
+    def test_pr_list_is_scoped_to_the_given_repo(self):
+        # 회귀: gh pr list 에 -R 이 없으면 감시 저장소가 현재 폴더 저장소의 PR 을 읽는다
+        calls = []
+
+        def fake_gh(*args, **kw):
+            calls.append(args)
+            return "[]"
+
+        orig, im.gh = im.gh, fake_gh
+        try:
+            im.take_snapshot("other/repo", None, {}, watch=True)
+        finally:
+            im.gh = orig
+        pr_calls = [c for c in calls if c[:2] == ("pr", "list")]
+        self.assertEqual(len(pr_calls), 1)
+        self.assertIn("-R", pr_calls[0])
+        self.assertEqual(pr_calls[0][pr_calls[0].index("-R") + 1], "other/repo")
+        api_calls = [c for c in calls if c[0] == "api"]
+        self.assertTrue(all("other/repo" in c[1] for c in api_calls))
+
+
 class AvatarTest(unittest.TestCase):
     def _load(self, content):
         from unittest import mock
