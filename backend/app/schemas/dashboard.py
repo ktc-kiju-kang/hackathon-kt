@@ -47,12 +47,36 @@ class Reqs(BaseModel):
     items: list[Req] = []
 
 
+class TestRun(BaseModel):
+    run_id: str
+    sha: str | None
+    ran_at: datetime
+    overall: Literal["PASS", "FAIL"] | None
+    total: int
+    failed: int
+    dirty: bool
+
+
+class Check(BaseModel):
+    key: str
+    label: str
+    status: Literal["ok", "fail", "na"]
+    detail: str
+
+
+class Readiness(BaseModel):
+    deadline: datetime
+    checks: list[Check]
+
+
 class Dashboard(BaseModel):
     generated_at: datetime
     server: Health
     migrations: list[Migration]
     tests: Tests
     reqs: Reqs
+    test_history: list[TestRun] = []
+    readiness: Readiness
 
 
 class GhIssue(BaseModel):
@@ -85,6 +109,14 @@ class GhRun(BaseModel):
 class GhClaim(BaseModel):
     issue: int
     owner: str | None
+    claimed_at: datetime | None = None
+
+
+class GhMerge(BaseModel):
+    number: int
+    title: str
+    author: str
+    merged_at: datetime
 
 
 class GithubStatus(BaseModel):
@@ -96,3 +128,5 @@ class GithubStatus(BaseModel):
     pulls: list[GhPull] = []
     main_runs: list[GhRun] = []
     claims: list[GhClaim] = []
+    main_sha: str | None = None
+    recent_merges: list[GhMerge] = []

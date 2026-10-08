@@ -15,7 +15,7 @@ from typing import Any, Literal
 import httpx
 
 from app.core.config import settings
-from app.schemas.dashboard import GhClaim, GhIssue, GhPull, GhRun, GithubStatus
+from app.schemas.dashboard import GhClaim, GhIssue, GhMerge, GhPull, GhRun, GithubStatus
 from app.services.dashboard import ROOT
 
 log = logging.getLogger(__name__)
@@ -24,7 +24,7 @@ CACHE_SEC = 60  # 같은 화면을 여러 번 새로 고쳐도 GitHub 한도를 
 CACHE_SEC_NO_TOKEN = 300  # 토큰 없으면 시간당 60회 — 한 번 갱신에 최대 24회를 쓴다
 DEADLINE_SEC = 15  # 한 번 갱신의 전체 상한 (lock을 잡은 채 기다리는 다른 요청 보호)
 _REPO = re.compile(r"[\w.-]+/[\w.-]+")
-MAX_PULLS, MAX_CLAIMS = 10, 10
+MAX_PULLS, MAX_CLAIMS, MAX_RUNS, MAX_CLOSED = 10, 10, 20, 30
 _cache: dict[str, tuple[float, GithubStatus]] = {}
 _transport: httpx.BaseTransport | None = None  # 테스트가 가짜 GitHub(httpx.MockTransport)를 넣는다
 _lock = threading.Lock()
@@ -138,7 +138,22 @@ def _fetch(gh: _Api, repo: str) -> GithubStatus:
             url=r["html_url"],
             created_at=r["created_at"],
         )
-        for r in _get(gh, f"{base}/actions/runs", branch="main", per_page=5)["workflow_runs"]
+        for r in _get(gh, f"{base}/actions/runs", branch="main", per_page=MAX_RUNS)[
+            "workflow_runs"
+        ]
+    ]
+    closed = _get(
+        gh, f"{base}/pulls", state="closed", sort="updated", direction="desc", per_page=MAX_CLOSED
+    )
+    merges = [
+        GhMerge(
+            number=p["number"],
+            title=p["title"],
+            author=p["user"]["login"],
+            merged_at=p["merged_at"],
+        )
+        for p in closed
+        if p.get("merged_at")
     ]
     return GithubStatus(
         status="ok",
@@ -148,6 +163,8 @@ def _fetch(gh: _Api, repo: str) -> GithubStatus:
         pulls=pulls,
         main_runs=runs,
         claims=_claims(gh, base),
+        main_sha=_get(gh, f"{base}/branches/main")["commit"]["sha"],
+        recent_merges=merges,
     )
 
 
@@ -171,8 +188,15 @@ def _claims(gh: _Api, base: str) -> list[GhClaim]:
         n = ref["ref"].rsplit("/", 1)[-1]
         if not n.isdigit():
             continue
-        msg = _get(gh, f"{base}/git/commits/{ref['object']['sha']}").get("message", "")
-        out.append(GhClaim(issue=int(n), owner=msg.split(" ", 1)[0] or None))
+        commit = _get(gh, f"{base}/git/commits/{ref['object']['sha']}")
+        msg = commit.get("message", "")
+        out.append(
+            GhClaim(
+                issue=int(n),
+                owner=msg.split(" ", 1)[0] or None,
+                claimed_at=(commit.get("committer") or {}).get("date"),
+            )
+        )
     return out
 
 
