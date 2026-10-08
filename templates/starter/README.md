@@ -2,6 +2,7 @@
 
 > 10/14 주제 공개 → 10/15 00:00 개발 마감. 배정받은 팀 레포에 **첫 1시간 안에** 개발 환경·작업 규칙·제출 문서 뼈대를 깔기 위한 키트다.
 > 결정: **로컬 우선** — 외부 서비스(Vercel·Render·Supabase) 없이 PC에서 실행하고 시험한다 (2026-10-08 팀 결정).
+> 실행은 docker compose, DB는 PostgreSQL(테스트·CI 포함) — 이유·대안·함정: `docs/decisions/0001-local-docker-postgres.md`. 각 PC에 **Docker Desktop + Node 20 + Python 3.11+** 필요.
 
 ## 무엇이 들어가나
 **이 레포가 곧 키트다** (2026-10-08 정리). `export.py`는 이 레포의 추적 파일을 그대로 내보내고, 이 레포 전용 파일(`EXCLUDE`: 레포 README·CLAUDE.md·CI·`templates/` 등)만 빼고, 팀 레포용 `overlay/`(팀 `CLAUDE.md`·문서 검사 잡이 있는 CI)와 제출 문서 8개를 넣는다.
@@ -49,6 +50,7 @@ git switch -c chore/starter-kit && git add -A && git commit -m "chore: 시작 �
 ## 검증 기록
 - **CI `starter-kit` 잡**이 PR마다 이 레포에서 키트를 내보내 `make setup → verify → e2e`를 돌린다 (가장 최근 상태는 그 잡 결과).
 - 2026-10-08 기준 키트: pytest 56 · Vitest 21 · E2E 3 통과, `make verify` 10개 검사 PASS (gitleaks는 미설치 시 SKIP).
+- 2026-10-08 docker compose·PostgreSQL 전환 후(#92·#96·#97): pytest 58(실제 PostgreSQL, 테스트마다 새 schema) · `make verify` 9개 · `make e2e` 전체 PASS, `make serve`(docker db+api+web) 스모크 PASS, `make dev` 핫 리로드(backend·frontend 4초)·실제 Ctrl+C로 컨테이너 정리, DB 꺼진 상태에서 verify·e2e가 db 자동 기동. CI(레포·키트)는 postgres 서비스로 통과.
 - 로컬 시뮬레이션 (bare origin + clone 3개): 머지 잠금 직렬화·오래된 잠금 회수, merge 기반 sync, 타임스탬프 마이그레이션 순서, `submit-check`가 막는 경우(커밋 안 된 변경·push 안 함·근거 이후 코드 변경·포맷 오류·dirty 근거·전체 FAIL 근거)
 - 실제 GitHub (비공개 테스트 레포, 시험 후 삭제): A·B 동시 `make ship` → 잠금 순서 머지·재반영, AI 리뷰가 실제 버그로 머지를 막음, PR 점수 91/100, Issue 자동 completed + 근거 댓글
 - 내보내기: 이미 있는 파일 건너뜀(`.kit`)·`--force`·주최 측 파일 보호·`.gitignore` 병합·재실행 시 변경 0개
