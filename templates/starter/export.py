@@ -56,7 +56,7 @@ PATCHES = [
         "make e2e      # 4. 시험 + 결과 기록 (docs/e2e-test.md, docs/evidence/)\n"
         "make stop     # 5. 종료 (DB 초기화: rm backend/data/app.db)\n"
         "```\n\n"
-        "개발 중에는 `make dev` (docker, 핫 리로드). docker 없이 `NATIVE=1 make serve`. 명령 목록 `make help`.",
+        "개발 중에는 `make dev` (docker, 핫 리로드). docker 없이 `NATIVE=1 make dev` / `NATIVE=1 make serve`. 명령 목록 `make help`.",
     ),
 ]
 

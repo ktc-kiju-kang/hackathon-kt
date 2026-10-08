@@ -24,7 +24,7 @@ stop: ## 로컬 배포 종료 (docker·로컬 둘 다)
 	@scripts/docker.sh down; scripts/stop.sh
 
 status: ## 로컬 배포 상태 (docker·로컬)
-	@scripts/status.sh; scripts/docker.sh status
+	@scripts/docker.sh status; scripts/status.sh
 
 smoke: ## 떠 있는 서버 스모크 확인
 	@scripts/smoke.sh

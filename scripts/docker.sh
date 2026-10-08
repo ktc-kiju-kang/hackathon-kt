@@ -22,22 +22,38 @@ check_ports() {
   for p in "$API_PORT" "$WEB_PORT"; do port_busy "$p" && die "포트 $p 사용 중 → make stop (또는 API_PORT/WEB_PORT 지정)"; done
   return 0
 }
-mkdir -p backend/data
-[ -f backend/.env ] || { cp backend/.env.example backend/.env; ok "backend/.env 생성 (키가 없으면 mock LLM)"; }
+prepare() {  # dev·up 전용 — stop·status는 파일을 만들지 않는다
+  need_docker; check_ports
+  [ -x "$PY" ] || die "먼저 make setup (스모크·검사에 로컬 도구가 필요합니다)"
+  mkdir -p backend/data
+  [ -f backend/.env ] || { cp backend/.env.example backend/.env; ok "backend/.env 생성 (키가 없으면 mock LLM)"; }
+}
+# wait_up <url> <초> <pid> — 200이 오거나, compose가 먼저 죽으면(빌드 실패 등) 바로 실패
+wait_up() {
+  local i=0
+  while [ "$i" -lt "$2" ]; do
+    curl -fsS -o /dev/null "$1" 2>/dev/null && return 0
+    kill -0 "$3" 2>/dev/null || return 1
+    sleep 1; i=$((i + 1))
+  done
+  return 1
+}
 
 case "${1:-}" in
   dev)
-    need_docker; check_ports
+    prepare
     trap 'exit 130' INT TERM
     trap 'trap - EXIT INT TERM; dcdev down >/dev/null 2>&1; echo; ok "개발 서버 종료"' EXIT
     APP_VERSION=$(source_version) dcdev up --build --remove-orphans &
     up_pid=$!
-    wait_http "http://localhost:$API_PORT/api/health" 300 && ok "api  http://localhost:$API_PORT/api/docs"
-    wait_http "http://localhost:$WEB_PORT" 300 && ok "web  http://localhost:$WEB_PORT  (Ctrl+C로 종료)"
+    wait_up "http://localhost:$API_PORT/api/health" 300 "$up_pid" || die "api가 뜨지 않음 (위 docker 로그 확인)"
+    ok "api  http://localhost:$API_PORT/api/docs"
+    wait_up "http://localhost:$WEB_PORT" 300 "$up_pid" || die "web이 뜨지 않음 (위 docker 로그 확인)"
+    ok "web  http://localhost:$WEB_PORT  (Ctrl+C로 종료)"
     wait "$up_pid"
     ;;
   up)
-    need_docker; check_ports
+    prepare
     VERSION=$(source_version)
     [ "${VERSION%-dirty}" != "$VERSION" ] && warn "커밋하지 않은 변경이 있습니다 — 이 실행 결과는 제출 근거가 되지 않습니다 ($VERSION)"
     say "docker 빌드·기동 (api :$API_PORT, web :$WEB_PORT)"

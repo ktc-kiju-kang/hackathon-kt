@@ -56,6 +56,7 @@
 | 증상 | 할 일 |
 |---|---|
 | "docker가 없습니다"·"Docker가 꺼져 있습니다" | Docker Desktop 설치·실행. 급하면 `NATIVE=1 make dev` / `NATIVE=1 make serve` |
+| Linux에서 docker 실행 후 `NATIVE=1`·`make e2e`가 DB에 못 씀 | 컨테이너가 root로 `backend/data/app.db`를 만든 것. `sudo chown -R $USER backend/data` (macOS Docker Desktop은 해당 없음) |
 | docker 빌드가 의존성 변경을 못 따라감 | `make stop && make serve` (항상 `--build`). 그래도 이상하면 `docker compose build --no-cache` |
 | `make serve` "포트 사용 중" | `make stop`. 다른 프로그램이면 `API_PORT=8100 WEB_PORT=3100 make serve` |
 | 스모크 `version != HEAD` | 서버가 예전 코드. `make stop && make serve` |
