@@ -1,5 +1,7 @@
 # PR 리뷰 자동 점검·점수 설계
 
+> **현재 상태 (2026-10-08)**: PR 1(자동 점검 40점·`pr-review.yml`·`scripts/pr_review_score.py`)은 #80으로 머지됐다. AI 리뷰 블록(60점)은 별도 PR 2 대신 **`make ship`이 `scripts/ai-review.py`로 자동 생성**한다 (헤드리스 Claude + reviewer 지침 + JSON 스키마, 이 문서 5절 형식 그대로 — 실제 GitHub 시험에서 91/100 채점 확인). 본문의 `docs/SDLC.md`(2026-10-08 레포 정리로 삭제)·`docs/review.md`·`docs/workflow.md`(미작성) 참조는 설계 당시 기준이다 — 지금 흐름은 `docs/pipeline.md`·`.claude/skills/handoff`.
+
 - 날짜: 2026-10-03
 - 상태: 설계 승인됨. 2026-10-04 갱신: `ty`는 PR #63으로 이미 도입·CI 차단(진단 0건)이라 절대 기준으로 채점한다
 - 관련: `docs/SDLC.md`, `.claude/agents/reviewer.md`, `.claude/skills/handoff/SKILL.md`, 협업 규칙 2(승인 불필요)
