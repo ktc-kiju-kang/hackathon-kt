@@ -24,9 +24,9 @@
 | 명령 | 내용 |
 |---|---|
 | `make setup` | Node 20+·Python 3.11+ 확인 → backend `.venv` + 의존성 → `npm ci` → `.env` 없으면 생성 (여러 번 실행해도 됨) |
-| `make dev` | 개발 서버 (핫 리로드) api :8000 + web :3000, Ctrl+C로 둘 다 종료 |
+| `make dev` | 개발 서버 (핫 리로드) api :8000 + web :3000 — **docker compose**(`compose.yaml` + `compose.dev.yaml`, 소스 마운트), Ctrl+C로 컨테이너까지 종료. docker 없이 `NATIVE=1 make dev` |
 | `make verify` | ruff·ty·pytest·e2e lint·eslint·vitest·next build(격리 폴더)·문서 검사·(있으면) gitleaks 커밋 이력. 하나가 실패해도 끝까지 돌고 요약, 로그 `.run/verify/`. `make serve` 중에 돌려도 된다 |
-| `make serve` | **로컬 배포**: 프로덕션 빌드 → backend `fastapi run` + frontend `next start` 백그라운드(이 PC에서만, 127.0.0.1) → health·화면 스모크. 실패하면 스스로 내린다. 로그 `.run/` |
+| `make serve` | **로컬 배포**: docker compose로 프로덕션 빌드 → api(`fastapi run`) + web(`next start`) 백그라운드(이 PC에서만, 127.0.0.1) → health·화면 스모크. 실패하면 스스로 내린다. 로그 `docker compose logs`. DB는 compose의 PostgreSQL(`127.0.0.1:55432`, volume `pgdata`), LLM 키는 `backend/.env`를 앱이 직접 읽는다. docker 없이 `NATIVE=1 make serve`(로그 `.run/`) |
 | `make e2e` | ① backend pytest·frontend vitest ② **격리 로컬 배포**(포트 18000/13000·새 DB·mock LLM)에 `e2e/` 시험 ③ TC별 결과를 `e2e-test.md`·`prd.md`에 기록, 근거(JUnit XML·로그·요약)를 `docs/evidence/`에 저장. `make serve`로 떠 있는 서버와 DB·빌드를 건드리지 않는다 |
 | `make ship` | 작업 브랜치 → main. ① main merge ② verify ③ 충돌 검사 ④ e2e(확인만, 기록 되돌림) ⑤ push·PR(`Closes #`, 확인 결과 자동 기록) ⑥ AI 리뷰(`claude -p` + reviewer 지침 → PR 본문 "AI 리뷰" 블록, PR 점수 60점 형식) ⑦ Issue 근거 댓글 ⑧ 머지 잠금 → main이 바뀌었으면 다시 반영·verify → CI 대기 → squash 머지 ⑨ main에서 verify. 어느 단계든 기준 미달이면 멈춘다 |
 | `make claims` | Issue 선점 목록: 번호·선점자·마지막 활동(작업 브랜치 커밋)·24시간 넘게 멈춘 것 ⚠️. 선점 = GitHub `claim/<번호>` 브랜치(원자적 생성). `/start-task`가 잡고, ship이 시작 전에 확인(없으면 잡음)·머지 후 지운다 |
@@ -55,12 +55,16 @@
 ## 문제가 생기면
 | 증상 | 할 일 |
 |---|---|
+| "docker가 없습니다"·"Docker가 꺼져 있습니다" | Docker Desktop 설치·실행. 급하면 `NATIVE=1 make dev` / `NATIVE=1 make serve` |
+| docker 빌드가 의존성 변경을 못 따라감 | `make stop && make serve` (항상 `--build`). 그래도 이상하면 `docker compose build --no-cache` |
 | `make serve` "포트 사용 중" | `make stop`. 다른 프로그램이면 `API_PORT=8100 WEB_PORT=3100 make serve` |
 | 스모크 `version != HEAD` | 서버가 예전 코드. `make stop && make serve` |
 | `make e2e` 배포 실패 | `.run/e2e/serve.log`, `.run/e2e-serve/*.log` |
 | 머지 후 main이 깨짐 | 고치는 데 10분 이상이면 `git revert <머지 커밋>` → PR → 머지. 제출 마감 직전에는 되돌리기가 기본 |
 | LLM 한도·장애 | mock으로도 화면·흐름이 동작한다. 발표에서는 녹화·캡처로 |
-| DB가 꼬임 (로컬) | `make stop && rm backend/data/app.db && make serve` (마이그레이션이 처음부터 다시 적용) |
+| DB가 꼬임 (로컬) | `make db-reset && make serve` (데이터 삭제 → 마이그레이션이 처음부터 다시 적용) |
+| worktree 두 곳에서 `make dev`·`serve` "포트 55432(db) 사용 중" | 각 worktree가 자기 db를 띄운다. 두 번째는 `DB_PORT=55433` + 그 worktree `backend/.env`의 `DATABASE_URL`을 55433으로 (`make verify`·`e2e`는 첫 db를 같이 써도 schema로 격리돼 괜찮다) |
+| "PostgreSQL에 접속할 수 없습니다" | Docker Desktop 실행 → `make db`. 포트 55432를 다른 프로그램이 쓰면 `DB_PORT=55433` + `backend/.env`의 `DATABASE_URL`도 같은 포트로 |
 | CI가 안 돎 (사내 GHE) | ship이 "CI 없음"으로 보고 로컬 verify 결과로 진행한다 (PR 본문에 기록) |
 | ship "머지 대기 중" | 다른 사람이 머지 중 — 기다린다. 15분 넘은 잠금은 자동으로 가져온다. 확인: `make lock-status` |
 | start-task·ship "○○ 님이 이미 잡았습니다" | 그 Issue는 다른 사람 담당 — 다른 Issue를 고른다. 주인이 손을 뗐으면 본인이 `make release ISSUE=<번호>`, 연락이 안 되면 합의 후 `scripts/claim.sh release <번호> --force` |

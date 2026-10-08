@@ -32,6 +32,20 @@ source_version() {
 
 port_busy() { lsof -nP -iTCP:"$1" -sTCP:LISTEN >/dev/null 2>&1; }
 
+# ensure_db — PostgreSQL에 접속되면 그대로, 아니면 docker compose로 db만 띄운다.
+#   CI는 services: postgres로 이미 떠 있다. 접속 주소는 backend 설정(DATABASE_URL, 기본 localhost:55432)
+db_ok() { (cd "$ROOT/backend" && "$PY" -c 'import psycopg; from app.core.config import settings
+psycopg.connect(settings.database_url, connect_timeout=2).close()') >/dev/null 2>&1; }
+ensure_db() {
+  db_ok && return 0
+  command -v docker >/dev/null && docker info >/dev/null 2>&1 \
+    || die "PostgreSQL에 접속할 수 없고 Docker도 꺼져 있습니다 → Docker Desktop 실행 후 make db"
+  say "PostgreSQL 기동 (docker compose db)"
+  docker compose -f "$ROOT/compose.yaml" up -d --wait --quiet-pull db >"$RUN_DIR/db-up.log" 2>&1 \
+    || { tail -n 20 "$RUN_DIR/db-up.log"; die "db 기동 실패 → .run/db-up.log (포트 55432를 다른 PostgreSQL이 쓰면 DB_PORT·DATABASE_URL 지정)"; }
+  db_ok || die "db는 떴지만 접속 실패 — DATABASE_URL 확인 (backend/.env)"
+}
+
 # free_port <시작> — 시작 번호부터 비어 있는 포트 (worktree 두 개에서 동시에 e2e를 돌려도 안 부딪히게)
 free_port() {
   local p=$1

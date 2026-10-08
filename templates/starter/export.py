@@ -31,7 +31,6 @@ EXCLUDE = [
     ".github/workflows/ci.yml",  # 팀 레포용은 overlay (문서 검사 잡 포함)
     ".github/ISSUE_TEMPLATE/**",  # 주최 측이 넣는다
     ".gitleaksignore",  # 이 레포 이력의 오탐 fingerprint
-    "frontend/vercel.json",  # 옛 Vercel 연결이 main을 자동 배포하지 않게 (연결 해제 후 삭제)
     ".github/dependabot.yml",  # 이 레포 의존성 알림 (팀 레포는 사내 GHE 정책을 따른다)
 ]
 # 주최 측이 제공하는 파일 — 어떤 경우에도 덮어쓰지 않는다
@@ -47,17 +46,17 @@ PATCHES = [
         "# 3. 기동\n{{명령}}   # → http://localhost:{{포트}}\n"
         "# 4. 시험 (결과는 docs/e2e-test.md)\n{{명령}}\n"
         "# 5. 종료·정리\n{{명령}}\n```",
-        "요구 환경: Node 20+, Python 3.11+"
-        " (외부 서비스 없음 — DB는 SQLite, LLM 키가 없으면 mock).\n"
+        "요구 환경: Docker Desktop, Node 20+, Python 3.11+"
+        " (외부 서비스 없음 — DB는 docker의 PostgreSQL, LLM 키가 없으면 mock).\n"
         "단계·게이트·장애 대응: [docs/pipeline.md](docs/pipeline.md)\n\n"
         "```sh\n"
         "make setup    # 1. 설치 (의존성·.env)\n"
         "make verify   # 2. 검사 전부 (lint·type·test·build·문서)\n"
-        "make serve    # 3. 로컬 배포 → http://localhost:3000 , API http://localhost:8000/api/docs\n"
+        "make serve    # 3. 로컬 배포 (docker compose) → http://localhost:3000 , API http://localhost:8000/api/docs\n"
         "make e2e      # 4. 시험 + 결과 기록 (docs/e2e-test.md, docs/evidence/)\n"
-        "make stop     # 5. 종료 (DB 초기화: rm backend/data/app.db)\n"
+        "make stop     # 5. 종료 (DB 초기화: make db-reset)\n"
         "```\n\n"
-        "개발 중에는 `make dev` (핫 리로드). 명령 목록 `make help`.",
+        "개발 중에는 `make dev` (docker, 핫 리로드). docker 없이 `NATIVE=1 make dev` / `NATIVE=1 make serve`. 명령 목록 `make help`.",
     ),
 ]
 

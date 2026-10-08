@@ -6,7 +6,7 @@
 ## 개요
 - 주제: {{주제 번호·이름}} — 요구사항 원본은 `docs/prd.md` (REQ·AC)
 - 개발 마감: **2026-10-15 00:00**. 제출 = 포털에 이 레포의 40자 commit SHA + 발표자료
-- 실행: 로컬 (외부 서비스 없음). DB는 SQLite, LLM은 키가 없으면 mock
+- 실행: 로컬 (외부 서비스 없음). 각자 PC의 docker compose — DB는 PostgreSQL(`db` 서비스), LLM은 키가 없으면 mock
 - 상태 확인: `GET /api/health` → `version`(실행 중인 커밋), `db`(ok/error), `llm`(anthropic/gemini/openai/mock)
 
 ## 채점 근거 — 모든 작업이 지키는 규칙
@@ -20,7 +20,7 @@
 7. AI 사용 기록 수집기(kode:ton)가 켜져 있어야 한다. PC 재시작 후 앱을 다시 실행한다.
 
 ## 작업 방식: 세 명 · 로컬 PC · 레포 하나 · 자동 리뷰·머지
-- 서버 없음. 각자 PC에서 개발·실행·시험한다 (`make dev`/`make serve`). DB는 각자 SQLite 파일, 공유하지 않는다.
+- 서버 없음. 각자 PC에서 docker compose로 실행한다 (`make dev`/`make serve`, `compose.yaml`). DB는 각자 PC의 PostgreSQL(docker volume), 공유하지 않는다. 검사·시험(`make verify`·`e2e`·`ship`)은 로컬 도구로 돌고 DB만 docker로 자동으로 띄운다 — 그래서 `make setup`과 Docker Desktop 둘 다 필요하다.
 - **Issue 하나 = REQ 하나**를 한 사람이 frontend + backend + DB + 시험까지 끝까지 맡는다. 담당자 = Issue assignee. 제목 `[REQ-01] <요약>`, 완료 조건 = prd.md의 AC, 양식은 주최 측 "개발 작업·검증".
 - 사람이 하는 일은 **코드 작성 → 커밋 → `make ship`** 이 전부다. ship이 검사·시험·PR·AI 리뷰·Issue 근거 댓글·머지까지 한다. 기준을 넘지 못하면 멈추고 이유를 보여 준다 (`/handoff`).
 - 완료: `Closes #<번호>`로 squash 머지되면 Issue가 completed로 닫힌다. 취소·중복은 사유를 남기고 Close as not planned. (Projects Done·체크박스만으로는 완료 집계 안 됨)
@@ -49,11 +49,12 @@
 | **파이프라인 (단계·게이트·시간표·장애 대응)** | `docs/pipeline.md` | 링크 |
 | 제출 문서 8개 | `README.md`, `docs/{project-brief,prd,arch,experience,development,security-compliance,e2e-test}.md`, 사용법 `docs/submission-guide.md` | 링크 |
 | API 계약 | `docs/contracts/` | 링크 |
+| 결정 기록 (왜 docker compose·PostgreSQL인가 등) | `docs/decisions/` (ADR) | 링크 |
 
 ## 구조
 - `frontend/` Next.js(App Router)+TS+Tailwind v4+shadcn/ui (KDS 2.0 토큰): `src/app/<route>/`(화면) · `src/features/<feature>/`(기능, `api.ts`) · `src/components/`·`src/lib/`(공용)
 - `backend/` FastAPI: `app/{routers,services,schemas}/<feature>.py`(기능, 라우터 자동 등록) · `app/core/`(config·db·quota) · `app/agent/`(AI 엔진) · `tests/`
-- `database/migrations/` SQLite 마이그레이션 (서버 시작 시 자동 적용)
+- `database/migrations/` PostgreSQL 마이그레이션 (서버 시작 시 자동 적용, 규칙 `database/README.md`)
 - `e2e/` 배포된 서버에 HTTP로 붙는 E2E 시험 (`make e2e`) · `scripts/` 파이프라인 스크립트 · `docs/evidence/` 시험 근거 (자동 생성, 커밋한다)
 - 핵심: **features끼리 직접 import 금지**, 공용 코드는 기능 폴더에 두지 않는다.
 
@@ -61,11 +62,12 @@
 | 명령 | 언제 |
 |---|---|
 | `make setup` | 처음 한 번, 의존성이 바뀌면 다시 |
-| `make dev` | 개발 (핫 리로드, api :8000 + web :3000, 이 PC에서만) |
+| `make dev` | 개발 (docker compose, 핫 리로드, api :8000 + web :3000, 이 PC에서만). docker 없이 `NATIVE=1 make dev` |
 | `make sync` | 작업 시작 전·중간 — 최신 main을 내 브랜치에 merge |
 | `make verify` | 수시로 — CI와 같은 검사 전부 (ship도 실행) |
 | **`make ship`** | **작업 끝 — 검사·시험·PR·AI 리뷰·자동 머지** |
-| `make serve` / `make stop` / `make status` | 로컬 배포 (프로덕션 빌드 + 스모크) |
+| `make serve` / `make stop` / `make status` | 로컬 배포 (docker compose, 프로덕션 빌드 + 스모크). `make verify`·`e2e`·`ship`은 로컬 도구로 돌고 DB(PostgreSQL)만 docker로 자동 기동 |
+| `make db` / `make db-reset` | PostgreSQL만 띄우기(pytest 직접 실행·`NATIVE=1`용) / DB 데이터 전부 삭제 |
 | `make e2e` | 시험 전부 + 격리 배포 E2E (확인용. 기록 커밋은 `make record`) |
 | `make record` | 기록 담당: main에서 시험 기록을 자동 PR로 머지 (2~3시간마다, 제출 전) |
 | `make lock-status` | 누가 머지 중인지 |

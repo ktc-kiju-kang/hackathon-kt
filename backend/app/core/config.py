@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 from pydantic import field_validator
@@ -13,8 +14,17 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:3000"
     cors_origin_regex: str = ""
 
-    # SQLite 파일 경로 (gitignore). 마이그레이션: database/migrations/*.sql (app/core/db.py)
-    database_path: str = str(BACKEND_DIR / "data" / "app.db")
+    # PostgreSQL (각자 PC의 docker compose `db`). 마이그레이션: database/migrations/*.sql
+    # DATABASE_SCHEMA: 테이블을 둘 schema — 테스트(테스트마다 새 schema)·make e2e(e2e) 격리용
+    database_url: str = "postgresql://app:app@localhost:55432/app"  # 로컬 전용 계정 (비밀값 아님)
+    database_schema: str = "public"
+
+    # 현황판 GitHub 칸 (/api/dashboard/github, docs/contracts/dashboard.md)
+    github_repo: str = ""  # owner/name. 비우면 git origin 주소에서 찾는다
+    github_token: str = ""  # 비밀값. 읽기 전용 토큰, backend/.env 에만 (공개 레포는 없어도 됨)
+    github_api_url: str = ""  # 비우면 github.com, 사내 GHE는 origin 호스트의 /api/v3
+    git_remote_url: str = ""  # docker 실행 때 docker.sh가 넘기는 origin 주소 (컨테이너엔 git 없음)
+    submit_deadline: str = "2026-10-15T00:00:00+09:00"  # 현황판 마감 카운트다운 (본선 개발 마감)
 
     # /api/health의 version. 비우면 실행 중인 git 커밋 SHA (e2e-test.md 근거용)
     app_version: str = ""
@@ -42,10 +52,19 @@ class Settings(BaseSettings):
     chat_daily_limit: int = 150  # 서버 전체 하루 LLM 요청 수
     chat_max_messages: int = 80  # 대화 하나의 최대 저장 메시지 수 (넘으면 새 대화)
 
-    @field_validator("database_path")
+    @field_validator("database_url")
     @classmethod
-    def _default_db_path(cls, v: str) -> str:
-        return v or str(BACKEND_DIR / "data" / "app.db")  # .env의 빈 DATABASE_PATH= 도 기본값
+    def _default_db_url(cls, v: str) -> str:
+        return v or "postgresql://app:app@localhost:55432/app"  # .env의 빈 DATABASE_URL= 도 기본값
+
+    @field_validator("database_schema")
+    @classmethod
+    def _check_schema(cls, v: str) -> str:
+        v = v or "public"
+        # 연결 옵션 search_path에 들어가므로 이름 형식만 허용한다
+        if not re.fullmatch(r"[a-z_][a-z0-9_]{0,62}", v):
+            raise ValueError(f"DATABASE_SCHEMA는 소문자·숫자·_ 만: {v!r}")
+        return v
 
     @property
     def cors_origin_list(self) -> list[str]:

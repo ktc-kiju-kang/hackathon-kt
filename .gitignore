@@ -10,7 +10,7 @@ hackathon-rules/
 
 # worktree
 
-# 로컬 DB (SQLite)
+# 옛 로컬 SQLite 파일 (지금 DB는 docker의 PostgreSQL — volume pgdata)
 backend/data/*.db
 backend/data/*.db-*
 

@@ -4,7 +4,7 @@
 > 저장소는 **공개**다. 키·토큰·개인정보는 절대 커밋하지 않는다. 주최 측 자료(`hackathon-rules/`, gitignore)는 올리지 않는다.
 
 ## 개요
-- 목적: 본선(2026-10-14 주제 공개 → **10-15 00:00 마감**)에서 배정 레포에 깔 **시작 키트의 원본이자 연습장**. 이 레포 자체가 키트와 같은 구조로 돌아간다 (로컬 전용: SQLite, mock LLM, `make`).
+- 목적: 본선(2026-10-14 주제 공개 → **10-15 00:00 마감**)에서 배정 레포에 깔 **시작 키트의 원본이자 연습장**. 이 레포 자체가 키트와 같은 구조로 돌아간다 (로컬 전용: docker compose·PostgreSQL, mock LLM, `make`).
 - 채점: 기술 70(AI가 문서·코드·실행/테스트 결과·GitHub 이력·AI 활용 기록을 평가, 보안 10 포함) + 동료 10 + 심사위원 20. 상세·제출 절차는 `templates/submission/GUIDE.md`.
 - 배정 레포에 깔기: `python3 templates/starter/export.py <배정 레포> --dry-run` → 실제 실행 (`templates/starter/README.md`). 이 레포에서 고친 공용 코드·스크립트·스킬이 그대로 키트가 된다.
 - 레포: https://github.com/ktc-kiju-kang/hackathon-kt · 이전 주제(AI Opportunity Radar)·Vercel/Render/Supabase 배포는 2026-10-08에 정리했다 (git 이력에 남음).
@@ -26,6 +26,7 @@
 | 제출 문서 8개·채점 근거 | `templates/submission/GUIDE.md` | 링크 |
 | PR 자동 점검 점수 (#80) | `docs/superpowers/specs/2026-10-03-pr-review-scoring-design.md`, `scripts/pr_review_score.py` | 링크 |
 | API 계약 | `docs/contracts/` | 링크 |
+| 결정 기록 (왜 docker compose·PostgreSQL인가 등) | `docs/decisions/` (ADR) | 링크 |
 
 ## 충돌 방지 규칙 (세 사람이 같은 것을 동시에 고치지 않게)
 | 충돌 원인 | 규칙 | 장치 |
@@ -45,7 +46,7 @@
 ## 구조
 - `frontend/` Next.js(App Router)+TS+Tailwind v4+shadcn/ui (KDS 2.0 토큰): `src/app/<route>/`(화면) · `src/features/<feature>/`(기능, `api.ts`) · `src/components/`·`src/lib/`(공용)
 - `backend/` FastAPI: `app/{routers,services,schemas}/<feature>.py`(기능, 라우터 자동 등록) · `app/core/`(config·db·quota) · `app/agent/`(AI 엔진) · `tests/`
-- `database/migrations/` SQLite 마이그레이션 (서버 시작 시 자동 적용)
+- `database/migrations/` PostgreSQL 마이그레이션 (서버 시작 시 자동 적용, 규칙 `database/README.md`)
 - `e2e/` 배포된 서버에 HTTP로 붙는 E2E 시험 (`make e2e`) · `scripts/` 파이프라인 스크립트 · `docs/evidence/` 시험 근거 (팀 레포에서 자동 생성·커밋. 이 레포는 `.run/evidence/`)
 - 핵심: **features끼리 직접 import 금지**, 공용 코드는 기능 폴더에 두지 않는다.
 
@@ -53,11 +54,12 @@
 | 명령 | 언제 |
 |---|---|
 | `make setup` | 처음 한 번, 의존성이 바뀌면 다시 |
-| `make dev` | 개발 (핫 리로드, api :8000 + web :3000, 이 PC에서만) |
+| `make dev` | 개발 (docker compose, 핫 리로드, api :8000 + web :3000, 이 PC에서만). docker 없이 `NATIVE=1 make dev` |
 | `make sync` | 작업 시작 전·중간 — 최신 main을 내 브랜치에 merge |
 | `make verify` | 수시로 — CI와 같은 검사 전부 (ship도 실행) |
 | **`make ship`** | **작업 끝 — 검사·시험·PR·AI 리뷰·자동 머지** |
-| `make serve` / `make stop` / `make status` | 로컬 배포 (프로덕션 빌드 + 스모크) |
+| `make serve` / `make stop` / `make status` | 로컬 배포 (docker compose, 프로덕션 빌드 + 스모크). `make verify`·`e2e`·`ship`은 로컬 도구로 돌고 DB(PostgreSQL)만 docker로 자동 기동 |
+| `make db` / `make db-reset` | PostgreSQL만 띄우기(pytest 직접 실행·`NATIVE=1`용) / DB 데이터 전부 삭제 |
 | `make e2e` | 시험 전부 + 격리 배포 E2E (확인용. 기록 커밋은 `make record`) |
 | `make record` | 기록 담당: main에서 시험 기록을 자동 PR로 머지 (2~3시간마다, 제출 전) — **팀 레포 전용** |
 | `make lock-status` | 누가 머지 중인지 |
@@ -76,7 +78,7 @@
 7. AI 리뷰가 "수정 필요"면 지적을 고친다. 리뷰를 다시 돌려 점수를 올리려고 코드를 바꾸지 않고 내용을 고친다. 테스트를 지우거나 skip으로 통과시키지 않는다.
 
 ## Claude 작업 방식
-- 스킬 흐름: `/new-issue` → `/start-task` → (`/add-endpoint`·`/add-page`·`/add-agent-tool`) → `/handoff`(= `make ship`). 보조: `/sync`·`/pr-check`·`/team-status`. 본선용: `/plan-topic`·`/submit`.
+- 스킬 흐름: `/new-issue` → `/start-task` → (`/add-endpoint`·`/add-page`·`/add-agent-tool`) → `/handoff`(= `make ship`). 보조: `/sync`·`/pr-check`·`/team-status`. 이슈 현황: `/issue-monitor`(Slack 알림 + 로컬 대시보드). 본선용: `/plan-topic`·`/submit`.
 - Issue 생성은 사용자 확인 후. **`make ship`(push·PR·자동 머지 포함)은 사용자가 "ship"·"진행"으로 요청했을 때 실행한다.** ship이 멈추면 원인을 설명하고 고칠 방법을 제안한다.
 - **자동 큐 `/ticket-loop`**(`/loop 5m /ticket-loop`): 루프를 시작한 것을 "ship" 요청으로 본다. 열린 Issue를 `scripts/claim.sh`로 선점하고 명세·댓글대로 구현해 `make ship`까지 한다. **기본은 `SHIP_NO_MERGE=1`(PR·AI 리뷰까지, 머지는 사람)** 이고, 머지까지 맡기려면 사용자가 `TICKET_LOOP_MERGE=1`로 시작한다. main 직접 push·force push·남의 브랜치·Issue 생성은 제외.
 - 같은 작업 폴더에서 다른 Claude 세션이 일하고 있을 수 있다. 큰 작업은 `scripts/new-worktree.sh`로 분리한다.

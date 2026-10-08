@@ -3,6 +3,7 @@
 set -euo pipefail
 . "$(dirname "$0")/lib.sh"
 need_setup
+ensure_db
 for p in "$API_PORT" "$WEB_PORT"; do port_busy "$p" && die "포트 $p 사용 중 → make stop 또는 API_PORT/WEB_PORT 지정"; done
 
 # 서버마다 프로세스 그룹을 따로 만들고(set -m) 끝날 때 그룹째 끈다 — 리로더·자식 프로세스까지 정리된다

@@ -10,18 +10,17 @@ paths:
 - 기능 = `routers/<feature>.py` + `services/<feature>.py` + `schemas/<feature>.py`.
   - `router = APIRouter(prefix="/<feature>", tags=["<feature>"])`를 정의하면 자동 등록 → `/api/<feature>/...`
   - router는 얇게(검증·응답), 로직·DB 접근은 service에. `response_model` 항상 지정.
-- DB는 `app.core.db.get_db()`로 service에서만 접근 (SQLite). 설정·비밀값은 `app/core/config.py`의 `Settings`로만 읽는다.
+- DB는 `app.core.db.get_db()`로 service에서만 접근 (PostgreSQL, psycopg — 행은 dict). 설정·비밀값은 `app/core/config.py`의 `Settings`로만 읽는다.
 - DB 사용 예 (service):
   ```python
   from app.core.db import get_db
   with get_db() as db:  # 블록이 끝나면 commit, 예외면 rollback
-      rows = db.execute("select * from items where owner_id = ?", (owner_id,)).fetchall()
-  return [dict(r) for r in rows]
+      return db.execute("select * from items where owner_id = %s", (owner_id,)).fetchall()
   ```
   - **권한 체크(누가 어떤 행에 접근 가능한지)는 service 코드에서** 한다. 남의 행이면 404(존재 여부도 숨김). 예: `services/chat.py`의 `_owned`.
-  - 값은 항상 `?`·`:name` 자리표시자로. f-string으로 SQL을 만들지 않는다.
+  - 값은 항상 `%s`·`%(name)s` 자리표시자로. f-string으로 SQL을 만들지 않는다 (식별자가 꼭 필요하면 `psycopg.sql.Identifier`).
 - 기능마다 `tests/test_<feature>.py`에 **정상 + 오류 + 권한 경계** 테스트. 테스트 이름 또는 docstring에 TC ID를 적는다 (예: `def test_tc_01_3_other_users_item_is_hidden`). `docs/e2e-test.md`가 이 테스트를 근거로 가리킨다.
-  - `conftest.py`가 테스트마다 새 SQLite 파일(`tmp_path`)을 주고 LLM 키를 비운다 → 로컬 `.env`와 무관하게 통과한다.
+  - `conftest.py`가 테스트마다 새 PostgreSQL schema를 만들고(끝나면 삭제) LLM 키를 비운다 → 로컬 `.env`·앱 데이터와 무관하게 통과한다. DB가 없으면 `make db` (`make verify`는 알아서 띄움).
   - 저장 → 재조회처럼 **배포된 상태의 사용자 흐름**은 루트 `e2e/test_<feature>.py`에 HTTP로 쓴다 (`e2e/conftest.py`의 `api`·`user`·`other_user` fixture). `make e2e`가 격리 배포에 돌리고 결과를 기록한다.
 - `schema_migrations` 테이블은 마이그레이션 전용. 기능에서 읽거나 쓰지 않는다.
 - 공개된 읽기 전용 정적 데이터는 DB 대신 `backend/data/<이름>/`에 두고 처음 호출 때 메모리에 읽는다 (`lru_cache`). 출처·라이선스를 README에 적는다.

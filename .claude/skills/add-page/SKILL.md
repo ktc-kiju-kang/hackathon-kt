@@ -5,6 +5,8 @@ argument-hint: <경로> <메뉴 이름> <설명>
 ---
 새 화면을 추가한다: $ARGUMENTS
 
+0. **구현 원칙** — `/ponytail`(기본 full)을 적용한다: 기존 컴포넌트·`features/` 패턴 재사용 → 네이티브 HTML/CSS → 설치된 의존성 → 최소 구현. 접근성·AppShell 규칙은 줄이지 않는다.
+
 1. **이름 충돌 확인 (먼저)** — 같은 화면을 두 사람이 만들지 않게:
    - `ls frontend/src/app frontend/src/features`로 기존 라우트·기능 폴더 확인
    - `gh pr list --state open`과 각 PR의 `frontend/src/app/` 변경(`gh pr diff <n> --name-only`)에 같은 경로가 있는지 확인

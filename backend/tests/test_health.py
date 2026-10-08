@@ -11,7 +11,7 @@ def test_health():
     body = res.json()
     assert body["status"] == "ok"
     assert "time" in body
-    assert body["db"] == "ok"  # conftest가 테스트마다 새 SQLite 파일을 준다
+    assert body["db"] == "ok"  # conftest가 테스트마다 새 schema를 준다
     assert body["llm"] == "mock"
 
 

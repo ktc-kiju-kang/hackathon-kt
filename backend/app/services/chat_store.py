@@ -1,10 +1,11 @@
-"""대화 저장소. 기본은 SQLite(database/migrations/0001_chat.sql), 테스트는 메모리."""
+"""대화 저장소. 기본은 PostgreSQL(database/migrations/0001_chat.sql), 테스트는 메모리."""
 
-import json
 import uuid
 from datetime import UTC, datetime
 from functools import lru_cache
 from typing import Any, Protocol
+
+from psycopg.types.json import Jsonb
 
 from app.agent.types import Message
 from app.core.db import get_db
@@ -17,14 +18,6 @@ class ChatStore(Protocol):
     def list_messages(self, conversation_id: str) -> list[dict[str, Any]]: ...
     def append_messages(self, conversation_id: str, messages: list[Message]) -> None: ...
     def set_title(self, conversation_id: str, title: str) -> None: ...
-
-
-def _now() -> str:
-    return datetime.now(UTC).isoformat()
-
-
-def _dump(m: Message) -> str:
-    return json.dumps(m.model_dump(mode="json"), ensure_ascii=False)
 
 
 class MemoryChatStore:
@@ -65,62 +58,78 @@ class MemoryChatStore:
         self.conversations[conversation_id]["title"] = title
 
 
-class SqliteChatStore:
+def _no_nul(v: Any) -> Any:
+    """PostgreSQL text·jsonb는 NUL(\\x00)을 저장하지 못한다 → 지운다 (사용자 입력·LLM 출력)."""
+    if isinstance(v, str):
+        return v.replace("\x00", "")
+    if isinstance(v, dict):
+        return {_no_nul(k): _no_nul(x) for k, x in v.items()}
+    if isinstance(v, list):
+        return [_no_nul(x) for x in v]
+    return v
+
+
+class DbChatStore:
+    """PostgreSQL (database/migrations/0001_chat.sql)."""
+
     def create_conversation(self, client_id: str, title: str | None) -> dict[str, Any]:
         row = {
             "id": str(uuid.uuid4()),
             "client_id": client_id,
-            "title": title,
-            "created_at": _now(),
+            "title": _no_nul(title),
+            "created_at": datetime.now(UTC),
         }
         with get_db() as db:
             db.execute(
                 "insert into conversations (id, client_id, title, created_at)"
-                " values (:id, :client_id, :title, :created_at)",
+                " values (%(id)s, %(client_id)s, %(title)s, %(created_at)s)",
                 row,
             )
         return row
 
     def list_conversations(self, client_id: str) -> list[dict[str, Any]]:
         with get_db() as db:
-            rows = db.execute(
+            return db.execute(
                 "select id, client_id, title, created_at from conversations"
-                " where client_id = ? order by created_at desc limit 50",
+                " where client_id = %s order by created_at desc limit 50",
                 (client_id,),
             ).fetchall()
-        return [dict(r) for r in rows]
 
     def get_conversation(self, conversation_id: str) -> dict[str, Any] | None:
         with get_db() as db:
-            row = db.execute(
-                "select id, client_id, title, created_at from conversations where id = ?",
+            return db.execute(
+                "select id, client_id, title, created_at from conversations where id = %s",
                 (conversation_id,),
             ).fetchone()
-        return dict(row) if row else None
 
     def list_messages(self, conversation_id: str) -> list[dict[str, Any]]:
-        with get_db() as db:
-            rows = db.execute(
-                "select data, created_at from messages where conversation_id = ? order by id",
+        with get_db() as db:  # data는 jsonb → psycopg가 dict로 돌려준다
+            return db.execute(
+                "select data, created_at from messages where conversation_id = %s order by id",
                 (conversation_id,),
             ).fetchall()
-        return [{"data": json.loads(r["data"]), "created_at": r["created_at"]} for r in rows]
 
     def append_messages(self, conversation_id: str, messages: list[Message]) -> None:
         if not messages:
             return
-        now = _now()
-        with get_db() as db:
-            db.executemany(
-                "insert into messages (conversation_id, data, created_at) values (?, ?, ?)",
-                [(conversation_id, _dump(m), now) for m in messages],
+        now = datetime.now(UTC)
+        with get_db() as db, db.cursor() as cur:
+            cur.executemany(
+                "insert into messages (conversation_id, data, created_at) values (%s, %s, %s)",
+                [
+                    (conversation_id, Jsonb(_no_nul(m.model_dump(mode="json"))), now)
+                    for m in messages
+                ],
             )
 
     def set_title(self, conversation_id: str, title: str) -> None:
         with get_db() as db:
-            db.execute("update conversations set title = ? where id = ?", (title, conversation_id))
+            db.execute(
+                "update conversations set title = %s where id = %s",
+                (_no_nul(title), conversation_id),
+            )
 
 
 @lru_cache
 def get_chat_store() -> ChatStore:
-    return SqliteChatStore()
+    return DbChatStore()

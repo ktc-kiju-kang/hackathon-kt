@@ -1,0 +1,64 @@
+# 로컬 실행 (각자 PC, 외부 서비스 없음): make serve → 이 파일, make dev → + compose.dev.yaml
+#   db :55432 (PostgreSQL), api :8000 (FastAPI), web :3000 (Next.js). 이 PC에서만 열린다(127.0.0.1).
+#   DB 데이터는 docker volume pgdata — 네이티브 실행(NATIVE=1)·make verify·e2e도 같은 db에 붙는다
+#   (schema로 격리: 앱 public, e2e는 e2e, 테스트는 테스트마다 새 schema). 팀원끼리 공유하지 않는다.
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: app       # 로컬 전용 계정 — 이 PC 밖으로 열리지 않는다 (비밀값 아님)
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: app
+    ports:  # 호스트 55432 — Mac에 흔한 5432(Homebrew·다른 프로젝트 PostgreSQL)와 안 부딪히게
+      - 127.0.0.1:${DB_PORT:-55432}:5432
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "app", "-d", "app"]
+      interval: 2s
+      retries: 30
+  api:
+    build:
+      context: .                      # database/migrations를 이미지에 넣으려고 루트가 context
+      dockerfile: backend/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://app:app@db:5432/app
+      CORS_ORIGINS: http://localhost:${WEB_PORT:-3000}
+      APP_VERSION: ${APP_VERSION:-}   # 컨테이너엔 git이 없어 scripts/docker.sh가 넘긴다
+      GIT_REMOTE_URL: ${GIT_REMOTE_URL:-}  # 현황판 GitHub 칸이 레포를 찾는 데 쓴다 (GITHUB_REPO가 우선)
+    ports:
+      - 127.0.0.1:${API_PORT:-8000}:8000
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend/data:/app/backend/data   # 정적 데이터(backend/data/<이름>/) — DB는 여기 없다
+      # 현황판(/dashboard)이 읽는 문서·시험 근거 — 읽기 전용
+      - ./docs:/app/docs:ro
+      - ./README.md:/app/README.md:ro
+      - ./.run/evidence:/app/.run/evidence:ro
+      # LLM 키 등은 앱이 backend/.env를 직접 읽는다 (네이티브와 같은 해석). env_file은 쓰지 않는다 —
+      # docker는 `LLM_PROVIDER=   # 주석`의 주석까지 값으로 읽는다. 위 environment가 .env보다 우선한다.
+      - type: bind
+        source: ./backend/.env
+        target: /app/backend/.env
+        read_only: true
+        bind: {create_host_path: false}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 3s
+      retries: 20
+  web:
+    build:
+      context: frontend
+      target: prod
+      args:
+        NEXT_PUBLIC_API_BASE_URL: http://localhost:${API_PORT:-8000}  # 브라우저가 붙는 주소 (빌드에 박힌다)
+    ports:
+      - 127.0.0.1:${WEB_PORT:-3000}:3000
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  pgdata:

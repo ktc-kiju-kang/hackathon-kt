@@ -5,10 +5,12 @@
 import type { LucideIcon } from 'lucide-react'
 import { Home } from 'lucide-react'
 import { Bot } from 'lucide-react'
+import { Gauge } from 'lucide-react'
 
 export type MenuItem = { title: string; href: string; icon: LucideIcon; order: number }
 
 export const MENU_ITEMS: MenuItem[] = [
   { title: '홈', href: '/', icon: Home, order: 0 },
   { title: 'AI 에이전트', href: '/agent', icon: Bot, order: 90 },
+  { title: '현황판', href: '/dashboard', icon: Gauge, order: 95 },
 ]

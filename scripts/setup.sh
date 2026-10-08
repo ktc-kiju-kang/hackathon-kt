@@ -28,3 +28,4 @@ if [ -f package-lock.json ]; then npm ci --no-audit --no-fund --loglevel=error; 
 [ -f .env.local ] || { cp .env.example .env.local; ok "frontend/.env.local 생성"; }
 
 ok "준비 완료 → make dev (개발) / make verify (검사) / make serve (로컬 배포)"
+command -v docker >/dev/null || warn "docker가 없습니다 — make dev·serve는 Docker Desktop이 필요합니다 (없으면 NATIVE=1 make dev)"

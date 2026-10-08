@@ -1,10 +1,13 @@
 # PR 리뷰 자동 점검·점수 설계
 
+> **현재 상태 (2026-10-08)**: PR 1(자동 점검 40점·`pr-review.yml`·`scripts/pr_review_score.py`)은 #80으로 머지됐다. AI 리뷰 블록(60점)은 별도 PR 2 대신 **`make ship`이 `scripts/ai-review.py`로 자동 생성**한다 (헤드리스 Claude + reviewer 지침 + JSON 스키마, 이 문서 5절 형식 그대로 — 실제 GitHub 시험에서 91/100 채점 확인). 본문의 `docs/SDLC.md`(2026-10-08 레포 정리로 삭제)·`docs/review.md`·`docs/workflow.md`(미작성) 참조는 설계 당시 기준이다 — 지금 흐름은 `docs/pipeline.md`·`.claude/skills/handoff`.
+
 - 날짜: 2026-10-03
 - 상태: 설계 승인됨. 2026-10-04 갱신: `ty`는 PR #63으로 이미 도입·CI 차단(진단 0건)이라 절대 기준으로 채점한다
 - 관련: `docs/SDLC.md`, `.claude/agents/reviewer.md`, `.claude/skills/handoff/SKILL.md`, 협업 규칙 2(승인 불필요)
 
-> **구현 상태 확인 (2026-10-06)**: 설계 승인과 구현 완료는 별개다. 현재 `pr-review.yml`·채점 스크립트·테스트·`docs/review.md`·`docs/workflow.md`는 없고, reviewer도 점수 없는 지적 목록을 출력한다. 아래 흐름·점수표는 **미구현 설계**이며 기존 40/60 배점·85/70 판정선은 변경하지 않는다.
+> **구현 상태 확인 (2026-10-08, 로컬 `dfd18f5`)**: `pr-review.yml`·채점 스크립트·자체 테스트는 구현돼 있다. `docs/review.md`·`docs/workflow.md`와 reviewer·handoff·템플릿의 표준 점수 블록 연결은 별도 작업이다. 실제 GitHub 실행·팀 채택 증거는 이번 문서 점검에서 확인하지 않았다. 자동 40/AI 60·85/70 판정선은 유지하며, 10월 7일 자동 항목 재배분은 아래 표와 결정 이력에 반영돼 있다.
+> 아래 CI 설명은 설계 의도를 포함한다. 실행 단계와 보고 단계가 분리된 현재 워크플로가 구현 기준이며, 미측정·권한 제한·오래된 리뷰의 실환경 인수는 [개선 가이드 V2/V3](../../SDLC-IMPROVEMENT.md#형상관리리뷰--v1-v2-v3)에 따른다.
 > 현재 운영 절차·근거는 [SDLC](../../SDLC.md), 실행 전 검토 항목은 [구현 계획](../plans/2026-10-04-pr-review-scoring-ci.md#구현-착수-전-재확인)에 둔다. 이 점수는 공식 해커톤 점수나 SDLC 성숙도 점수가 아니다.
 
 ## 1. 목적
