@@ -24,7 +24,7 @@ GitHub 이슈 = 티켓. **한 번 실행 = 한 틱**이다. 반복은 `/loop 5m 
 2. **새 티켓 선점** — 진행 중인 게 없을 때만. `scripts/ticket-claim.sh list`의 첫 번호 하나만 본다 (없으면 `대기 중`으로 끝).
    - `scripts/ticket-claim.sh claim <번호>` — 종료코드 0이면 선점 성공, 1이면 졌거나 대상 아님(조용히 다음 틱), 2면 오류(그대로 보고).
 3. **명세 검사** (선점 성공 직후 — 질문 댓글이 두 루프에서 중복되지 않게 반드시 선점 뒤에)
-   - `gh issue view <번호> --json title,body`로 명세를 읽는다. 목표와 완료 조건이 있고 구현 방향을 정할 수 있어야 한다. 없거나 모호하면 **구체적인 질문을 댓글로** 남기고 `release <번호> needs-info`. 추측으로 구현하지 않는다.
+   - `gh issue view <번호> --json title,body`로 본문을, `scripts/ticket-claim.sh comments <번호> 1970-01-01T00:00:00Z`로 **선점 전에 달린 댓글까지 전부**(명세 보충·변경) 읽는다. 본문과 댓글을 합친 것이 명세다 (충돌하면 나중 댓글이 이긴다). 목표와 완료 조건이 있고 구현 방향을 정할 수 있어야 한다. 없거나 모호하면 **구체적인 질문을 댓글로** 남기고 `release <번호> needs-info`. 추측으로 구현하지 않는다.
    - **사람이 봐야 하는 변경**이면 이유를 댓글로 남기고 `release <번호> needs-human`: DB 마이그레이션, `.github/workflows/`, 의존성(`package.json`·`requirements*.txt`), `.claude/`·CLAUDE.md 규칙, 시크릿·배포 설정, 다른 기능의 계약 변경, **CLAUDE.md 규칙 5의 공용 파일**(`layout.tsx`·`api-client.ts`·`components/`·`app/core/`·`app/agent/`·`main.py` 등).
    - 구현하다 위 항목이 필요해지면 중단하고 같은 방식으로 `blocked` 또는 `needs-human`으로 넘긴다.
    - 사람이 답하고 라벨(`needs-info`·`needs-human`·`blocked`)을 **떼면 다시 후보가 된다.** 라벨이 붙은 동안은 루프가 건드리지 않는다.
