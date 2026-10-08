@@ -35,6 +35,7 @@ services:
       - ./backend/data:/app/backend/data   # 정적 데이터(backend/data/<이름>/) — DB는 여기 없다
       # 현황판(/dashboard)이 읽는 문서·시험 근거 — 읽기 전용
       - ./docs:/app/docs:ro
+      - ./README.md:/app/README.md:ro
       - ./.run/evidence:/app/.run/evidence:ro
       # LLM 키 등은 앱이 backend/.env를 직접 읽는다 (네이티브와 같은 해석). env_file은 쓰지 않는다 —
       # docker는 `LLM_PROVIDER=   # 주석`의 주석까지 값으로 읽는다. 위 environment가 .env보다 우선한다.

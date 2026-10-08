@@ -132,6 +132,14 @@ def _ok_handler(request: httpx.Request) -> httpx.Response:
                 {"number": 8, "title": "PR이 섞여 온다", "pull_request": {}, "html_url": "u8"},
             ],
         )  # fmt: skip
+    if p.endswith("/pulls") and request.url.params.get("state") == "closed":
+        merged = {"title": "머지됨", "user": {"login": "kim"}, "merged_at": "2026-10-08T07:00:00Z"}
+        return httpx.Response(
+            200,
+            json=[{**merged, "number": 5}, {**merged, "number": 6, "merged_at": None}],
+        )
+    if p.endswith("/branches/main"):
+        return httpx.Response(200, json={"commit": {"sha": "abcdef1234567890"}})
     if p.endswith("/pulls"):
         pr = {"title": "기능", "user": {"login": "lee"}, "draft": False}
         return httpx.Response(
@@ -156,7 +164,9 @@ def _ok_handler(request: httpx.Request) -> httpx.Response:
     if p.endswith("/git/matching-refs/heads/claim/"):
         return httpx.Response(200, json=[{"ref": "refs/heads/claim/7", "object": {"sha": "c7"}}])
     if p.endswith("/git/commits/c7"):
-        return httpx.Response(200, json={"message": "kim #7"})
+        return httpx.Response(
+            200, json={"message": "kim #7", "committer": {"date": "2026-10-07T01:00:00Z"}}
+        )
     return httpx.Response(404)
 
 
@@ -171,7 +181,11 @@ def test_github_ok_and_token_never_in_response(monkeypatch):
     assert [i["number"] for i in body["issues"]] == [7]  # PR은 Issue 목록에서 뺀다
     assert {p["number"]: p["checks"] for p in body["pulls"]} == {9: "fail", 10: "pass"}
     assert body["main_runs"][0]["sha"] == "abcdef1"
-    assert body["claims"] == [{"issue": 7, "owner": "kim"}]
+    assert body["claims"] == [{"issue": 7, "owner": "kim", "claimed_at": "2026-10-07T01:00:00Z"}]
+    assert body["main_sha"] == "abcdef1234567890"
+    assert [(m["number"], m["author"]) for m in body["recent_merges"]] == [
+        (5, "kim")
+    ]  # 닫히기만 한 PR 제외
     assert TOKEN not in r.text
 
 
@@ -257,3 +271,76 @@ def test_token_not_sent_to_non_github_origin(monkeypatch):
 def test_bad_repo_name_is_unconfigured(monkeypatch):
     monkeypatch.setattr(settings, "github_repo", "team/../../admin?x=1")
     assert client.get("/api/dashboard/github").json()["status"] == "unconfigured"
+
+
+def _evidence(root, run_id: str, overall: str, sha: str, suites: str) -> None:
+    d = root / "docs" / "evidence" / run_id
+    d.mkdir(parents=True)
+    (d / "summary.md").write_text(
+        f"- 소스 SHA: `{sha}`\n- 전체: {overall}\n\n"
+        f"| 묶음 | 결과 | 원본 |\n|---|---|---|\n{suites}",
+        encoding="utf-8",
+    )
+
+
+def test_history_counts_runs_in_order(repo_root):
+    _evidence(
+        repo_root, "20261008-090000-aaaaaaa", "FAIL", "a" * 40, "| be | 10개 중 실패 2 | x |\n"
+    )
+    _evidence(
+        repo_root,
+        "20261008-100000-bbbbbbb",
+        "PASS",
+        "b" * 40,
+        "| be | 10개 중 실패 0 | x |\n| e2e | 3개 중 실패 0 | x |\n",
+    )
+    h = client.get("/api/dashboard").json()["test_history"]
+    assert [(r["run_id"][:15], r["total"], r["failed"], r["overall"]) for r in h] == [
+        ("20261008-090000", 10, 2, "FAIL"),
+        ("20261008-100000", 13, 0, "PASS"),
+    ]
+    assert h[0]["ran_at"].startswith("2026-10-08T09:00:00+09:00")
+
+
+def _checks(body):
+    return {c["key"]: c["status"] for c in body["readiness"]["checks"]}
+
+
+def test_readiness_not_applicable_without_submission_docs(repo_root):
+    body = client.get("/api/dashboard").json()
+    assert body["readiness"]["deadline"].startswith("2026-10-15T00:00:00+09:00")
+    assert _checks(body) | {"committed": "x"} == {
+        "committed": "x",  # 테스트 환경의 git 상태에 따라 다르다
+        "evidence": "na",
+        "placeholders": "na",
+        "reqs": "na",
+    }
+
+
+def test_readiness_checks_team_repo(repo_root, monkeypatch):
+    sha = "c" * 40
+    monkeypatch.setattr(settings, "app_version", sha)
+    (repo_root / "docs").mkdir()
+    (repo_root / "docs" / "prd.md").write_text(PRD, encoding="utf-8")  # REQ-02가 계획
+    (repo_root / "README.md").write_text("# {{서비스 이름}}\n{{설명}}\n", encoding="utf-8")
+    _evidence(repo_root, "20261008-100000-ccccccc", "PASS", sha, "| be | 10개 중 실패 0 | x |\n")
+    body = client.get("/api/dashboard").json()
+    assert _checks(body) == {
+        "committed": "ok",
+        "evidence": "ok",
+        "placeholders": "fail",
+        "reqs": "fail",
+    }
+    detail = {c["key"]: c["detail"] for c in body["readiness"]["checks"]}
+    assert detail["placeholders"] == "README.md 2개" and "REQ-02" in detail["reqs"]
+
+
+def test_readiness_evidence_from_other_commit_or_dirty_fails(repo_root, monkeypatch):
+    monkeypatch.setattr(settings, "app_version", "d" * 40 + "-dirty")
+    (repo_root / "docs").mkdir()
+    (repo_root / "docs" / "prd.md").write_text(PRD, encoding="utf-8")
+    _evidence(
+        repo_root, "20261008-100000-eeeeeee", "PASS", "e" * 40, "| be | 1개 중 실패 0 | x |\n"
+    )
+    c = _checks(client.get("/api/dashboard").json())
+    assert c["committed"] == "fail" and c["evidence"] == "fail"

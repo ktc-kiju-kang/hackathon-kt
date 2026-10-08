@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     github_token: str = ""  # 비밀값. 읽기 전용 토큰, backend/.env 에만 (공개 레포는 없어도 됨)
     github_api_url: str = ""  # 비우면 github.com, 사내 GHE는 origin 호스트의 /api/v3
     git_remote_url: str = ""  # docker 실행 때 docker.sh가 넘기는 origin 주소 (컨테이너엔 git 없음)
+    submit_deadline: str = "2026-10-15T00:00:00+09:00"  # 현황판 마감 카운트다운 (본선 개발 마감)
 
     # /api/health의 version. 비우면 실행 중인 git 커밋 SHA (e2e-test.md 근거용)
     app_version: str = ""
