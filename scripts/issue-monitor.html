@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>이슈 모니터</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --text: #1c2430; --muted: #667085; --line: #e3e7ee;
+    --accent: #2f6fed; --ok: #1a8f4c; --warn: #b7791f; --bad: #d1324b; --chip: #eef1f6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #11151b; --panel: #1a2029; --text: #e6eaf0; --muted: #98a2b3; --line: #2a3340;
+            --accent: #6b9cff; --ok: #3ccf7a; --warn: #e5b559; --bad: #ff6b81; --chip: #232c38; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Segoe UI", sans-serif; }
+  header { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; padding: 14px 20px;
+           background: var(--panel); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 2; }
+  header h1 { font-size: 16px; margin: 0; }
+  .meta { color: var(--muted); font-size: 12px; display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; background: var(--muted); }
+  .dot.ok { background: var(--ok); } .dot.bad { background: var(--bad); } .dot.warn { background: var(--warn); }
+  .counts { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+  .count { background: var(--chip); border-radius: 999px; padding: 2px 10px; font-size: 12px; }
+  main { display: grid; grid-template-columns: 1fr 340px; gap: 16px; padding: 16px 20px; align-items: start; }
+  @media (max-width: 1000px) { main { grid-template-columns: 1fr; } }
+  .board { display: grid; grid-template-columns: repeat(5, minmax(190px, 1fr)); gap: 12px; overflow-x: auto; padding-bottom: 6px; }
+  .col { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; min-height: 140px; }
+  .col h2 { font-size: 13px; margin: 0; padding: 10px 12px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; }
+  .col h2 span { color: var(--muted); font-weight: 400; }
+  .cards { padding: 8px; display: grid; gap: 8px; }
+  .card { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--bg); }
+  .card a { color: var(--text); text-decoration: none; font-weight: 600; }
+  .card a:hover { color: var(--accent); text-decoration: underline; }
+  .num { color: var(--muted); font-weight: 400; margin-right: 4px; }
+  .row { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+  .chip { background: var(--chip); border-radius: 6px; padding: 1px 7px; font-size: 11px; color: var(--muted); }
+  .chip.ok { color: var(--ok); } .chip.bad { color: var(--bad); } .chip.warn { color: var(--warn); } .chip.acc { color: var(--accent); }
+  .empty { color: var(--muted); font-size: 12px; padding: 6px 4px; }
+  aside { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; max-height: calc(100vh - 100px); overflow: auto; }
+  aside h2 { font-size: 13px; margin: 0; padding: 10px 12px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--panel); }
+  .ev { padding: 8px 12px; border-bottom: 1px solid var(--line); font-size: 12.5px; }
+  .ev time { display: block; color: var(--muted); font-size: 11px; }
+  .ev a { color: var(--accent); text-decoration: none; }
+  .err { margin: 12px 20px 0; padding: 8px 12px; border-radius: 8px; background: color-mix(in srgb, var(--bad) 14%, transparent); color: var(--bad); display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🛰️ 이슈 모니터 <span id="repo" class="meta"></span></h1>
+  <div class="meta">
+    <span><span id="live" class="dot"></span><span id="liveText">연결 중…</span></span>
+    <span>마지막 확인 <b id="polled">-</b></span>
+    <span>Slack <b id="slack">-</b></span>
+  </div>
+  <div class="counts" id="counts"></div>
+</header>
+<div class="err" id="err"></div>
+<main>
+  <section class="board" id="board"></section>
+  <aside><h2>최근 알림</h2><div id="events"></div></aside>
+</main>
+<script>
+  // 제목·댓글은 신뢰할 수 없는 입력이다: 모든 값은 textContent 로만 넣는다 (innerHTML 금지).
+  const COLS = [
+    ['wait', '📥 대기'], ['human', '🙋 사람 확인'], ['work', '🔒 진행 중'], ['review', '🔀 리뷰·머지 대기'], ['done', '✅ 완료'],
+  ];
+  const $ = (id) => document.getElementById(id);
+  const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+
+  function ago(iso) {
+    if (!iso) return '-';
+    const s = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
+    if (s < 60) return s + '초 전';
+    if (s < 3600) return Math.round(s / 60) + '분 전';
+    return Math.round(s / 3600) + '시간 전';
+  }
+  const safeUrl = (u) => (typeof u === 'string' && u.startsWith('https://github.com/')) ? u : null;
+
+  function chip(text, kind) { return el('span', 'chip' + (kind ? ' ' + kind : ''), text); }
+  function card(item) {
+    const c = el('div', 'card');
+    const a = el('a', null, item.title);
+    const u = safeUrl(item.url); if (u) { a.href = u; a.target = '_blank'; a.rel = 'noopener noreferrer'; }
+    const head = el('div'); head.append(el('span', 'num', (item.kind === 'pr' ? 'PR #' : '#') + item.number), a);
+    c.append(head);
+    const row = el('div', 'row');
+    (item.chips || []).forEach(([t, k]) => row.append(chip(t, k)));
+    if (row.childNodes.length) c.append(row);
+    return c;
+  }
+
+  function build(data) {
+    const prsByIssue = {}, linkedPr = new Set();
+    data.prs.forEach((p) => (p.issues || []).forEach((n) => { (prsByIssue[n] = prsByIssue[n] || []).push(p); linkedPr.add(p.number); }));
+    const cols = { wait: [], human: [], work: [], review: [], done: [] };
+    const checkChip = (p) => p.checks === 'success' ? ['체크 통과', 'ok'] : p.checks === 'failure' ? ['체크 실패: ' + (p.failing || []).join(', '), 'bad']
+      : p.checks === 'pending' ? ['체크 진행 중', 'warn'] : ['체크 없음', null];
+
+    data.issues.forEach((i) => {
+      const prs = (prsByIssue[i.number] || []).sort((a, b) => b.number - a.number);
+      const openPr = prs.find((p) => p.state === 'open'), mergedPr = prs.find((p) => p.state === 'merged');
+      const chips = [];
+      if (i.claim) chips.push(['🔒 ' + i.claim, 'acc']);
+      else if ((i.assignees || []).length) chips.push(['👤 ' + i.assignees.join(', '), null]);
+      (i.labels || []).forEach((l) => chips.push([l, 'warn']));
+      if (i.comments) chips.push(['💬 ' + i.comments, null]);
+      if (i.state === 'open' && i.assoc && !['OWNER', 'MEMBER', 'COLLABORATOR'].includes(i.assoc)) chips.push(['⚠️ 외부 작성자', 'bad']);
+      let col;
+      if (i.state === 'closed') {
+        col = 'done'; chips.unshift([i.reason === 'not_planned' ? '계획 없음' : '완료', i.reason === 'not_planned' ? null : 'ok']);
+        if (mergedPr) chips.push(['PR #' + mergedPr.number + ' 머지', 'ok']);
+        if (mergedPr && mergedPr.main_ci === 'success') chips.push(['main CI 통과', 'ok']);
+        if (mergedPr && mergedPr.main_ci === 'failure') chips.push(['main CI 실패', 'bad']);
+        if (mergedPr && mergedPr.main_ci === 'pending') chips.push(['main CI 진행 중', 'warn']);
+      } else if (openPr) {
+        col = 'review'; chips.push(['PR #' + openPr.number, 'acc'], checkChip(openPr));
+      } else if ((i.labels || []).length) col = 'human';
+      else if (i.claim || (i.assignees || []).length) col = 'work';
+      else col = 'wait';
+      cols[col].push({ kind: 'issue', number: i.number, title: i.title, url: i.url, chips });
+    });
+    data.prs.forEach((p) => {
+      if (linkedPr.has(p.number)) return;
+      const chips = [[p.state === 'merged' ? '머지됨' : p.state === 'closed' ? '닫힘' : '열림', p.state === 'merged' ? 'ok' : null], ['이슈 연결 없음', 'warn']];
+      if (p.state === 'open') chips.push(checkChip(p));
+      cols[p.state === 'open' ? 'review' : 'done'].push({ kind: 'pr', number: p.number, title: p.title, url: p.url, chips });
+    });
+    cols.done = cols.done.sort((a, b) => b.number - a.number).slice(0, 12);
+    return cols;
+  }
+
+  function render(data) {
+    $('repo').textContent = data.repo;
+    $('polled').textContent = ago(data.polled_at);
+    $('slack').textContent = ({ on: '켜짐', off: '꺼짐', error: '전송 오류', 'dry-run': '시험(전송 안 함)' })[data.slack] || data.slack;
+    const ok = data.fails === 0 && data.polled_at;
+    $('live').className = 'dot ' + (ok ? 'ok' : data.fails > 0 ? 'bad' : 'warn');
+    $('liveText').textContent = ok ? '정상 (' + data.interval + '초 주기)' : data.fails > 0 ? 'GitHub 조회 ' + data.fails + '회 연속 실패' : '첫 조회 대기';
+    const err = $('err'); err.style.display = data.error ? 'block' : 'none'; err.textContent = data.error ? '최근 오류: ' + data.error : '';
+
+    const cols = build(data);
+    const board = $('board'); board.replaceChildren();
+    const counts = $('counts'); counts.replaceChildren();
+    COLS.forEach(([key, label]) => {
+      const col = el('div', 'col'); const h = el('h2', null, label); h.append(el('span', null, String(cols[key].length)));
+      const wrap = el('div', 'cards');
+      if (!cols[key].length) wrap.append(el('div', 'empty', '없음'));
+      cols[key].forEach((c) => wrap.append(card(c)));
+      col.append(h, wrap); board.append(col);
+      counts.append(el('span', 'count', label.replace(/^\S+\s/, '') + ' ' + cols[key].length));
+    });
+
+    const evs = $('events'); evs.replaceChildren();
+    if (!data.events.length) evs.append(el('div', 'empty', '아직 알림이 없습니다'));
+    data.events.forEach((e) => {
+      const row = el('div', 'ev'); row.append(el('time', null, ago(e.ts)));
+      const u = safeUrl(e.url);
+      if (u) { const a = el('a', null, e.text); a.href = u; a.target = '_blank'; a.rel = 'noopener noreferrer'; row.append(a); }
+      else row.append(el('span', null, e.text));
+      evs.append(row);
+    });
+  }
+
+  async function tick() {
+    try {
+      const r = await fetch('/api/state', { cache: 'no-store' });
+      if (!r.ok) throw new Error(r.status);
+      render(await r.json());
+    } catch (e) {
+      $('live').className = 'dot bad'; $('liveText').textContent = '모니터에 연결할 수 없음 (scripts/monitor.sh status)';
+    }
+  }
+  tick(); setInterval(tick, 5000);
+</script>
+</body>
+</html>
