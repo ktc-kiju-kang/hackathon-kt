@@ -81,4 +81,4 @@
 - 스킬 흐름: `/new-issue` → `/start-task` → (`/add-endpoint`·`/add-page`·`/add-agent-tool`) → `/pr-check` → `/handoff`. 보조: `/sync`·`/team-status`·`/deploy-status`. 자동 큐: `/loop 5m /ticket-loop` (열린 이슈를 동시성 안전하게 선점해 PR까지, 머지는 사람 — `scripts/ticket-claim.sh`). 설명은 각 스킬 파일의 frontmatter.
 - PR 전에는 `reviewer` 서브에이전트로 셀프 리뷰.
 - **다른 사람 PR의 충돌을 풀 때**는 그 브랜치에 main을 merge한다 (rebase·force push로 남의 기록을 바꾸지 않는다). 남의 기능 파일이 걸리면 선택지를 사용자에게 묻는다.
-- 이슈 생성·push·PR 생성·수동 재배포는 사용자 확인 후. 예외: `/ticket-loop`는 사용자가 루프를 시작한 것을 push·PR 생성의 사전 승인으로 본다(머지·재배포·이슈 생성은 여전히 제외). PR 머지는 사람이 한다. 공유 DB에 직접 SQL을 실행하지 않는다 (마이그레이션 파일 + 배포 파이프라인으로만).
+- 이슈 생성·push·PR 생성·수동 재배포는 사용자 확인 후. 예외: `/ticket-loop`는 사용자가 루프를 시작한 것을 `<type>/<번호>-…` 기능 브랜치의 push·PR 생성에 대한 사전 승인으로 본다(main push·force push·남의 브랜치·머지·재배포·이슈 생성은 여전히 제외). PR 머지는 사람이 한다. 공유 DB에 직접 SQL을 실행하지 않는다 (마이그레이션 파일 + 배포 파이프라인으로만).
