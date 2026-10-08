@@ -1,6 +1,6 @@
 # 파이프라인 입구. 상세: docs/pipeline.md
 .DEFAULT_GOAL := help
-.PHONY: help setup dev sync verify serve stop status smoke e2e ship record lock-status claims release db db-reset docs submit-check
+.PHONY: help setup dev sync verify serve stop status smoke e2e ship record lock-status claims release db db-reset docs submit-check monitor monitor-stop
 
 help: ## 명령 목록
 	@grep -E '^[a-z0-9-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-13s %s\n", $$1, $$2}'
@@ -46,6 +46,12 @@ record: ## main에서 시험 기록(e2e-test.md·evidence)을 자동 PR로 머�
 
 lock-status: ## 머지 잠금 상태 (누가 머지 중인지)
 	@scripts/lock-status.sh
+
+monitor: ## Issue 진행 상태 모니터 + 로컬 대시보드 + Slack 알림 켜기 (끄기: make monitor-stop)
+	@scripts/monitor.sh start
+
+monitor-stop: ## Issue 모니터 끄기
+	@scripts/monitor.sh stop
 
 claims: ## 누가 어떤 Issue를 잡고 있는지 (선점 목록, 오래 멈춘 것 경고)
 	@scripts/claim.sh list

@@ -78,6 +78,6 @@
 7. AI 리뷰가 "수정 필요"면 지적을 고친다. 리뷰를 다시 돌려 점수를 올리려고 코드를 바꾸지 않고 내용을 고친다. 테스트를 지우거나 skip으로 통과시키지 않는다.
 
 ## Claude 작업 방식
-- 스킬 흐름: `/new-issue` → `/start-task` → (`/add-endpoint`·`/add-page`·`/add-agent-tool`) → `/handoff`(= `make ship`). 보조: `/sync`·`/pr-check`·`/team-status`. 본선용: `/plan-topic`·`/submit`.
+- 스킬 흐름: `/new-issue` → `/start-task` → (`/add-endpoint`·`/add-page`·`/add-agent-tool`) → `/handoff`(= `make ship`). 보조: `/sync`·`/pr-check`·`/team-status`. 이슈 현황: `/issue-monitor`(Slack 알림 + 로컬 대시보드). 본선용: `/plan-topic`·`/submit`.
 - Issue 생성은 사용자 확인 후. **`make ship`(push·PR·자동 머지 포함)은 사용자가 "ship"·"진행"으로 요청했을 때 실행한다.** ship이 멈추면 원인을 설명하고 고칠 방법을 제안한다.
 - 같은 작업 폴더에서 다른 Claude 세션이 일하고 있을 수 있다. 큰 작업은 `scripts/new-worktree.sh`로 분리한다.
