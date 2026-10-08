@@ -16,3 +16,4 @@ Issue 작업을 시작한다: $ARGUMENTS
 6. **시험부터**: 이 REQ의 TC가 `docs/e2e-test.md`에 없으면 AC마다 GIVEN/WHEN/THEN 시나리오를 상태 `미실행`으로 먼저 적는다 (정상·오류·권한 경계).
 7. 작업 범위를 안내한다: `frontend/src/app/<route>/`, `frontend/src/features/<feature>/`, `backend/app/{routers,services,schemas}/<feature>.py`, `backend/tests/test_<feature>.py`, `docs/contracts/<feature>.md`, (DB) `database/migrations/`. 같은 파일을 다른 열린 PR이 건드리면(`gh pr list`) 알린다.
 8. 새 API가 필요하면 `/add-endpoint`로 계약부터 정하자고 제안한다. 보안 기준(`docs/security-policy.md`) 중 이 REQ에 해당하는 SEC가 있으면 짚어 준다.
+9. **구현 원칙**: 구현에 들어가면 `/ponytail`(기본 full)을 먼저 적용하고 TDD와 함께 쓴다 — 기존 코드 재사용 → 표준·네이티브 → 설치된 의존성 → 최소 구현. 검증·보안·접근성·계약은 줄이지 않는다.

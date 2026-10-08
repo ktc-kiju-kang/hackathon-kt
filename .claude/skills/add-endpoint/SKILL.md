@@ -5,6 +5,8 @@ argument-hint: <feature> <METHOD> <path> <설명>
 ---
 엔드포인트를 추가한다: $ARGUMENTS
 
+0. **구현 원칙** — `/ponytail`(기본 full)을 적용한다: 기존 service·schema·패턴 재사용 → 표준 라이브러리 → 설치된 의존성 → 최소 구현. 검증·권한·계약·테스트는 줄이지 않는다.
+
 1. **계약** — `docs/contracts/<feature>.md` (없으면 `docs/contracts/README.md` 템플릿으로 생성하고 목록에 추가)에 메서드·경로(`/api/<feature>/...`)·Request/Response JSON·에러·관련 REQ ID를 적는다. 사용자에게 보여주고 확인받는다. `docs/arch.md` "API" 표에도 한 줄.
 2. **데이터 저장 위치** — 공개된 읽기 전용 데이터면 `backend/data/` 파일 + 메모리 로드. 사용자가 만드는 데이터면 DB:
    **DB** — `database/migrations/$(date +%Y%m%d%H%M)_<설명>.sql` 새 파일 (만든 시각 이름 — 번호 경쟁 없음) (PostgreSQL 문법, 규칙: `database/README.md`). 소유자 컬럼을 두고, 서버를 다시 켜면 자동 적용된다. 계약 문서와 `docs/arch.md` "데이터 모델"에도 적는다.
