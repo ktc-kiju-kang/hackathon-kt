@@ -23,6 +23,6 @@ paths:
 - **SSE를 읽는 클라이언트**(`features/chat/api.ts`): `done`·`error` 없이 스트림이 끝나면 연결 끊김으로 보고 오류를 던진다. 중지·오류 시 진행 중 표시(스피너)를 끈다. `AbortController`로 취소한다.
 - **순수 로직의 테스트**(`lib/`, `features/*/api.ts`의 파서·변환 등)는 `*.test.ts`로 둔다 — Vitest, `npm test`, CI가 실행한다 (예: `src/lib/sse.test.ts`). 화면(컴포넌트) 테스트는 아직 없다. Vitest 5.x는 Node 22.12+를 요구해 CI의 Node 20과 맞지 않으므로 4.x를 쓴다.
 - LLM이 만든 문자열을 React `key`로 쓸 때는 순번을 붙인다 (`${i}-${text}`). 같은 문구가 두 번 나올 수 있다.
-- **새 화면 = 라우트 + 기능 폴더 + 메뉴 한 줄** (`/add-page`). 모든 화면은 `AppShell`(사이드바 + 상단 헤더 `h-12`) 안에 그려진다.
+- **새 화면 = 라우트 + 기능 폴더 + 메뉴 한 줄**(`components/menu-items.ts`, merge=union이라 동시에 추가해도 충돌 없음) (`/add-page`). 모든 화면은 `AppShell`(사이드바 + 상단 헤더 `h-12`) 안에 그려진다.
   - 화면 전체 높이를 쓰는 페이지(채팅 등)는 루트를 `h-[calc(100svh-3rem)]`로, 스크롤은 페이지가 아니라 내부 목록(`min-h-0 flex-1 overflow-y-auto`)에서.
   - 같은 이름의 라우트·기능 폴더를 두 사람이 만들지 않게, 시작 전에 `ls frontend/src/app frontend/src/features`와 열린 PR을 확인한다 (`/pr-check`가 PR 전에 다시 잡는다).
