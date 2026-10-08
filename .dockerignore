@@ -1,0 +1,6 @@
+# api 이미지 context(루트)에서 뺄 것 — 필요한 건 backend/requirements.txt·backend/app·database뿐
+**
+!backend/requirements.txt
+!backend/app
+!database
+**/__pycache__

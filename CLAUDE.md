@@ -53,11 +53,11 @@
 | 명령 | 언제 |
 |---|---|
 | `make setup` | 처음 한 번, 의존성이 바뀌면 다시 |
-| `make dev` | 개발 (핫 리로드, api :8000 + web :3000, 이 PC에서만) |
+| `make dev` | 개발 (docker compose, 핫 리로드, api :8000 + web :3000, 이 PC에서만). docker 없이 `NATIVE=1 make dev` |
 | `make sync` | 작업 시작 전·중간 — 최신 main을 내 브랜치에 merge |
 | `make verify` | 수시로 — CI와 같은 검사 전부 (ship도 실행) |
 | **`make ship`** | **작업 끝 — 검사·시험·PR·AI 리뷰·자동 머지** |
-| `make serve` / `make stop` / `make status` | 로컬 배포 (프로덕션 빌드 + 스모크) |
+| `make serve` / `make stop` / `make status` | 로컬 배포 (docker compose, 프로덕션 빌드 + 스모크). `make verify`·`e2e`·`ship`은 docker를 쓰지 않는다 (CI와 같은 로컬 도구) |
 | `make e2e` | 시험 전부 + 격리 배포 E2E (확인용. 기록 커밋은 `make record`) |
 | `make record` | 기록 담당: main에서 시험 기록을 자동 PR로 머지 (2~3시간마다, 제출 전) — **팀 레포 전용** |
 | `make lock-status` | 누가 머지 중인지 |

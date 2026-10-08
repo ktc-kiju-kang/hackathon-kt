@@ -8,8 +8,8 @@ help: ## 명령 목록
 setup: ## 개발 환경 준비 (의존성·.env) — 처음 한 번, 의존성이 바뀌면 다시
 	@scripts/setup.sh
 
-dev: ## 개발 서버 (핫 리로드) api :8000 + web :3000
-	@scripts/dev.sh
+dev: ## 개발 서버 (핫 리로드) api :8000 + web :3000 — docker compose (NATIVE=1이면 로컬 도구)
+	@if [ "$(NATIVE)" = 1 ]; then scripts/dev.sh; else scripts/docker.sh dev; fi
 
 sync: ## 최신 main을 지금 브랜치에 merge (작업 시작 전·중간중간)
 	@scripts/sync.sh
@@ -17,14 +17,14 @@ sync: ## 최신 main을 지금 브랜치에 merge (작업 시작 전·중간중�
 verify: ## CI와 같은 검사 전부 (lint·type·test·build·문서)
 	@scripts/verify.sh
 
-serve: ## 로컬 배포 (프로덕션 빌드, 백그라운드) + 스모크
-	@scripts/serve.sh
+serve: ## 로컬 배포 (프로덕션 빌드, 백그라운드) + 스모크 — docker compose (NATIVE=1이면 로컬 도구)
+	@if [ "$(NATIVE)" = 1 ]; then scripts/serve.sh; else scripts/docker.sh up; fi
 
-stop: ## 로컬 배포 종료
-	@scripts/stop.sh
+stop: ## 로컬 배포 종료 (docker·로컬 둘 다)
+	@scripts/docker.sh down; scripts/stop.sh
 
-status: ## 로컬 배포 상태
-	@scripts/status.sh
+status: ## 로컬 배포 상태 (docker·로컬)
+	@scripts/status.sh; scripts/docker.sh status
 
 smoke: ## 떠 있는 서버 스모크 확인
 	@scripts/smoke.sh
