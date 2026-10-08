@@ -465,6 +465,18 @@ class DashboardServerTest(unittest.TestCase):
         with self.assertRaises(urllib.error.HTTPError):
             urllib.request.urlopen(req, timeout=5)
 
+    def test_army_theme_served(self):
+        import re
+
+        army = self.get("/?theme=army").read().decode()
+        self.assertIn("작전 상황판", army)
+        self.assertNotIn("이슈 택배 조회", army)
+        self.assertIn("이슈 택배 조회", self.get("/").read().decode())  # 기본 테마는 그대로
+        # 군대 테마도 외부 입력은 textContent 로만
+        self.assertIsNone(
+            re.search(r"\.(innerHTML|outerHTML)\b|insertAdjacentHTML|document\.write", army)
+        )
+
     def test_event_limit(self):
         self.dash.add_events([f"e{i}" for i in range(250)])
         self.assertEqual(len(self.dash.data["events"]), im.EVENT_LIMIT)

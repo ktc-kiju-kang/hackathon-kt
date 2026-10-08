@@ -298,6 +298,7 @@ def run_cycle(
 # ---------- 대시보드 (로컬 HTML, 읽기 전용) ----------
 
 HTML_PATH = Path(__file__).with_name("issue-monitor.html")
+ARMY_HTML_PATH = Path(__file__).with_name("issue-monitor-army.html")  # ?theme=army 군대 테마
 EVENT_LIMIT = 100
 
 
@@ -389,10 +390,11 @@ def start_server(dash: Dash, port: int):
                 "localhost",
             ):
                 return self._send(403, "text/plain; charset=utf-8", b"forbidden")
-            path = self.path.split("?")[0]
+            path, _, query = self.path.partition("?")
             if path == "/":
+                html = ARMY_HTML_PATH if "theme=army" in query.split("&") else HTML_PATH
                 try:
-                    return self._send(200, "text/html; charset=utf-8", HTML_PATH.read_bytes())
+                    return self._send(200, "text/html; charset=utf-8", html.read_bytes())
                 except OSError:
                     return self._send(500, "text/plain; charset=utf-8", b"dashboard html missing")
             if path == "/api/state":

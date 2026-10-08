@@ -13,6 +13,7 @@ Issue(티켓)의 진행 상태(대기 → 선점 → PR → 체크 → 머지 �
 | 켜기 (백그라운드, 대시보드를 브라우저로 연다) | `scripts/monitor.sh start` 또는 `make monitor` |
 | 상태 확인 (켜졌는지, 마지막 확인 시각, 연속 실패) | `scripts/monitor.sh status` |
 | 대시보드만 다시 열기 | `scripts/monitor.sh open` → http://127.0.0.1:8765 |
+| 군대 테마로 보기 | http://127.0.0.1:8765/?theme=army (캐릭터 시트 `?sprites=1`, 가짜 데이터 `?demo=1`과 함께 쓸 수 있다) |
 | 끄기 | `scripts/monitor.sh stop` 또는 `make monitor-stop` |
 | 로그 | `scripts/monitor.sh logs` |
 | Slack 없이 대시보드만 | `scripts/monitor.sh start --no-slack` |
