@@ -12,7 +12,7 @@
 | 모델 | Claude Opus 5.5, Claude Sonnet 5, GPT-6 Astra | 작업을 추론·작성하는 엔진 |
 | 설치형 스킬 | `brainstorming`, `writing-plans`, `grill-me` | 모델에 읽히는 작업 절차. 설치만으로 테스트·보안 검사가 실행되지 않음 |
 | CLI 내장 기능 | Copilot CLI `/plan` | 구현 전 계획을 만드는 기능. `plan`이라는 외부 스킬을 설치한다는 뜻이 아님 |
-| 저장소 스킬 | `new-issue`, `pr-check`, `deploy-status` | 이 프로젝트의 이슈·검증·배포 규칙을 적용하는 절차 |
+| 저장소 스킬 | `new-issue`, `pr-check`, `handoff` | 이 프로젝트의 이슈·검증·배포 규칙을 적용하는 절차 |
 | 에이전트 | `reviewer` | 리뷰 역할과 별도 실행 문맥. 스킬과 같은 종류가 아님 |
 | 결정적 도구 | pytest, Vitest, ruff, CI, gitleaks | 실제 결과를 판정하는 검사. 모델의 “통과했다”는 답변으로 대체 불가 |
 
@@ -46,7 +46,7 @@ Copilot CLI 1.0.91 도움말에서 `/plan`, `/model`, `/skills`, `/subagents`를
 | READY_TO_MERGE | 없음 | 추가 스킬 불필요. [SDLC DoD](pipeline.md) | 필수 체크·최신 리뷰·차단 지적 해소. PR 참고 점수만으로 READY 판정 금지 |
 | MERGE QUEUE | 없음 | 추가 스킬 불필요. 사람의 의존성·충돌·최신성 확인 | 의존 PR 먼저, 같은 우선순위는 접수 순으로 처리하는 절차안. GitHub Merge Queue 활성화 사실을 뜻하지 않음 |
 | MERGE | **사람** | `finishing-a-development-branch` [S]는 선택지·정리 자료만 보조 | 사람이 한 건씩 머지. 다른 사람 브랜치의 충돌은 main merge로 해결하며 무단 rebase/force push 금지 |
-| CI → DEPLOY → SMOKE | 없음, 로그 정리는 L | `deploy-status` [L], `verification-before-completion` [S] | main CI→migrate→backend→frontend→smoke, 대상 SHA·경고/건너뜀 확인 |
+| CI → DEPLOY → SMOKE | 없음, 로그 정리는 L | `handoff` 결과 [L], `verification-before-completion` [S] | main CI→`make ship` 머지 후 main 검사→`make serve` 스모크, 대상 SHA·경고/건너뜀 확인 |
 | PASS/FAIL · REOPEN | 원인 분석 R, 상태 판정 없음 | `systematic-debugging`, `receiving-code-review` [S], 필요 시 `new-issue` [L] | 재현·원인/가설·조치·재검증. 자동 revert·자동 PR 종료 대신 승인 절차 적용 |
 | ALL PR MERGED | 없음 | 추가 스킬 불필요 | 이번 릴리스 범위의 PR 집합·배포 SHA 고정. “열린 PR 0개”가 전역 완료를 뜻하지 않음 |
 | FULL INTEGRATION TEST | 실행 없음, 테스트 작성 C | `webapp-testing` [A, 신규 후보], `test-driven-development` [S] | 로컬/mock 브라우저 통합·회귀와 실패 증거. 핵심 회귀는 머지 전에도 실행 |
@@ -62,7 +62,7 @@ Copilot CLI 1.0.91 도움말에서 `/plan`, `/model`, `/skills`, `/subagents`를
 | L1 모듈 실패 | `systematic-debugging` → `test-driven-development` | 동일 재현 실패→수정 후 통과, 기존 회귀 유지 |
 | L2 CI·충돌 실패 | `pr-check` + 원인별 디버깅 | 최신 main·SHA의 필수 검사와 지적 처리. 반복 실패 시 자동 PR 종료하지 않고 재분할 여부 확인 |
 | L3 다음 PR | 스킬·LLM 불필요 | 의존성·CI·리뷰를 다시 확인한 다음 사람이 머지 |
-| L4 Smoke 실패 | `deploy-status` + `systematic-debugging` | 실제 배포 상태·부분 실패를 확인하고 수정/revert PR. 복구는 새 배포·기능 확인까지 |
+| L4 Smoke 실패 | `make serve`·`make status` 로그 + `systematic-debugging` | 실제 로컬 배포 상태·부분 실패를 확인하고 수정/revert PR. 복구는 새 배포·기능 확인까지 |
 | L5 통합·인수 실패 | 브라우저 재현 + `new-issue` | 실패 기준·후속 담당·재검증. 요구 자체가 모호하면 `grill-me`/`brainstorming`으로 돌아가 합의 |
 
 ## 4. 실제 스킬 출처와 추천 범위
@@ -84,7 +84,7 @@ Copilot CLI 1.0.91 도움말에서 `/plan`, `/model`, `/skills`, `/subagents`를
 | `verification-before-completion` | [S / SKILL.md](https://github.com/obra/superpowers/blob/main/skills/verification-before-completion/SKILL.md) | 완료 주장 전 실제 실행 결과 확인 |
 | `finishing-a-development-branch` | [S / SKILL.md](https://github.com/obra/superpowers/blob/main/skills/finishing-a-development-branch/SKILL.md) | 검증 후 인계·정리. 팀의 사람 머지 규칙 우선 |
 
-저장소 스킬은 [new-issue](../.claude/skills/new-issue/SKILL.md), [start-task](../.claude/skills/start-task/SKILL.md), [pr-check](../.claude/skills/pr-check/SKILL.md), [handoff](../.claude/skills/handoff/SKILL.md), [deploy-status](../.claude/skills/deploy-status/SKILL.md)를 재사용한다. 로컬 전용 `reviewer`는 [.claude/agents/reviewer.md](../.claude/agents/reviewer.md)에 정의돼 있다.
+저장소 스킬은 [new-issue](../.claude/skills/new-issue/SKILL.md), [start-task](../.claude/skills/start-task/SKILL.md), [pr-check](../.claude/skills/pr-check/SKILL.md), [handoff](../.claude/skills/handoff/SKILL.md)를 재사용한다. 로컬 전용 `reviewer`는 [.claude/agents/reviewer.md](../.claude/agents/reviewer.md)에 정의돼 있다.
 
 ### 구현 기본: ponytail
 
@@ -250,7 +250,7 @@ G 스킬을 새로 설치할 때는 `grill-me`만 복사하지 말고 위에서 
 
 ### ⑨ 배포·스모크 — CI/스크립트, 정리 보조 L
 
-- [ ] **DEP-01 · 저장소 권장:** `deploy-status` [L] + 완료 증거 확인. main CI→migrate→backend→frontend→smoke의 SHA·경고·기능 인수를 확인한다. 플랫폼별 즉시 배포 스킬로 이 파이프라인을 우회하지 않는다.
+- [ ] **DEP-01 · 저장소 권장:** `make serve`·`make status` 결과 [L] + 완료 증거 확인. main 머지 후 검사와 로컬 배포 스모크의 SHA·경고·기능 인수를 확인한다. 플랫폼별 즉시 배포 스킬로 이 파이프라인을 우회하지 않는다. (클라우드 배포는 2026-10-08에 정리됨).
 
 ### ⑩ 운영·장애·회고 — 원인 분석 R, 기록 정리 L
 
@@ -274,7 +274,7 @@ G 스킬을 새로 설치할 때는 `grill-me`만 복사하지 말고 위에서 
 | [PR Review](../.github/workflows/pr-review.yml)·[채점 코드](../scripts/pr_review_score.py) | PR 코멘트 생성/갱신과 `GITHUB_STEP_SUMMARY` 작성 | 구독자 수신을 보장하지 않음. 같은 코멘트의 PATCH가 매번 새 알림을 만든다고 가정하지 않음 |
 | PR 코멘트/채점 실패 | 오류를 출력하거나 실패 요약을 시도. 스크립트는 보고 전용으로 종료 코드 0 | 실패가 있어도 job 성공일 수 있으므로 Actions 실패 알림만으로 보고 실패를 잡지 못함 |
 | [CI](../.github/workflows/ci.yml)·[Security](../.github/workflows/security.yml) | 잡 성공/실패·검사 로그 | 별도 Slack/Teams/Discord/OS 발송 단계 없음. 수신 설정은 미확인 |
-| [Deploy](../.github/workflows/deploy.yml) | migrate→backend→frontend→smoke의 순서·timeout·warning/error | 단계별 발송 job/handler 없음. `RENDER_DEPLOY_HOOK_URL`은 **배포 트리거**이지 알림 webhook이 아님 |
+| [CI](../.github/workflows/ci.yml) · [Security](../.github/workflows/security.yml) | 잡 순서·timeout·warning/error | 단계별 발송 job/handler 없음. 클라우드 Deploy 워크플로는 정리됨 |
 
 GitHub의 [공식 workflow 알림](https://docs.github.com/en/actions/concepts/workflows-and-actions/notifications-for-workflow-runs)은 사용자가 구독하면 자신이 트리거한 **workflow run 완료** 등을 알려주는 기능이다. 개별 job·요구분석·설계·모듈 작업의 모든 전환을 팀원 모두에게 전달하는 장치는 아니다.
 
@@ -292,7 +292,7 @@ GitHub의 [공식 workflow 알림](https://docs.github.com/en/actions/concepts/w
 | 정적·보안 검사 | CI·Security 상태, 전용 SAST/SCA 완료 증거 없음 | 차단 발견/검사 실행 실패/미검사 → 담당자·보안 검토자 |
 | 통합·인수 테스트 | 테스트 로그·수동 DEMO 기록 | 테스트 실패/인수 요청/완료 → 기능·시연 담당 |
 | 머지 | GitHub PR 상태 | 머지 대기/머지 완료 → 사람이 정한 머지 수행자·배포 담당 |
-| 배포·스모크 | Deploy의 단계별 잡 상태·로그 | migrate/backend/frontend/smoke 완료·실패·취소·예상 밖 건너뜀 → 배포 담당 |
+| 배포·스모크 | `make serve`·`make status` 결과·CI 잡 로그 | 스모크 완료·실패·예상 밖 건너뜀 → 배포 담당 |
 | 운영·회고 | 수동 health·작업 기록, 정기 외부 감시 미구현 | 장애/복구/후속 조치 기한 → 운영 주 담당·대체 담당 |
 
 ### 알림 정책 선택 — 아직 미선택·미연결
