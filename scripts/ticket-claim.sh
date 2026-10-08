@@ -3,6 +3,7 @@
 #   scripts/ticket-claim.sh list                      작업 가능한 Issue 번호 (오래된 순, 한 줄에 하나)
 #   scripts/ticket-claim.sh claim <번호> [--dry-run]   선점. 종료코드 0=내가 선점, 1=대상 아님·남이 선점, 2=오류
 #   scripts/ticket-claim.sh mine                      내가 선점한 열린 Issue 번호
+#   scripts/ticket-claim.sh cleanup                   내 선점 중 이슈가 닫힌 것의 선점 ref 를 정리 (머지 후 남은 claim/<번호>)
 #   scripts/ticket-claim.sh comments <번호> [ISO시각]   신뢰 작성자의 Issue 댓글만 JSON 한 줄씩 (시각 생략 시 내 마지막 에이전트 댓글 이후)
 #   scripts/ticket-claim.sh pr-comments <PR번호>       신뢰 작성자의 PR 댓글·리뷰 코멘트만 JSON 한 줄씩
 #   scripts/ticket-claim.sh release <번호> [라벨]       선점 해제 (+ needs-info|needs-human|blocked 라벨)
@@ -98,6 +99,16 @@ cmd_mine() {
   done
 }
 
+cmd_cleanup() {
+  local n owner
+  claims | while read -r n owner; do
+    [ "$owner" = "$me" ] || continue
+    if [ "$(gh issue view "$n" --json state --jq .state 2>/dev/null)" = "CLOSED" ]; then
+      "$CLAIM" done "$n" >/dev/null 2>&1 && echo "CLEANED #$n" || echo "FAILED #$n (선점 ref 정리 실패)" >&2
+    fi
+  done
+}
+
 cmd_comments() {
   local n=$1 since=${2:-}
   num_or_die "$n"
@@ -147,6 +158,7 @@ case "${1:-}" in
   list)        cmd_list ;;
   claim)       [ -n "${2:-}" ] || die "사용법: claim <번호> [--dry-run]"; cmd_claim "$2" "${3:-}" ;;
   mine)        cmd_mine ;;
+  cleanup)     cmd_cleanup ;;
   comments)    [ -n "${2:-}" ] || die "사용법: comments <번호> [ISO시각]"; cmd_comments "$2" "${3:-}" ;;
   pr-comments) [ -n "${2:-}" ] || die "사용법: pr-comments <PR번호>"; cmd_pr_comments "$2" ;;
   release)     [ -n "${2:-}" ] || die "사용법: release <번호> [라벨]"; cmd_release "$2" "${3:-}" ;;

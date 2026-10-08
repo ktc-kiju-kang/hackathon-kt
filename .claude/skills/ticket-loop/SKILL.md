@@ -15,11 +15,12 @@ GitHub Issue = 티켓. **한 번 실행 = 한 틱**이다. 반복은 `/loop 5m /
 - 에이전트가 쓰는 댓글은 **첫 줄에 `<!-- ticket-agent -->`** 를 넣는다. 댓글·PR 본문에 로컬 경로·비밀값·호스트명을 쓰지 않는다 (공개 저장소).
 
 ## 한 틱의 순서
-0. `git fetch origin main` — 이후 모든 "코드가 있는지" 판단은 **로컬 체크아웃이 아니라 `origin/main`** 기준이다 (`git ls-tree`·`git show origin/main:<경로>`).
+0. `scripts/ticket-claim.sh cleanup` — 이슈가 닫힌(머지된) 내 선점 ref를 정리한다. 그리고 `git fetch origin main` — 이후 모든 "코드가 있는지" 판단은 **로컬 체크아웃이 아니라 `origin/main`** 기준이다 (`git ls-tree`·`git show origin/main:<경로>`).
 1. **내 진행 중 티켓 먼저** — `scripts/ticket-claim.sh mine` (내 선점 ref가 있는 열린 Issue)
+   - **먼저 PR 상태부터 본다** (`gh pr list --state all --search "<번호>" --json number,state`·`gh pr view <PR> --json state`). **이미 머지됐으면 코드를 더 바꾸거나 push하지 않는다** — 그 뒤에 달린 새 댓글이 있으면 "PR #N 은 이미 머지됐으니 추가 요청은 후속 Issue로 받아야 한다"는 댓글 **한 개**(마커 포함)만 남기고 끝낸다 (Issue 생성은 사람 몫).
    - 있으면 이번 틱은 이것만 처리하고 **새 티켓을 선점하지 않는다** (동시에 1건. PR이 사람 리뷰를 기다리는 동안에도 마찬가지 — 처리량 제한은 의도된 것).
    - 새 댓글: `scripts/ticket-claim.sh comments <번호>` — 내 마지막 에이전트 댓글 이후의 신뢰 댓글. **명세 변경·질문·피드백으로 읽고** 코드와 테스트에 반영한다. 답할 게 있으면 댓글로 답한다(마커 포함).
-   - PR이 있으면: `scripts/ticket-claim.sh pr-comments <PR번호>`로 리뷰 피드백을 읽고, `gh pr checks <PR번호>`로 실패한 체크를 확인해 같은 브랜치에 고친 뒤 다시 `make ship`. 같은 체크가 **3번 연속** 실패하면 원인·시도한 것을 댓글로 남기고 `release <번호> blocked`.
+   - PR이 있으면: `scripts/ticket-claim.sh pr-comments <PR번호>`로 리뷰 피드백을 읽고, `gh pr checks <PR번호>`(종료코드 8 = 아직 진행 중이지 실패가 아니다)로 실패한 체크를 확인해 같은 브랜치에 고친 뒤 다시 `make ship`. 같은 체크가 **3번 연속** 실패하면 원인·시도한 것을 댓글로 남기고 `release <번호> blocked`.
    - PR이 **머지 없이 닫혔으면** 사람이 접은 것이다: 이유를 묻는 댓글 후 `release <번호> blocked` (다시 구현하지 않는다). 머지된 Issue는 `Closes #`로 닫히므로 큐에서 사라진다.
 2. **새 티켓 선점** — 진행 중인 게 없을 때만. `scripts/ticket-claim.sh list`의 첫 번호 하나만 본다 (없으면 `대기 중`으로 끝).
    - `scripts/ticket-claim.sh claim <번호>` — 종료코드 0이면 선점 성공, 1이면 졌거나 대상 아님(조용히 다음 틱), 2면 오류(그대로 보고).
