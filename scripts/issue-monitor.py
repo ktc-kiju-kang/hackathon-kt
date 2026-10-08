@@ -536,6 +536,44 @@ def take_snapshot(repo: str, root, old_state: dict, watch: bool = False) -> dict
     return {"issues": issues, "prs": prs}
 
 
+HEX_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
+LOGIN_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9-]{0,38}$")
+
+
+def load_avatars() -> dict:
+    """사람별 캐릭터 설정 (~/.config/hackathon-kt/monitor-avatars.json).
+
+    이름·외모는 개인정보라 저장소에 커밋하지 않는다. 읽은 값은 검증된 것만 대시보드로 보낸다.
+    """
+    f = Path.home() / ".config" / "hackathon-kt" / "monitor-avatars.json"
+    try:
+        raw = json.loads(f.read_text())
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(raw, dict):
+        return {}
+    col = lambda v: v if isinstance(v, str) and HEX_RE.match(v) else None  # noqa: E731
+    pair = lambda v: v if isinstance(v, list) and len(v) == 2 and all(col(x) for x in v) else None  # noqa: E731
+    out = {}
+    for login, a in raw.items():
+        if not (LOGIN_RE.match(str(login)) and isinstance(a, dict)):
+            continue
+        spec = {"name": " ".join(str(a.get("name", "")).split())[:20]}
+        if isinstance(a.get("style"), int) and 0 <= a["style"] <= 6:
+            spec["style"] = a["style"]
+        for k in ("hair", "skin"):
+            if pair(a.get(k)):
+                spec[k] = a[k]
+        for k in ("top", "pants", "jacket"):
+            if col(a.get(k)):
+                spec[k] = a[k]
+        if a.get("glasses") in ("round", "thick"):
+            spec["glasses"] = a["glasses"]
+        spec["stubble"] = a.get("stubble") is True
+        out[str(login)] = spec
+    return out
+
+
 REPO_RE = re.compile(r"^[\w.-]+/[\w.-]+$")
 
 
@@ -659,7 +697,7 @@ def main(argv=None) -> int:
     real_send = make_sender(webhook, a.dry_run)
     state = load_state(path)
     dash = Dash(repo, a.interval, "off" if a.no_slack else ("dry-run" if a.dry_run else "on"))
-    dash.update(events=list(state.get("events", [])))
+    dash.update(events=list(state.get("events", [])), avatars=load_avatars())
 
     def send(lines: list) -> bool:
         ok = True if a.no_slack else real_send(lines)
@@ -696,6 +734,7 @@ def main(argv=None) -> int:
     )
     while True:
         try:
+            dash.update(avatars=load_avatars())  # 설정 파일을 고치면 재시작 없이 반영
             snap = take_snapshot(repo, root, state)
             if alerted:
                 send(["✅ GitHub 조회 복구"])

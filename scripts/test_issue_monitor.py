@@ -226,6 +226,59 @@ class WatchTest(unittest.TestCase):
         self.assertIn("머지됨", im.diff_pr(9, pr(checks="none"), merged)[0])
 
 
+class AvatarTest(unittest.TestCase):
+    def _load(self, content):
+        from unittest import mock
+
+        d = Path(tempfile.mkdtemp())
+        cfg = d / ".config" / "hackathon-kt"
+        cfg.mkdir(parents=True)
+        if content is not None:
+            (cfg / "monitor-avatars.json").write_text(content)
+        with mock.patch.object(im.Path, "home", return_value=d):
+            return im.load_avatars()
+
+    def test_valid_spec_is_kept(self):
+        spec = {
+            "ktc-a": {
+                "name": "홍길동",
+                "style": 3,
+                "hair": ["#112233", "#000000"],
+                "top": "#ffffff",
+                "glasses": "round",
+                "stubble": True,
+            }
+        }
+        got = self._load(json.dumps(spec))["ktc-a"]
+        self.assertEqual(
+            (got["name"], got["style"], got["glasses"], got["stubble"]),
+            ("홍길동", 3, "round", True),
+        )
+
+    def test_bad_values_are_dropped(self):
+        spec = {
+            "x y": {"name": "a"},
+            "ok": {
+                "name": "n" * 50,
+                "style": 99,
+                "hair": ["red", "#000000"],
+                "top": "javascript:1",
+                "glasses": "laser",
+                "skin": "#12",
+            },
+        }
+        got = self._load(json.dumps(spec))
+        self.assertEqual(list(got), ["ok"])
+        self.assertEqual(len(got["ok"]["name"]), 20)
+        for k in ("style", "hair", "top", "glasses", "skin"):
+            self.assertNotIn(k, got["ok"])
+
+    def test_missing_or_broken_file(self):
+        self.assertEqual(self._load(None), {})
+        self.assertEqual(self._load("not json"), {})
+        self.assertEqual(self._load("[1,2]"), {})
+
+
 class CycleTest(unittest.TestCase):
     def snap(self, **kw):
         return {"issues": kw.get("issues", {}), "prs": kw.get("prs", {})}
