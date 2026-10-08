@@ -43,6 +43,7 @@
   .col h2 .hl { display: flex; align-items: center; gap: 8px; }
   .col h2 svg { background: var(--panel); border: 2px solid var(--panel); }
   .col h2 span.n { font-weight: 700; }
+  .col h2 .hint { font-weight: 400; font-size: 11px; opacity: .85; }
   .cards { padding: 10px; display: grid; gap: 12px; min-height: 120px; align-content: start; }
   .wait .cards { background-image: radial-gradient(var(--grid) 2px, transparent 2px); background-size: 12px 12px; }
   .human .cards { background-image: repeating-linear-gradient(135deg, transparent 0 8px, var(--grid) 8px 12px); }
@@ -54,7 +55,7 @@
   .card::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 4px; margin-top: -2px; background: var(--tape); opacity: .35; pointer-events: none; }
   .card a { color: var(--cardink); text-decoration: none; font-weight: 700; position: relative; z-index: 1; }
   .card a:hover { text-decoration: underline; }
-  .num { font-weight: 400; margin-right: 4px; background: var(--tape); border: 2px solid var(--ink); padding: 0 4px; font-size: 11px; position: relative; z-index: 1; }
+  .num { font-weight: 400; margin-right: 4px; background: var(--tape); border: 2px solid var(--ink); padding: 0 4px; font-size: 11px; position: relative; z-index: 1; white-space: nowrap; display: inline-block; margin-bottom: 2px; }
   .row { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; position: relative; z-index: 1; }
   .chip { background: var(--chip); color: var(--cardink); border: 2px solid var(--ink); padding: 0 6px; font-size: 11px; }
   .chip.ok { color: var(--ok); } .chip.bad { color: var(--bad); } .chip.warn { color: var(--warn); } .chip.acc { color: var(--acc); }
@@ -88,7 +89,7 @@
 <body>
 <header class="px">
   <div class="top">
-    <h1><span id="logo"></span>이슈 택배 조회 <span id="repo" class="meta"></span></h1>
+    <h1><span id="logo"></span>이슈 택배 조회 (GitHub 이슈·PR 진행 현황) <span id="repo" class="meta"></span></h1>
     <div class="meta">
       <span><span id="live" class="dot"></span><span id="liveText">연결 중…</span></span>
       <span>마지막 확인 <b id="polled">-</b></span>
@@ -101,13 +102,15 @@
 <div class="err" id="err"></div>
 <main>
   <section class="board" id="board"></section>
-  <aside class="px"><h2>📋 배송 조회 · 최근 알림</h2><div id="events"></div></aside>
+  <aside class="px"><h2>📋 배송 조회 (최근 알림)</h2><div id="events"></div></aside>
 </main>
 <script>
   // 제목·댓글은 신뢰할 수 없는 입력이다: 모든 값은 textContent 로만 넣는다.
   // 그림도 DOM API(createElementNS)로만 만든다 — HTML 문자열 삽입 API 는 쓰지 않는다.
+  // [키, 택배 용어, 아이콘, 실제 티켓 상태] — 택배 용어만 보면 헷갈리니 괄호로 실제 의미를 함께 보여 준다
   const COLS = [
-    ['wait', '접수', 'counter'], ['human', '확인필요', 'cone'], ['work', '집하', 'warehouse'], ['review', '배송중', 'truck'], ['done', '배송완료', 'house'],
+    ['wait', '접수', 'counter', '대기'], ['human', '확인필요', 'cone', '사람 확인'], ['work', '집하', 'warehouse', '선점·작업 중'],
+    ['review', '배송중', 'truck', 'PR·리뷰 대기'], ['done', '배송완료', 'house', '머지·완료'],
   ];
   const $ = (id) => document.getElementById(id);
   const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
@@ -354,7 +357,7 @@
   }
 
   // ---------- 움직임: 칸이 바뀐 티켓은 일꾼이 소포를 안고 걸어서 옮긴다 ----------
-  const SAY = { wait: '접수!', human: '확인 필요!', work: '집하 중!', review: '배송 출발!', done: '배달 완료!' };
+  const SAY = { wait: '접수! (대기)', human: '확인 필요! (사람 확인)', work: '집하 중! (작업 시작)', review: '배송 출발! (PR 열림)', done: '배달 완료! (머지·완료)' };
   const prevCol = {}, lastRects = {}, moving = new Set(); let prevRepo = null;
   function moveCards(repo) {
     const cards = document.querySelectorAll('#board .card'), rects = {};
@@ -415,7 +418,7 @@
     if (moving.has(key)) c.style.visibility = 'hidden';
     const a = el('a', null, item.title);
     const u = safeUrl(item.url); if (u) { a.href = u; a.target = '_blank'; a.rel = 'noopener noreferrer'; }
-    const head = el('div'); head.append(el('span', 'num', '운송장 ' + (item.kind === 'pr' ? 'PR #' : '#') + item.number), a);
+    const head = el('div'); head.append(el('span', 'num', '운송장 ' + (item.kind === 'pr' ? '(PR #' : '(이슈 #') + item.number + ')'), a);
     c.append(head);
     const row = el('div', 'row');
     (item.chips || []).forEach(([t, k]) => row.append(chip(t, k)));
@@ -499,14 +502,14 @@
     const cols = build(view);
     const board = $('board'); board.replaceChildren();
     const counts = $('counts'); counts.replaceChildren();
-    COLS.forEach(([key, label, icon]) => {
+    COLS.forEach(([key, label, icon, hint]) => {
       const col = el('div', 'col px ' + key), h = el('h2'), left = el('div', 'hl');
-      left.append(pix(ICONS[icon], 2), document.createTextNode(label)); h.append(left, el('span', 'n', String(cols[key].length)));
+      left.append(pix(ICONS[icon], 2), document.createTextNode(label), el('span', 'hint', '(' + hint + ')')); h.append(left, el('span', 'n', String(cols[key].length)));
       const wrap = el('div', 'cards');
       if (!cols[key].length) { const em = el('div', 'empty'); em.append(pix(PARCEL, 1, { b: 'var(--grid)', t: 'var(--grid)', w: 'var(--grid)' }), document.createTextNode('비어 있음')); wrap.append(em); }
       cols[key].forEach((c) => wrap.append(card(c, key)));
       col.append(h, wrap); board.append(col);
-      counts.append(el('span', 'count', label + ' ' + cols[key].length));
+      counts.append(el('span', 'count', label + '(' + hint + ') ' + cols[key].length));
     });
     moveCards(selected);
 
