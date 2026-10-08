@@ -413,6 +413,8 @@ def main() -> int:
                 continue
             if dst.exists() and not force:
                 skipped.append(rel)
+                if not dry:  # 합칠 수 있게 키트 버전을 옆에 둔다 (<파일>.kit, 합친 뒤 지운다)
+                    shutil.copy2(src, dst.with_name(dst.name + ".kit"))
                 continue
             written.append(rel)
             if not dry:
@@ -427,7 +429,7 @@ def main() -> int:
         print(f"\n주최 측 파일이라 건드리지 않음 {len(protected)}개:")
         print("\n".join(f"  {p}" for p in protected))
     if skipped:
-        print(f"\n이미 있어서 건너뜀 {len(skipped)}개 (내용 비교 후 직접 합치거나 --force):")
+        print(f"\n이미 있어서 건너뜀 {len(skipped)}개 — 키트 버전은 <파일>.kit (합친 뒤 삭제):")
         print("\n".join(f"  {p}" for p in skipped))
     if not dry:
         print(

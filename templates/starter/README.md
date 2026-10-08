@@ -27,6 +27,7 @@ python3 templates/starter/export.py ~/team-repo --dry-run
 python3 templates/starter/export.py ~/team-repo
 ```
 - 대상에 **이미 있는 파일은 건너뛰고** 목록을 보여 준다 (주최 측이 넣어 둔 README 등). 내용을 비교해 직접 합치거나 `--force`로 덮어쓴다.
+- 건너뛴 파일은 키트 버전을 옆에 `<파일>.kit`로 둔다 (예: 주최 측 README → `README.md.kit`). 비교해 합친 뒤 `.kit`을 지운다.
 - `.gitignore`가 이미 있으면 덮어쓰지 않고 **빠진 줄만 덧붙인다** (`.env`·`app.db` 커밋 방지). `backend/.gitignore`도 따로 들어간다.
 - `docs/security-policy.md`, `.github/ISSUE_TEMPLATE/**`(주최 측 제공)는 `--force`여도 건드리지 않는다.
 
