@@ -1,0 +1,563 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>이슈 택배 조회</title>
+<style>
+  :root {
+    --bg: #f3e9d2; --grid: #ead9b5; --panel: #fff8e7; --ink: #3b2a1a; --muted: #8a6f4e;
+    --box: #d9a05b; --tape: #f1dca0; --cardink: #2b1c0e; --chip: #f1dca0;
+    --ok: #1d6b31; --warn: #9a5b00; --bad: #b3202e; --acc: #1f4fa8; --sky: #cfe6f5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #1c1712; --grid: #251e16; --panel: #2a2219; --ink: #f1e3c6; --muted: #b49a74;
+            --box: #a8743a; --tape: #6e5a2e; --cardink: #1c120a; --chip: #d9c28a;
+            --ok: #1d6b31; --warn: #7a4700; --bad: #9c1a27; --acc: #1a3f8a; --sky: #26364a; }
+  }
+  * { box-sizing: border-box; border-radius: 0; }
+  body { margin: 0; color: var(--ink); background-color: var(--bg);
+         background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+         background-size: 8px 8px; -webkit-font-smoothing: none;
+         font: 13px/1.5 "SF Mono", Menlo, Consolas, "Apple SD Gothic Neo", monospace; }
+  svg { image-rendering: pixelated; display: block; }
+  .px { border: 3px solid var(--ink); box-shadow: 4px 4px 0 var(--ink); background: var(--panel); }
+  header { margin: 14px 20px 0; padding: 10px 14px 0; position: sticky; top: 8px; z-index: 2; }
+  .top { display: flex; flex-wrap: wrap; gap: 8px 22px; align-items: center; }
+  header h1 { font-size: 16px; margin: 0; letter-spacing: 1px; display: flex; align-items: center; gap: 8px; }
+  .meta { color: var(--muted); font-size: 12px; display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+  .meta select { font: inherit; border: 2px solid var(--ink); background: var(--tape); color: var(--cardink); padding: 1px 4px; }
+  .dot { display: inline-block; width: 9px; height: 9px; margin-right: 5px; background: var(--muted); border: 2px solid var(--ink); }
+  .dot.ok { background: #3ccf7a; } .dot.bad { background: #ff6b81; } .dot.warn { background: #e5b559; }
+  .counts { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
+  .count { background: var(--tape); color: var(--cardink); border: 2px solid var(--ink); padding: 0 8px; font-size: 12px; font-weight: 700; }
+  .road { position: relative; height: 98px; margin: 6px -14px 0; border-top: 3px solid var(--ink); background: var(--sky); overflow: hidden; }
+  .road > svg.scene { position: absolute; left: 0; bottom: 0; }
+  .truck { position: absolute; bottom: 12px; left: 0; animation: drive 16s steps(64) infinite; }
+  @keyframes drive { to { left: calc(100% - 330px); } }
+  main { display: grid; grid-template-columns: 1fr 340px; gap: 18px; padding: 18px 20px; align-items: start; }
+  @media (max-width: 1000px) { main { grid-template-columns: 1fr; } }
+  .board { display: grid; grid-template-columns: repeat(5, minmax(200px, 1fr)); gap: 14px; overflow-x: auto; padding: 0 6px 8px 0; }
+  .col { min-height: 160px; }
+  .col h2 { font-size: 13px; margin: 0; padding: 6px 10px; display: flex; justify-content: space-between; align-items: center; background: var(--ink); color: var(--panel); }
+  .col h2 .hl { display: flex; align-items: center; gap: 8px; }
+  .col h2 svg { background: var(--panel); border: 2px solid var(--panel); }
+  .col h2 span.n { font-weight: 700; }
+  .col h2 .hint { font-weight: 400; font-size: 11px; opacity: .85; }
+  .cards { padding: 10px; display: grid; gap: 12px; min-height: 120px; align-content: start; }
+  .wait .cards { background-image: radial-gradient(var(--grid) 2px, transparent 2px); background-size: 12px 12px; }
+  .human .cards { background-image: repeating-linear-gradient(135deg, transparent 0 8px, var(--grid) 8px 12px); }
+  .work .cards { background-image: repeating-linear-gradient(45deg, transparent 0 6px, var(--grid) 6px 8px); }
+  .review .cards { background-image: linear-gradient(90deg, transparent 0 calc(50% - 2px), var(--grid) calc(50% - 2px) calc(50% + 2px), transparent calc(50% + 2px)); }
+  .done .cards { background-image: linear-gradient(45deg, var(--grid) 25%, transparent 25%, transparent 75%, var(--grid) 75%), linear-gradient(45deg, var(--grid) 25%, transparent 25%, transparent 75%, var(--grid) 75%); background-size: 16px 16px; background-position: 0 0, 8px 8px; }
+  .card { position: relative; border: 3px solid var(--ink); background: var(--box); color: var(--cardink); box-shadow: 3px 3px 0 var(--ink); padding: 8px 56px 8px 16px; min-height: 76px; }
+  .card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 6px; background: var(--tape); border-right: 3px solid var(--ink); }
+  .card::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 4px; margin-top: -2px; background: var(--tape); opacity: .35; pointer-events: none; }
+  .card a { color: var(--cardink); text-decoration: none; font-weight: 700; position: relative; z-index: 1; }
+  .card a:hover { text-decoration: underline; }
+  .num { font-weight: 400; margin-right: 4px; background: var(--tape); border: 2px solid var(--ink); padding: 0 4px; font-size: 11px; position: relative; z-index: 1; white-space: nowrap; display: inline-block; margin-bottom: 2px; }
+  .row { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; position: relative; z-index: 1; }
+  .chip { background: var(--chip); color: var(--cardink); border: 2px solid var(--ink); padding: 0 6px; font-size: 11px; }
+  .chip.ok { color: var(--ok); } .chip.bad { color: var(--bad); } .chip.warn { color: var(--warn); } .chip.acc { color: var(--acc); }
+  .side { position: absolute; right: 6px; bottom: 6px; z-index: 1; }
+  .bc { position: absolute; right: 6px; top: 6px; background: var(--tape); border: 2px solid var(--ink); padding: 2px; z-index: 1; }
+  .empty { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; padding: 6px 4px; }
+  .walk { animation: bob .5s steps(1) infinite; }
+  .idle { animation: bob 1.4s steps(1) infinite; }
+  .fa { animation: showA .5s steps(1) infinite; } .fb { animation: showB .5s steps(1) infinite; }
+  .wa { animation: showA .24s steps(1) infinite; } .wb { animation: showB .24s steps(1) infinite; }
+  @keyframes showA { 0% { visibility: visible; } 50% { visibility: hidden; } }
+  @keyframes showB { 0% { visibility: hidden; } 50% { visibility: visible; } }
+  .leg1 { animation: legA .6s steps(1) infinite; } .leg2 { animation: legB .6s steps(1) infinite; }
+  @keyframes bob { 50% { transform: translateY(-2px); } }
+  @keyframes legA { 0% { transform: translateY(0); } 50% { transform: translateY(-1px); } }
+  @keyframes legB { 0% { transform: translateY(-1px); } 50% { transform: translateY(0); } }
+  .courier { position: fixed; left: 0; top: 0; z-index: 50; pointer-events: none; }
+  .bubble { position: absolute; left: 50px; top: -6px; white-space: nowrap; background: var(--panel); color: var(--ink); border: 2px solid var(--ink); padding: 0 6px; font-size: 11px; font-weight: 700; }
+  .conf { position: fixed; width: 6px; height: 6px; z-index: 60; pointer-events: none; }
+  aside { max-height: calc(100vh - 190px); overflow: auto; }
+  aside h2 { font-size: 13px; margin: 0; padding: 7px 10px; position: sticky; top: 0; background: var(--ink); color: var(--panel); }
+  .ev { position: relative; padding: 8px 10px 8px 30px; font-size: 12.5px; }
+  .ev::before { content: ""; position: absolute; left: 11px; top: 0; bottom: 0; width: 3px; background: var(--ink); }
+  .ev::after { content: ""; position: absolute; left: 5px; top: 12px; width: 15px; height: 15px; background: var(--box); border: 3px solid var(--ink); }
+  .ev time { display: block; color: var(--muted); font-size: 11px; }
+  .ev a { color: var(--acc); text-decoration: none; }
+  .err { margin: 12px 20px 0; padding: 6px 12px; border: 3px solid var(--bad); background: var(--panel); color: var(--bad); display: none; }
+  .demo { position: fixed; right: 12px; bottom: 10px; padding: 2px 8px; background: var(--tape); color: var(--cardink); border: 2px solid var(--ink); font-size: 11px; }
+</style>
+</head>
+<body>
+<header class="px">
+  <div class="top">
+    <h1><span id="logo"></span>이슈 택배 조회 (GitHub 이슈·PR 진행 현황) <span id="repo" class="meta"></span></h1>
+    <div class="meta">
+      <span><span id="live" class="dot"></span><span id="liveText">연결 중…</span></span>
+      <span>마지막 확인 <b id="polled">-</b></span>
+      <span>Slack <b id="slack">-</b></span>
+    </div>
+    <div class="counts" id="counts"></div>
+  </div>
+  <div class="road" id="road"></div>
+</header>
+<div class="err" id="err"></div>
+<main>
+  <section class="board" id="board"></section>
+  <aside class="px"><h2>📋 배송 조회 (최근 알림)</h2><div id="events"></div></aside>
+</main>
+<script>
+  // 제목·댓글은 신뢰할 수 없는 입력이다: 모든 값은 textContent 로만 넣는다.
+  // 그림도 DOM API(createElementNS)로만 만든다 — HTML 문자열 삽입 API 는 쓰지 않는다.
+  // [키, 택배 용어, 아이콘, 실제 티켓 상태] — 택배 용어만 보면 헷갈리니 괄호로 실제 의미를 함께 보여 준다
+  const COLS = [
+    ['wait', '접수', 'counter', '대기'], ['human', '확인필요', 'cone', '사람 확인'], ['work', '집하', 'warehouse', '선점·작업 중'],
+    ['review', '배송중', 'truck', 'PR·리뷰 대기'], ['done', '배송완료', 'house', '머지·완료'],
+  ];
+  const $ = (id) => document.getElementById(id);
+  const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+
+  // ---------- 픽셀 아트 ----------
+  const NS = 'http://www.w3.org/2000/svg';
+  // 글자 하나 = 픽셀 하나. k=윤곽선 h=모자 u=작업복 s=피부 e=눈 b=상자 t=테이프 w=흰색 r=빨강 d=갈색 c=파랑 y=노랑
+  // L/R=왼/오른 다리(걷기)
+  const PAL = { k: 'var(--ink)', s: '#f2c9a0', e: '#2b1c0e', b: '#d9a05b', t: '#f1dca0', w: '#ffffff', r: '#c4313f', d: '#7a4a1e', c: '#2a62c9', y: '#f0c030', g: '#9aa0a6', L: 'var(--ink)', R: 'var(--ink)' };
+  const OLD_WORKER = [
+    '...kkkkkk...', '..khhhhhhk..', '.khhhhhhhhk.', '..kssssssk..', '..ksssesek..', '..kssssssk..', '...kkkkkk...',
+    '.kkuuuuuukk.', 'kbbbbbbbbbbk', 'kbttbbbbttbk', 'kbbbbbbbbbbk', 'kbttbbbbttbk', '.kkbbbbbbkk.', '...kuuuuk...', '...LL..RR...', '..LLL..RRR..',
+  ];
+  const IDLE_BODY = ['.kkuuuuuukk.', '.kuuuuuuuuk.', '.kuuuuuuuuk.', '.kssuuuussk.', '.kkuuuuuukk.'];
+  const PARCEL = [
+    'kkkkkkkkkkkkkk', 'kbbbbbttbbbbbk', 'kbbbbbttbbbbbk', 'kttttttttttttk', 'kbbbbbttbbbbbk', 'kbwwwwttbbbbbk',
+    'kbwkwkttbbbbbk', 'kbwwwwttbbbbbk', 'kbbbbbttbbbbbk', 'kbbbbbttbbbbbk', 'kbbbbbttbbbbbk', 'kkkkkkkkkkkkkk',
+  ];
+  const ICONS = {
+    counter: ['.kkkkkkkk.', 'kwwwwwwwwk', 'kwkkkkkkwk', 'kwwwwwwwwk', 'kkkkkkkkkk', '.kbbbbbbk.', '.kbbbbbbk.', '.kbbbbbbk.', '.kk....kk.', '.kk....kk.'],
+    cone: ['....kk....', '...krrk...', '...kwwk...', '..krrrrk..', '..kwwwwk..', '.krrrrrrk.', '.kwwwwwwk.', 'kkkkkkkkkk', 'kkkkkkkkkk', 'kkkkkkkkkk'],
+    warehouse: ['....kk....', '..kkbbkk..', '.kbbbbbbk.', 'kbbbbbbbbk', 'kkkkkkkkkk', 'kbbkttkbbk', 'kbbkttkbbk', 'kbbkttkbbk', 'kbbkttkbbk', 'kkkkkkkkkk'],
+    house: ['....kk....', '...krrk...', '..krrrrk..', '.krrrrrrk.', 'kkkkkkkkkk', 'kwwkkkkwwk', 'kwwkddkwwk', 'kkkkddkkkk', 'kbbbddbbbk', 'kkkkkkkkkk'],
+    truck: ['kkkkkkkkk....', 'kbbbbbbbk....', 'kbbbtbbbkkkk.', 'kbbbtbbbkcck.', 'kbbbtbbbkccck', 'kbbbbbbbkkkkk', 'kkkkkkkkkkkkk', '.LLL....RRR..', '.LLL....RRR..'],
+  };
+  const WORKERS = [['#d8342a', '#d8342a'], ['#2a62c9', '#2a62c9'], ['#2f8f46', '#2f8f46'], ['#e0861a', '#e0861a'], ['#8a4fbf', '#8a4fbf']];
+  // 일꾼 도안 16x23 (오른쪽을 보고 소포를 안고 걷는다). 머리 / 몸통 / 다리 두 프레임을 따로 두고 합친다.
+  Object.assign(PAL, { G: '#2f8f46', N: '#2b2b3a', n: '#5b3a1e', S: '#d9a77c', p: '#e8998d', m: '#3b4a6b', M: '#2d3a55', o: '#2b1c0e', B: '#b37d3a', W: '#f6f1e0', E: '#ffffff' });
+  const fit = (rows) => rows.map((r) => r.padEnd(16, '.').slice(0, 16));
+  // RPG 풍 캐릭터 (16x24, 정면): 머리·헤어·몸통·옷·다리를 레이어로 쌓고 외곽선은 자동으로 두른다.
+  const CW = 18, CH = 26, OUT = '#2b1c0e';
+  const BARE_HEAD = fit([
+    '', '', '....ssssssss....', '...ssssssssss...', '...ssssssssss...', '...ssessssess...', '...spssssssps...', '...ssssmmssss...',
+    '....ssssssss....', '.....sSSSSs.....',
+  ]);
+  const HAIR = [ // 0 단정한 짧은 머리 1 길게 땋은 머리 2 곱슬 3 단발 앞머리 4 쪽머리 5 뾰족머리
+    fit(['....HHHHHHHH....', '...HHHHHHHHHH...', '...HHHHHHHHHH...', '...HH......HH...', '...Hh......hH...']),
+    fit(['....HHHHHHHH....', '..HHHHHHHHHHHH..', '..HHHhHHHHhHHH..', '..HHH......HHH..', '..HHh......hHH..', '..HHh......hHH..', '..HHH......HHH..', '..HhH......HhH..', '...HH......HH...', '...hh......hh...']),
+    fit(['...HHHHHHHHHH...', '..HHHHHHHHHHHH..', '.HHHHhHHHHhHHHH.', '.HHHH......HHHH.', '.HHHh......hHHH.', '..HHH......HHH..', '...HH......HH...']),
+    fit(['....HHHHHHHH....', '...HHHHHHHHHH...', '..HHHhHHHhHHHH..', '..HHHHHHHHHHHH..', '..HH.h....h.HH..', '..HH........HH..', '..hH........Hh..']),
+    fit(['......HHHH......', '....HHHHHHHH....', '...HHHHHHHHHH...', '...HHh....hHH...', '...Hh......hH...']),
+    fit(['..H..HH..HH..H..', '...HHHHHHHHHH...', '...HHHHHHHHHH...', '...HH......HH...', '...Hh......hH...']),
+    fit(['...HHHHHHHHHH...', '..HHHHHHHHHHHH..', '..HHHhHHHHhHHH..', '..HHHHHHHHHHHH..', '..HHh.h..h.hHH..']),
+  ];
+  const CAP = fit(['....cccccccc....', '...cccccccccc...', '..CCCCCCCCCCCC..']);
+  const TORSO = fit([
+    '.....TTTTTT.....', '...TTTTTTTTTT...', '..TTTTTTTTTTTT..', '..TtTTTTTTTTtT..', '..TtTTTTTTTTtT..', '..TtTTTTTTTTtT..',
+    '..ss.TTTTTT.ss..', '..ss.tttttt.ss..',
+  ]);
+  const BOX_OVL = ['LLLLttLLLL', 'bbbbttbbbb', 'bwwbttbbbb', 'bwkbttbbbb', 'bbbbttbbbb', 'bbbbttbbbb', 'BBBBttBBBB', 'BBBBBBBBBB'];
+  const LEGS_A = fit(['....PPPPPPPP....', '....PPPqqPPP....', '....PPP..PPP....', '....PPP..PPP....', '....oooo.oooo...', '....oooo.oooo...']);
+  const LEGS_B = fit(['....PPPPPPPP....', '....PPPqqPPP....', '...PPP...PPP....', '...PPP....PPP...', '...oooo...oooo..', '...oooo...oooo..']);
+  const SKIRT = fit(['...PPPPPPPPPP...', '..PPPPPPPPPPPP..', '..PPqPPPPqPPPP..']);
+  const SKINS = [['#f6d2b0', '#e0b08a'], ['#e8b98a', '#c98f5f'], ['#b9774c', '#8f5632'], ['#7a4a2b', '#5a3319']];
+  const HAIRS = [['#8a5a2b', '#5f3b1a'], ['#d9a85a', '#b8863a'], ['#2a2420', '#16110e'], ['#2a2420', '#16110e'], ['#e6e3df', '#bdb8b2'], ['#7a3f1e', '#552a12'], ['#17141a', '#0a080c']];
+  const OUTFITS = [
+    { T: '#2f5fa5', t: '#244a82', P: '#2b2b33', p: '#1d1d24', tie: true }, { T: '#2a2a2e', t: '#1b1b1e', P: '#2a2a2e', p: '#1b1b1e', skirt: true },
+    { T: '#d9632b', t: '#b04a1c', P: '#2f3f73', p: '#233058', stripe: '#2f3f73' }, { T: '#c0392f', t: '#97281f', P: '#2a2a2e', p: '#1b1b1e', skirt: true },
+    { T: '#e6dcc8', t: '#c9bda4', P: '#6b5a46', p: '#54463a' }, { T: '#f2f2f0', t: '#d5d5d0', P: '#3a5fa8', p: '#2b4887' },
+  ];
+  function stamp(grid, rows, ox, oy, pal) {
+    rows.forEach((row, yy) => {
+      for (let x = 0; x < row.length; x++) {
+        const ch = row[x], gx = ox + x + 1, gy = oy + yy + 1;
+        if (ch !== '.' && pal[ch] && gy < CH && gx < CW) grid[gy][gx] = pal[ch];
+      }
+    });
+  }
+  function emitGrid(parent, grid) {
+    const g = grid.map((r) => r.slice()); // 외곽선: 빈 칸이 색칠된 칸과 맞닿으면 윤곽선
+    for (let yy = 0; yy < CH; yy++) for (let x = 0; x < CW; x++) {
+      if (grid[yy][x]) continue;
+      if ((yy > 0 && grid[yy - 1][x]) || (yy < CH - 1 && grid[yy + 1][x]) || (x > 0 && grid[yy][x - 1]) || (x < CW - 1 && grid[yy][x + 1])) g[yy][x] = OUT;
+    }
+    g.forEach((row, yy) => {
+      let x = 0;
+      while (x < CW) {
+        if (!row[x]) { x++; continue; }
+        let x2 = x; while (x2 < CW && row[x2] === row[x]) x2++;
+        rect(parent, x, yy, x2 - x, 1, row[x]); x = x2;
+      }
+    });
+  }
+  // 한 사람의 모양: 시드로 헤어·피부·옷이 정해진다. cap 이 있으면 배달원 모자·유니폼.
+  function look(seed, cap, av) {
+    const n = hash(seed); let style = n % 6, skin = SKINS[(n >> 3) % 4], o = Object.assign({}, OUTFITS[(n >> 5) % 6]), hair;
+    if (av) { // 실제 팀원: 설정 파일의 특징을 따른다
+      if (av.style != null) style = av.style;
+      if (av.skin) skin = av.skin;
+      const top = av.top || o.T, pants = av.pants || '#2b2b33';
+      o = { T: top, t: shade(top), P: pants, p: shade(pants), jacket: av.jacket || null };
+    } else if (cap) Object.assign(o, { T: cap, t: shade(cap), tie: false, stripe: null, skirt: false, P: '#2b2f45', p: '#1d2033' });
+    hair = (av && av.hair) || HAIRS[style];
+    return { style, o, glasses: av ? av.glasses : null, stubble: !!(av && av.stubble), pal: { s: skin[0], S: skin[1], e: '#2b1c0e', m: '#b05a4a', p: '#e8998d', H: hair[0], h: hair[1], T: o.T, t: o.t, P: o.P, q: o.p, o: '#2b1c0e', c: cap || '#000', C: cap ? shade(cap) : '#000', g: av && av.glasses === 'thick' ? '#15151a' : '#8a6a3a', d: '#6b5646', J: o.jacket || '#000', b: '#d9a05b', B: '#b37d3a' } };
+  }
+  function person(grid, lk, legs, mode, cap) {
+    const pal = Object.assign({}, lk.pal, { t: lk.o.t }), tape = Object.assign({}, pal, { t: '#f1dca0' });
+    stamp(grid, BARE_HEAD, 0, 0, pal); stamp(grid, TORSO, 0, 10, pal);
+    if (lk.o.tie) { stamp(grid, ['......WkkW......'], 0, 10, { W: '#ffffff', k: OUT }); for (let r = 11; r < 15; r++) stamp(grid, ['.......kk.......'], 0, r, { k: OUT }); }
+    if (lk.o.stripe) for (let r = 12; r < 16; r++) stamp(grid, ['..SS........SS..'], 0, r, { S: lk.o.stripe });
+    if (lk.o.jacket) { // 재킷: 소매와 앞섶
+      for (let r = 12; r < 16; r++) { stamp(grid, ['..JJ........JJ..'], 0, r, pal); }
+      stamp(grid, ['..JJJ......JJJ..'], 0, 11, pal); stamp(grid, ['..JJJ......JJJ..'], 0, 12, pal);
+      for (let r = 13; r < 18; r++) stamp(grid, ['...J........J...'], 0, r, pal);
+    }
+    stamp(grid, legs, 0, 18, pal);
+    if (lk.o.skirt) stamp(grid, SKIRT, 0, 18, pal);
+    stamp(grid, HAIR[lk.style], 0, 0, pal);
+    if (lk.stubble) { stamp(grid, ['...d........d...'], 0, 7, pal); stamp(grid, ['....dddddddd....'], 0, 8, pal); stamp(grid, ['.....dddddd.....'], 0, 9, pal); }
+    if (lk.glasses === 'round') [['....ggg..ggg....', 4], ['....geggggeg....', 5], ['....ggg..ggg....', 6]].forEach(([row, r]) => stamp(grid, [row], 0, r, pal));
+    if (lk.glasses === 'thick') [['...gggg..gggg...', 4], ['...gseggggesg...', 5], ['...gggg..gggg...', 6]].forEach(([row, r]) => stamp(grid, [row], 0, r, pal));
+    if (cap && !lk.known) stamp(grid, CAP, 0, 0, pal);
+    if (mode === 'carry') { // 소포를 가슴 앞에 두 팔로 받쳐 든다: 소매가 상자 옆을 감싸고 손이 아래를 받친다
+      const sl = lk.o.jacket ? 'J' : 'T';
+      stamp(grid, BOX_OVL, 3, 11, Object.assign({}, tape, { L: '#f0c27a', w: '#ffffff', k: OUT }));
+      [12, 13, 14, 15].forEach((r) => { stamp(grid, [sl], 2, r, pal); stamp(grid, [sl], 13, r, pal); });
+      [16, 17].forEach((r) => { stamp(grid, ['s'], 2, r, pal); stamp(grid, ['s'], 13, r, pal); });
+    }
+  }
+  const BUBBLE = ['.kkkkkkkkkk.', 'kwwwwwwwwwwk', 'kwwwwwwwwGwk', 'kwwwwwwwGwwk', 'kwGwwwwGwwwk', 'kwwGwwGwwwwk', 'kwwwGGwwwwwk', '.kwwwwwwwwk.', '..kkkkkkkk..', '..kwk.......', '..kk........'];
+  const shade = (hex) => '#' + [1, 3, 5].map((i) => Math.round(parseInt(hex.substr(i, 2), 16) * 0.78).toString(16).padStart(2, '0')).join('');
+  function drawRows(parent, rows, ox, oy, pal) {
+    rows.forEach((row, yy) => {
+      let x = 0;
+      while (x < row.length) {
+        const ch = row[x];
+        if (ch === '.' || !pal[ch]) { x++; continue; }
+        let x2 = x; while (x2 < row.length && row[x2] === ch) x2++;
+        rect(parent, ox + x, oy + yy, x2 - x, 1, pal[ch]); x = x2;
+      }
+    });
+  }
+
+  function svgEl(w, h, scale, cls) {
+    const s = document.createElementNS(NS, 'svg');
+    s.setAttribute('width', w * scale); s.setAttribute('height', h * scale); s.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
+    s.setAttribute('shape-rendering', 'crispEdges'); if (cls) s.setAttribute('class', cls); return s;
+  }
+  function rect(s, x, y, w, h, fill, cls) {
+    const e = document.createElementNS(NS, 'rect');
+    e.setAttribute('x', x); e.setAttribute('y', y); e.setAttribute('width', w); e.setAttribute('height', h);
+    if (fill.startsWith('var(')) e.setAttribute('style', 'fill:' + fill); else e.setAttribute('fill', fill);
+    if (cls) e.setAttribute('class', cls); s.append(e);
+  }
+  // 픽셀맵 → SVG (가로로 같은 색은 한 사각형으로 합친다)
+  function pix(rows, scale, extra, cls) {
+    const pal = Object.assign({}, PAL, extra || {}), w = rows[0].length, s = svgEl(w, rows.length, scale, cls);
+    const special = { L: 'leg1', R: 'leg2' };
+    rows.forEach((row, y) => {
+      let x = 0;
+      while (x < w) {
+        const ch = row[x];
+        if (ch === '.' || !pal[ch]) { x++; continue; }
+        let x2 = x; while (x2 < w && row[x2] === ch) x2++;
+        rect(s, x, y, x2 - x, 1, pal[ch], special[ch]); x = x2;
+      }
+    });
+    return s;
+  }
+  const hash = (str) => { let h = 7; for (const c of String(str)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; };
+  let AV = {}; // 사람별 캐릭터 설정 (서버가 저장소 밖 설정 파일에서 읽어 보낸다)
+  const nm = (l) => (AV[l] && AV[l].name) || l;
+  function titled(s, who) { if (who) { const t = document.createElementNS(NS, 'title'); t.textContent = nm(who); s.append(t); } return s; }
+  function worker(scale, carrying, seed, who) {
+    const cap = WORKERS[hash(seed) % WORKERS.length][0], av = AV[who] || null, lk = look(seed, cap, av);
+    lk.known = !!av;
+    const s = svgEl(CW, CH, scale, carrying ? 'walk' : '');
+    rect(s, 3, CH - 1, 12, 1, OUT); s.lastChild.setAttribute('opacity', '.25'); // 그림자
+    [[LEGS_A, 'fa'], [LEGS_B, 'fb']].forEach(([legs, cls]) => {
+      const grid = Array.from({ length: CH }, () => Array(CW).fill(null)), g = document.createElementNS(NS, 'g');
+      if (carrying) g.setAttribute('class', cls);
+      person(grid, lk, legs, carrying ? 'carry' : 'idle', cap); emitGrid(g, grid); s.append(g);
+    });
+    return titled(s, av ? who : '');
+  }
+  // 수령인: 모자 없이 서 있는다 (헤어·옷은 시드로 결정)
+  function customer(scale, seed, who) {
+    const av = AV[who] || null, lk = look(seed, null, av), s = svgEl(CW, CH, scale, 'idle'), grid = Array.from({ length: CH }, () => Array(CW).fill(null));
+    rect(s, 3, CH - 1, 12, 1, OUT); s.lastChild.setAttribute('opacity', '.25');
+    person(grid, lk, LEGS_A, 'idle', null); emitGrid(s, grid);
+    return titled(s, av ? who : '');
+  }
+
+  // 택배 픽업트럭 50x24: 파란 차체 + 열린 짐칸의 골판지 상자 + 큰 하늘색 창 + 노란 헤드라이트 + 둥근 바퀴(허브가 돈다)
+  function disc(s, cx, cy, r, fill, cls) {
+    for (let dy = -r; dy <= r; dy++) { const w = Math.floor(Math.sqrt(r * r - dy * dy + 0.25)); rect(s, cx - w, cy + dy, 2 * w + 1, 1, fill, cls); }
+  }
+  function cardboard(s, x, yy, w, h, arrows) {
+    rect(s, x, yy, w, h, '#a8681f'); rect(s, x + 1, yy + 1, w - 2, h - 2, '#e3a94f'); rect(s, x + 1, yy + 1, w - 2, 2, '#f0c27a');
+    rect(s, x + ((w / 2) | 0) - 1, yy + 1, 2, 5, '#d79a3a'); rect(s, x + ((w / 2) | 0) - 1, yy + 1, 2, 1, '#f2d492'); // 테이프 홈
+    if (arrows) [x + 3, x + w - 6].forEach((ax) => { const ay = yy + h - 6; rect(s, ax + 1, ay, 1, 1, '#a8681f'); rect(s, ax, ay + 1, 3, 1, '#a8681f'); rect(s, ax + 1, ay + 2, 1, 3, '#a8681f'); });
+  }
+  function truckSprite(scale, cls) {
+    const s = svgEl(50, 24, scale, cls), D = '#1b3a8c', M = '#3f72e6', L = '#7aa6f5', G = document.createElementNS(NS, 'g');
+    G.setAttribute('transform', 'translate(6,0)'); s.append(G);
+    rect(G, 2, 23, 42, 1, '#000000'); G.lastChild.setAttribute('opacity', '.25'); // 그림자
+    rect(G, -4, 8, 2, 2, '#ffffff', 'wa'); G.lastChild.setAttribute('opacity', '.85'); rect(G, -6, 5, 3, 3, '#ffffff', 'wb'); G.lastChild.setAttribute('opacity', '.85'); // 연기
+    cardboard(G, 2, 1, 9, 6, false); cardboard(G, 2, 7, 9, 6, false); cardboard(G, 11, 1, 11, 12, true); // 짐칸의 상자들
+    rect(G, 0, 11, 23, 8, D); rect(G, 1, 12, 21, 6, M); rect(G, 1, 12, 21, 1, L); rect(G, 1, 13, 1, 4, L); // 짐칸 옆판
+    rect(G, 27, 2, 10, 1, D); rect(G, 24, 3, 15, 1, D); rect(G, 23, 4, 17, 15, D); rect(G, 37, 9, 7, 10, D); // 운전석 외곽(둥근 지붕)
+    rect(G, 28, 3, 8, 1, L); rect(G, 25, 4, 13, 1, M); rect(G, 24, 5, 14, 12, M); rect(G, 38, 10, 5, 8, M); rect(G, 24, 5, 1, 7, L); // 차체색 + 하이라이트
+    rect(G, 26, 5, 11, 8, D); rect(G, 27, 6, 9, 6, '#bfe0f7'); // 큰 창
+    [[28, 11], [29, 10], [30, 9], [31, 8], [32, 7], [33, 6], [31, 11], [32, 10], [33, 9], [34, 8], [35, 7]].forEach(([wx, wy]) => rect(G, wx, wy, 1, 1, '#ffffff'));
+    rect(G, 32, 14, 3, 1, D); rect(G, 31, 6, 1, 1, '#9fc4e6'); // 손잡이
+    rect(G, 40, 9, 5, 5, '#c99a1e'); rect(G, 41, 10, 3, 3, '#f5c542'); rect(G, 41, 10, 3, 1, '#ffe27a'); // 헤드라이트
+    rect(G, 38, 17, 7, 3, D); rect(G, 38, 18, 6, 1, '#9aa0a6'); rect(G, 0, 18, 44, 2, D); rect(G, 1, 18, 21, 1, M); // 범퍼·하부
+    [[9, 19], [34, 19]].forEach(([cx, cy]) => {
+      disc(G, cx, cy, 6, D); disc(G, cx, cy, 5, '#1a1a1a'); disc(G, cx, cy, 3, '#9aa0a6'); disc(G, cx, cy, 1, '#555a60');
+      rect(G, cx, cy - 2, 1, 5, '#6b7075', 'wa'); rect(G, cx - 2, cy, 5, 1, '#6b7075', 'wa');                       // 허브 프레임 A (+)
+      [[-2, -2], [-1, -1], [1, 1], [2, 2], [2, -2], [1, -1], [-1, 1], [-2, 2]].forEach(([dx, dy]) => rect(G, cx + dx, cy + dy, 1, 1, '#6b7075', 'wb')); // 프레임 B (x)
+    });
+    return s;
+  }
+  function barcode(seed) {
+    const h = hash(seed), s = svgEl(30, 8, 2, 'bc-svg'); let x = 0;
+    for (let i = 0; i < 12 && x < 29; i++) { const w = 1 + ((h >> i) & 1) + ((h >> (i + 5)) & 1); rect(s, x, 0, w, 8, 'var(--ink)'); x += w + 1 + ((h >> (i + 2)) & 1); }
+    const box = el('div', 'bc'); box.append(s); return box;
+  }
+  function drawRoad() {
+    const road = $('road'), W = Math.max(60, Math.ceil(road.clientWidth / 3)), H = 28, s = svgEl(W, H, 3, 'scene');
+    let seed = 11; const rnd = () => (seed = (seed * 1103515245 + 12345) >>> 0) / 4294967296;
+    for (let i = 0; i < 5; i++) rect(s, Math.floor(rnd() * W), 2 + Math.floor(rnd() * 8), 8 + Math.floor(rnd() * 8), 2, '#ffffff');
+    for (let x = 0; x < W;) { // 스카이라인
+      const bw = 6 + Math.floor(rnd() * 8), bh = 6 + Math.floor(rnd() * 10);
+      rect(s, x, H - 6 - bh, bw, bh, 'var(--ink)'); s.lastChild.setAttribute('opacity', '.28');
+      for (let wy = H - 6 - bh + 2; wy < H - 8; wy += 3) for (let wx = x + 1; wx < x + bw - 1; wx += 3) if (rnd() > 0.45) rect(s, wx, wy, 1, 1, '#f0c030');
+      x += bw + Math.floor(rnd() * 3);
+    }
+    rect(s, 0, H - 6, W, 6, 'var(--ink)'); // 도로
+    for (let x = 2; x < W; x += 8) rect(s, x, H - 3, 4, 1, '#f1dca0');
+    road.replaceChildren(s);
+    road.append(truckSprite(3, 'truck'));
+    const home = pix(ICONS.house, 4); home.style.cssText = 'position:absolute;right:6px;bottom:15px'; road.append(home);
+    const who = customer(3, 'who'); who.id = 'roadWho'; who.style.cssText = 'position:absolute;right:62px;bottom:15px'; road.append(who);
+    const bub = pix(BUBBLE, 3); bub.style.cssText = 'position:absolute;right:112px;bottom:50px'; road.append(bub);
+  }
+  function updateRoadWho(login) { // 도로 끝 수령인: 가장 최근에 머지한 사람
+    const old = $('roadWho'); if (!old || old.dataset.login === (login || '')) return;
+    const fresh = customer(3, 'who', login); fresh.id = 'roadWho'; fresh.dataset.login = login || ''; fresh.style.cssText = old.style.cssText; old.replaceWith(fresh);
+  }
+  function burst(x, y) { // 도착 색종이
+    const colors = ['#c4313f', '#f0c030', '#2a62c9', '#2f8f46', '#8a4fbf'];
+    for (let i = 0; i < 14; i++) {
+      const c = el('div', 'conf'); c.style.background = colors[i % colors.length]; c.style.left = x + 'px'; c.style.top = y + 'px'; document.body.append(c);
+      const dx = (Math.random() - 0.5) * 120, dy = -30 - Math.random() * 60;
+      c.animate([{ transform: 'translate(0,0)', opacity: 1 }, { transform: 'translate(' + dx + 'px,' + dy + 'px)', opacity: 1, offset: 0.6 }, { transform: 'translate(' + dx + 'px,' + (dy + 70) + 'px)', opacity: 0 }],
+        { duration: 900, easing: 'steps(10, end)' }).onfinish = () => c.remove();
+    }
+  }
+
+  // ---------- 움직임: 칸이 바뀐 티켓은 일꾼이 소포를 안고 걸어서 옮긴다 ----------
+  const SAY = { wait: '접수! (대기)', human: '확인 필요! (사람 확인)', work: '집하 중! (작업 시작)', review: '배송 출발! (PR 열림)', done: '배달 완료! (머지·완료)' };
+  const prevCol = {}, lastRects = {}, moving = new Set(); let prevRepo = null;
+  function moveCards(repo) {
+    const cards = document.querySelectorAll('#board .card'), rects = {};
+    document.querySelectorAll('#board .col').forEach((c, i) => { rects[COLS[i][0]] = c.getBoundingClientRect(); });
+    if (prevRepo === repo) {
+      cards.forEach((card) => {
+        const k = card.dataset.key, to = card.dataset.col, from = prevCol[k];
+        if (!from || from === to || moving.has(k) || !lastRects[from]) return;
+        const a = lastRects[from], b = card.getBoundingClientRect();
+        const w = el('div', 'courier'); w.append(worker(3, true, k), el('div', 'bubble', SAY[to] || '배송!')); document.body.append(w);
+        card.style.visibility = 'hidden'; moving.add(k);
+        const x0 = a.left + a.width / 2 - 18, y0 = a.top + 60, x1 = b.left + b.width / 2 - 18, y1 = b.top - 10;
+        const flip = x1 < x0 ? ' scaleX(-1)' : '';
+        w.animate([{ transform: 'translate(' + x0 + 'px,' + y0 + 'px)' + flip }, { transform: 'translate(' + x1 + 'px,' + y1 + 'px)' + flip }],
+          { duration: 2600, easing: 'steps(40, end)', fill: 'forwards' }).onfinish = () => {
+          moving.delete(k); w.remove(); burst(x1 + 18, y1 + 20);
+          document.querySelectorAll('#board .card').forEach((c) => { if (c.dataset.key === k) c.style.visibility = ''; });
+        };
+      });
+    }
+    cards.forEach((c) => { prevCol[c.dataset.key] = c.dataset.col; });
+    Object.assign(lastRects, rects); prevRepo = repo;
+  }
+
+  // ?demo=1 : 가짜 티켓이 접수→집하→배송중→배송완료로 계속 옮겨진다 (열린 티켓이 없을 때 구경용)
+  const DEMO = new URLSearchParams(location.search).has('demo');
+  let demoStep = 0, demoAv = null;
+  function demoData() {
+    demoStep++;
+    const titles = ['[chat] 로그인 화면 추가', '[health] 업타임 표시', '[agent] 도구 추가'], issues = [], prs = [];
+    const names = Object.keys(demoAv || {}), who = (k) => (names.length ? names[k % names.length] : 'pixel-bot');
+    titles.forEach((title, i) => {
+      const n = 101 + i, stage = (Math.floor((demoStep + i * 2) / 2)) % 6, url = 'https://github.com/demo/demo/issues/' + n;
+      const base = { number: n, title, url, state: 'open', reason: '', labels: [], claim: '', assignees: [], comments: 0, assoc: 'OWNER', author: 'kim', closed_by: '' };
+      if (stage >= 1 && stage <= 3) base.claim = who(i);
+      if (stage === 4) { base.state = 'closed'; base.closed_by = who(i); }
+      issues.push(base);
+      if (stage === 2 || stage === 3) prs.push({ number: 200 + i, title: 'PR ' + title, url, state: 'open', checks: stage === 3 ? 'success' : 'pending', failing: [], issues: [n], merge_sha: '', author: who(i), merged_by: '', main_ci: 'none' });
+      if (stage === 4) prs.push({ number: 200 + i, title: 'PR ' + title, url, state: 'merged', checks: 'success', failing: [], issues: [n], merge_sha: 'abc1234', author: who(i), merged_by: who(i + 1), main_ci: 'success' });
+    });
+    return { repo: 'demo/demo', interval: 3, slack: 'off', polled_at: new Date().toISOString(), fails: 0, error: '', issues, prs, events: [] };
+  }
+
+  // ---------- 화면 ----------
+  function ago(iso) {
+    if (!iso) return '-';
+    const s = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
+    if (s < 60) return s + '초 전';
+    if (s < 3600) return Math.round(s / 60) + '분 전';
+    return Math.round(s / 3600) + '시간 전';
+  }
+  const safeUrl = (u) => (typeof u === 'string' && u.startsWith('https://github.com/')) ? u : null;
+
+  function chip(text, kind) { return el('span', 'chip' + (kind ? ' ' + kind : ''), text); }
+  function card(item, colKey) {
+    const c = el('div', 'card'), key = item.kind + item.number;
+    c.dataset.key = key; c.dataset.col = colKey;
+    if (moving.has(key)) c.style.visibility = 'hidden';
+    const a = el('a', null, item.title);
+    const u = safeUrl(item.url); if (u) { a.href = u; a.target = '_blank'; a.rel = 'noopener noreferrer'; }
+    const head = el('div'); head.append(el('span', 'num', '운송장 ' + (item.kind === 'pr' ? '(PR #' : '(이슈 #') + item.number + ')'), a);
+    c.append(head);
+    const row = el('div', 'row');
+    (item.chips || []).forEach(([t, k]) => row.append(chip(t, k)));
+    if (row.childNodes.length) c.append(row);
+    c.append(barcode(key));
+    const sp = colKey === 'work' || colKey === 'review' ? worker(2, true, key, item.who) : colKey === 'wait' ? worker(2, false, key, item.who) : colKey === 'done' ? customer(2, key, item.who) : null;
+    if (sp) { sp.classList.add('side'); c.append(sp); }
+    return c;
+  }
+
+  function build(data) {
+    const prsByIssue = {}, linkedPr = new Set();
+    data.prs.forEach((p) => (p.issues || []).forEach((n) => { (prsByIssue[n] = prsByIssue[n] || []).push(p); linkedPr.add(p.number); }));
+    const cols = { wait: [], human: [], work: [], review: [], done: [] };
+    const checkChip = (p) => p.checks === 'success' ? ['체크 통과', 'ok'] : p.checks === 'failure' ? ['체크 실패: ' + (p.failing || []).join(', '), 'bad']
+      : p.checks === 'pending' ? ['체크 진행 중', 'warn'] : ['체크 없음', null];
+
+    data.issues.forEach((i) => {
+      const prs = (prsByIssue[i.number] || []).sort((a, b) => b.number - a.number);
+      const openPr = prs.find((p) => p.state === 'open'), mergedPr = prs.find((p) => p.state === 'merged');
+      const chips = [];
+      if (i.claim) chips.push(['🔒 ' + nm(i.claim), 'acc']);
+      else if ((i.assignees || []).length) chips.push(['👤 ' + i.assignees.map(nm).join(', '), null]);
+      (i.labels || []).forEach((l) => chips.push([l, 'warn']));
+      if (i.comments) chips.push(['💬 ' + i.comments, null]);
+      if (i.state === 'open' && i.assoc && !['OWNER', 'MEMBER', 'COLLABORATOR'].includes(i.assoc)) chips.push(['⚠️ 외부 작성자', 'bad']);
+      let col;
+      if (i.state === 'closed') {
+        col = 'done'; chips.unshift([i.reason === 'not_planned' ? '계획 없음' : '완료', i.reason === 'not_planned' ? null : 'ok']);
+        if (i.closed_by) chips.push(['닫음: ' + nm(i.closed_by), null]);
+        if (mergedPr) chips.push(['PR #' + mergedPr.number + ' 머지' + (mergedPr.merged_by ? ' · ' + nm(mergedPr.merged_by) : ''), 'ok']);
+        if (mergedPr && mergedPr.main_ci === 'success') chips.push(['main CI 통과', 'ok']);
+        if (mergedPr && mergedPr.main_ci === 'failure') chips.push(['main CI 실패', 'bad']);
+        if (mergedPr && mergedPr.main_ci === 'pending') chips.push(['main CI 진행 중', 'warn']);
+      } else if (openPr) {
+        col = 'review'; chips.push(['PR #' + openPr.number + (openPr.author ? ' · ' + nm(openPr.author) : ''), 'acc'], checkChip(openPr));
+      } else if ((i.labels || []).length) col = 'human';
+      else if (i.claim || (i.assignees || []).length) col = 'work';
+      else col = 'wait';
+      const who = col === 'done' ? ((mergedPr && mergedPr.merged_by) || i.closed_by || i.author)
+        : col === 'review' ? ((openPr && openPr.author) || i.claim) : (i.claim || (i.assignees || [])[0] || i.author);
+      cols[col].push({ kind: 'issue', number: i.number, title: i.title, url: i.url, chips, who });
+    });
+    data.prs.forEach((p) => {
+      if (linkedPr.has(p.number)) return;
+      const chips = [[p.state === 'merged' ? '머지됨' + (p.merged_by ? ' · ' + nm(p.merged_by) : '') : p.state === 'closed' ? '닫힘' : '열림' + (p.author ? ' · ' + nm(p.author) : ''), p.state === 'merged' ? 'ok' : null], ['이슈 연결 없음', 'warn']];
+      if (p.state === 'open') chips.push(checkChip(p));
+      cols[p.state === 'open' ? 'review' : 'done'].push({ kind: 'pr', number: p.number, title: p.title, url: p.url, chips, who: p.state === 'open' ? p.author : (p.merged_by || p.author) });
+    });
+    cols.done = cols.done.sort((a, b) => b.number - a.number).slice(0, 12);
+    return cols;
+  }
+
+  let selected = null;
+  function render(data) {
+    const names = [data.repo].concat(Object.keys(data.others || {}));
+    if (!names.includes(selected)) selected = data.repo;
+    const repoEl = $('repo');
+    if (names.length > 1) {
+      if (!repoEl.firstChild || repoEl.firstChild.tagName !== 'SELECT') {
+        repoEl.textContent = ''; const sel = el('select');
+        sel.onchange = () => { selected = sel.value; tick(); }; repoEl.append(sel);
+      }
+      const sel = repoEl.firstChild;
+      if (sel.options.length !== names.length) {
+        sel.replaceChildren(); names.forEach((n) => { const o = el('option', null, n); o.value = n; sel.append(o); });
+      }
+      sel.value = selected;
+    } else repoEl.textContent = data.repo;
+    AV = data.avatars || {};
+    const view = selected === data.repo ? data : Object.assign({}, data, data.others[selected]);
+    const lastMerged = (data.prs || []).find((p) => p.state === 'merged');
+    updateRoadWho((lastMerged && lastMerged.merged_by) || Object.keys(AV)[0] || '');
+    $('polled').textContent = ago(data.polled_at);
+    $('slack').textContent = ({ on: '켜짐', off: '꺼짐', error: '전송 오류', 'dry-run': '시험(전송 안 함)' })[data.slack] || data.slack;
+    const ok = data.fails === 0 && data.polled_at;
+    $('live').className = 'dot ' + (ok ? 'ok' : data.fails > 0 ? 'bad' : 'warn');
+    $('liveText').textContent = ok ? '정상 (' + data.interval + '초 주기)' : data.fails > 0 ? 'GitHub 조회 ' + data.fails + '회 연속 실패' : '첫 조회 대기';
+    const err = $('err'); err.style.display = data.error ? 'block' : 'none'; err.textContent = data.error ? '최근 오류: ' + data.error : '';
+
+    const cols = build(view);
+    const board = $('board'); board.replaceChildren();
+    const counts = $('counts'); counts.replaceChildren();
+    COLS.forEach(([key, label, icon, hint]) => {
+      const col = el('div', 'col px ' + key), h = el('h2'), left = el('div', 'hl');
+      left.append(pix(ICONS[icon], 2), document.createTextNode(label), el('span', 'hint', '(' + hint + ')')); h.append(left, el('span', 'n', String(cols[key].length)));
+      const wrap = el('div', 'cards');
+      if (!cols[key].length) { const em = el('div', 'empty'); em.append(pix(PARCEL, 1, { b: 'var(--grid)', t: 'var(--grid)', w: 'var(--grid)' }), document.createTextNode('비어 있음')); wrap.append(em); }
+      cols[key].forEach((c) => wrap.append(card(c, key)));
+      col.append(h, wrap); board.append(col);
+      counts.append(el('span', 'count', label + '(' + hint + ') ' + cols[key].length));
+    });
+    moveCards(selected);
+
+    const evs = $('events'); evs.replaceChildren();
+    if (!data.events.length) evs.append(el('div', 'empty', '아직 알림이 없습니다'));
+    data.events.forEach((e) => {
+      const row = el('div', 'ev'); row.append(el('time', null, ago(e.ts)));
+      const u = safeUrl(e.url);
+      if (u) { const a = el('a', null, e.text); a.href = u; a.target = '_blank'; a.rel = 'noopener noreferrer'; row.append(a); }
+      else row.append(el('span', null, e.text));
+      evs.append(row);
+    });
+  }
+
+  async function tick() {
+    try {
+      if (DEMO) {
+        if (demoAv === null) { try { demoAv = (await (await fetch('/api/state')).json()).avatars || {}; } catch (e) { demoAv = {}; } }
+        render(Object.assign(demoData(), { avatars: demoAv })); return;
+      }
+      const r = await fetch('/api/state', { cache: 'no-store' });
+      if (!r.ok) throw new Error(r.status);
+      render(await r.json());
+    } catch (e) {
+      $('live').className = 'dot bad'; $('liveText').textContent = '모니터에 연결할 수 없음 (scripts/monitor.sh status)';
+    }
+  }
+  $('logo').append(truckSprite(1));
+  drawRoad(); let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(drawRoad, 200); });
+  if (DEMO) { const d = el('div', 'demo', '데모 모드: 가짜 티켓'); document.body.append(d); }
+  // ?sprites=1 : 캐릭터 시트 (헤어 7종 · 소포를 든 모습과 서 있는 모습 · 설정된 팀원)
+  async function showSheet() {
+    try { AV = (await (await fetch('/api/state')).json()).avatars || {}; } catch (e) { AV = {}; }
+    const wrap = el('div'); wrap.style.cssText = 'display:flex;flex-wrap:wrap;gap:22px;padding:24px;background:var(--panel);margin:16px';
+    const add = (label, node) => { const c = el('div'); c.style.cssText = 'text-align:center;font-size:12px'; c.append(node, el('div', null, label)); wrap.append(c); };
+    for (let i = 0; i < 7; i++) {
+      AV['_s' + i] = { style: i, skin: SKINS[i % 4], hair: HAIRS[i], top: OUTFITS[i % 6].T, pants: '#2b2b33' };
+      add('헤어 ' + i + ' (들고 감)', worker(6, true, 'x', '_s' + i)); add('헤어 ' + i + ' (서 있음)', customer(6, 'x', '_s' + i));
+    }
+    Object.keys(AV).filter((k) => k[0] !== '_').forEach((k) => { add(nm(k) + ' (들고 감)', worker(6, true, 'x', k)); add(nm(k) + ' (서 있음)', customer(6, 'x', k)); });
+    document.body.replaceChildren(wrap);
+  }
+  if (new URLSearchParams(location.search).has('sprites')) showSheet(); else { tick(); setInterval(tick, DEMO ? 3000 : 5000); }
+</script>
+</body>
+</html>
