@@ -133,8 +133,23 @@
     return cols;
   }
 
+  let selected = null;
   function render(data) {
-    $('repo').textContent = data.repo;
+    const names = [data.repo].concat(Object.keys(data.others || {}));
+    if (!names.includes(selected)) selected = data.repo;
+    const repoEl = $('repo');
+    if (names.length > 1) {
+      if (!repoEl.firstChild || repoEl.firstChild.tagName !== 'SELECT') {
+        repoEl.textContent = ''; const sel = el('select');
+        sel.onchange = () => { selected = sel.value; tick(); }; repoEl.append(sel);
+      }
+      const sel = repoEl.firstChild;
+      if (sel.options.length !== names.length) {
+        sel.replaceChildren(); names.forEach((n) => { const o = el('option', null, n); o.value = n; sel.append(o); });
+      }
+      sel.value = selected;
+    } else repoEl.textContent = data.repo;
+    const view = selected === data.repo ? data : Object.assign({}, data, data.others[selected]);
     $('polled').textContent = ago(data.polled_at);
     $('slack').textContent = ({ on: '켜짐', off: '꺼짐', error: '전송 오류', 'dry-run': '시험(전송 안 함)' })[data.slack] || data.slack;
     const ok = data.fails === 0 && data.polled_at;
@@ -142,7 +157,7 @@
     $('liveText').textContent = ok ? '정상 (' + data.interval + '초 주기)' : data.fails > 0 ? 'GitHub 조회 ' + data.fails + '회 연속 실패' : '첫 조회 대기';
     const err = $('err'); err.style.display = data.error ? 'block' : 'none'; err.textContent = data.error ? '최근 오류: ' + data.error : '';
 
-    const cols = build(data);
+    const cols = build(view);
     const board = $('board'); board.replaceChildren();
     const counts = $('counts'); counts.replaceChildren();
     COLS.forEach(([key, label]) => {

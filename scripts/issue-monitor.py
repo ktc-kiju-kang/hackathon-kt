@@ -338,6 +338,16 @@ class Dash:
             error="",
         )
 
+    def set_other(self, repo: str, snap: dict) -> None:
+        conv = lambda d: sorted(  # noqa: E731
+            (dict(v, number=int(k)) for k, v in d.items()), key=lambda x: -x["number"]
+        )
+        with self.lock:
+            self.data.setdefault("others", {})[repo] = {
+                "issues": conv(snap["issues"]),
+                "prs": conv(snap["prs"]),
+            }
+
     def add_events(self, lines: list) -> None:
         ts = _now_iso()
         with self.lock:
@@ -474,14 +484,15 @@ def is_recent(iso, hours: int = 24, now=None) -> bool:
     return (now - t).total_seconds() < hours * 3600
 
 
-def take_snapshot(repo: str, root, old_state: dict) -> dict:
+def take_snapshot(repo: str, root, old_state: dict, watch: bool = False) -> dict:
+    # watch=True: 외부 저장소 감시 — 이슈·PR 목록만 본다 (선점·댓글·라벨·체크·main CI 제외)
     raw = json.loads(
         gh(
             "api",
             f"repos/{repo}/issues?state=all&sort=updated&direction=desc&per_page=100",
         )
     )
-    claims = fetch_claims(root)
+    claims = {} if watch else fetch_claims(root)
     issues = {}
     for i in raw:
         if "pull_request" in i:
@@ -492,9 +503,9 @@ def take_snapshot(repo: str, root, old_state: dict) -> dict:
                 "url": i["html_url"],
                 "state": i["state"],
                 "reason": i.get("state_reason"),
-                "labels": [lb["name"] for lb in i["labels"]],
-                "assignees": [a["login"] for a in i["assignees"]],
-                "comments": i["comments"],
+                "labels": [] if watch else [lb["name"] for lb in i["labels"]],
+                "assignees": [] if watch else [a["login"] for a in i["assignees"]],
+                "comments": 0 if watch else i["comments"],
                 "closed_by": ((i.get("closed_by") or {}).get("login") or ""),
                 "assoc": i["author_association"],
                 "author": i["user"]["login"],
@@ -510,7 +521,8 @@ def take_snapshot(repo: str, root, old_state: dict) -> dict:
             "--limit",
             "50",
             "--json",
-            "number,title,state,mergedAt,mergeCommit,headRefName,body,url,statusCheckRollup,author,mergedBy",
+            "number,title,state,mergedAt,mergeCommit,headRefName,body,url,author,mergedBy"
+            + ("" if watch else ",statusCheckRollup"),
         )
     )
     prs = {}
@@ -518,10 +530,26 @@ def take_snapshot(repo: str, root, old_state: dict) -> dict:
         old = old_state.get("prs", {}).get(str(p["number"]), {})
         ci = old.get("main_ci", "none")
         # main CI 는 최근 24시간 안에 머지된 PR 만 조회한다 (첫 실행에 수십 번 호출하지 않게)
-        if is_recent(p.get("mergedAt")) and ci not in ("success", "failure"):
+        if not watch and is_recent(p.get("mergedAt")) and ci not in ("success", "failure"):
             ci = main_ci_status(repo, p["mergeCommit"]["oid"])
         prs[str(p["number"])] = pr_entity(p, ci)
     return {"issues": issues, "prs": prs}
+
+
+REPO_RE = re.compile(r"^[\w.-]+/[\w.-]+$")
+
+
+def load_watch(cli: list, primary: str) -> list:
+    """감시할 외부 저장소: --watch 인자 + 설정 파일 monitor-watch (한 줄에 하나, # 주석)."""
+    names = list(cli)
+    f = Path.home() / ".config" / "hackathon-kt" / "monitor-watch"
+    if f.exists():
+        names += [ln.split("#")[0].strip() for ln in f.read_text().splitlines()]
+    out = []
+    for n in names:
+        if n and REPO_RE.match(n) and n != primary and n not in out:
+            out.append(n)
+    return out
 
 
 def make_comment_fetcher(repo: str):
@@ -596,6 +624,7 @@ def main(argv=None) -> int:
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--quiet-start", action="store_true")
     ap.add_argument("--repo")
+    ap.add_argument("--watch", action="append", default=[], metavar="OWNER/NAME")
     ap.add_argument("--state-file")
     ap.add_argument("--serve", action="store_true")
     ap.add_argument("--port", type=int, default=8765)
@@ -649,9 +678,19 @@ def main(argv=None) -> int:
         print(f"대시보드: http://127.0.0.1:{port}", flush=True)
         if a.open:
             webbrowser.open(f"http://127.0.0.1:{port}")
+    watches = load_watch(a.watch, repo)
+    wpaths = {w: path.with_name(f"issue-monitor-{w.replace('/', '_')}.json") for w in watches}
+    wstates = {w: load_state(wpaths[w]) for w in watches}
+
+    def prefixed(w: str):
+        tag = f"[{esc(w.split('/')[-1], 30)}] "
+        return lambda lines: send([tag + ln for ln in lines])
+
     fails, alerted, delay = 0, False, a.interval
     print(
-        f"모니터 시작: {repo} · {a.interval}초마다 · 상태 {path}"
+        f"모니터 시작: {repo}"
+        + (f" (+감시 {', '.join(watches)})" if watches else "")
+        + f" · {a.interval}초마다 · 상태 {path}"
         + (" · dry-run" if a.dry_run else ""),
         flush=True,
     )
@@ -677,6 +716,15 @@ def main(argv=None) -> int:
             )
             if fails >= MAX_FAILS_BEFORE_ALERT and not alerted:
                 alerted = send([f"⚠️ GitHub 조회가 {fails}번 연속 실패 — {esc(msg, 100)}"])
+        for w in watches:
+            try:
+                ws = take_snapshot(w, None, wstates[w], watch=True)
+                dash.set_other(w, ws)
+                wstates[w] = run_cycle(wstates[w], ws, prefixed(w), lambda *_: [], True)
+                save_state(wpaths[w], wstates[w])
+            except (subprocess.SubprocessError, OSError, ValueError, KeyError) as e:
+                msg = getattr(e, "stderr", "") or str(e) or type(e).__name__
+                print(f"[{w}] 조회 실패: {esc(msg, 200)}", file=sys.stderr, flush=True)
         if a.once:
             return 0
         try:

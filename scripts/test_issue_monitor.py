@@ -202,6 +202,30 @@ class ActorTest(unittest.TestCase):
         self.assertEqual(st["prs"]["9"]["author"], "kim")
 
 
+class WatchTest(unittest.TestCase):
+    def test_load_watch_filters_and_dedupes(self):
+        got = im.load_watch(["a/b", "a/b", "bad", "o/r", "x/y z"], "o/r")
+        self.assertEqual(got[0], "a/b")
+        self.assertNotIn("o/r", got)
+        self.assertNotIn("bad", got)
+        self.assertEqual(got.count("a/b"), 1)
+
+    def test_set_other_in_state_json(self):
+        dash = im.Dash("o/r", 30, "off")
+        dash.set_other("a/b", {"issues": {"3": issue()}, "prs": {"7": pr()}})
+        data = json.loads(dash.snapshot_json())
+        self.assertEqual(data["others"]["a/b"]["issues"][0]["number"], 3)
+        self.assertEqual(data["others"]["a/b"]["prs"][0]["number"], 7)
+
+    def test_watch_entities_only_produce_lifecycle_events(self):
+        # 감시 모드는 댓글·라벨·선점·체크가 상수라 새 이슈/PR/머지/닫힘만 알림이 난다
+        old = issue(comments=0, labels=[], claim="")
+        self.assertEqual(im.diff_issue(1, old, dict(old), lambda *a: []), [])
+        self.assertIn("새 이슈", im.diff_issue(2, None, issue(), lambda *a: [])[0])
+        merged = pr(state="merged", checks="none")
+        self.assertIn("머지됨", im.diff_pr(9, pr(checks="none"), merged)[0])
+
+
 class CycleTest(unittest.TestCase):
     def snap(self, **kw):
         return {"issues": kw.get("issues", {}), "prs": kw.get("prs", {})}
