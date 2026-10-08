@@ -33,4 +33,4 @@ python3 templates/starter/export.py ~/team-repo             # 키트 깔기
 | `.claude/` | 팀 규칙·스킬·reviewer (Claude Code) |
 | `templates/` | 키트 내보내기(`starter/`), 제출 문서 8개 템플릿(`submission/`) |
 
-이전 주제(KT Group AI Opportunity Radar)와 클라우드 배포(Vercel·Render·Supabase)는 2026-10-08에 정리했다 — git 이력(`fdea432` 이전)에 남아 있다.
+이전 주제(KT Group AI Opportunity Radar)와 클라우드 배포(Vercel·Render·Supabase)는 2026-10-08에 정리했다 — git 이력(`80c2e1d`까지)에 남아 있다.

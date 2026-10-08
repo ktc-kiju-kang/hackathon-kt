@@ -52,7 +52,7 @@ tc_lines="- \`make e2e\`: 생략"
 if [ "$KIND" != record ] && [ "${SHIP_SKIP_E2E:-}" != 1 ]; then
   say "4/9 시험 확인 (make e2e — 기록 파일은 PR에 넣지 않음)"
   "$ROOT/scripts/e2e.sh" >"$RUN_DIR/ship-e2e.log" 2>&1; e2e_rc=$?
-  summary=$(ls -1d docs/evidence/*/ 2>/dev/null | sort | tail -n 1)
+  summary=$(ls -1d docs/evidence/*/ .run/evidence/*/ 2>/dev/null | sort -t/ -k3 | tail -n 1)  # 제출 문서 없는 레포는 .run/
   tc_lines=$( { grep -E '^- 전체:' "$summary/summary.md"; grep -E '^\| TC-' "$summary/summary.md" | cut -d'|' -f2,3 | sed 's/^/- /'; } 2>/dev/null)
   git checkout -q -- docs/e2e-test.md docs/prd.md 2>/dev/null; git clean -qfd docs/evidence 2>/dev/null
   if [ "$e2e_rc" != 0 ]; then

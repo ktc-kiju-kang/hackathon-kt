@@ -32,6 +32,8 @@ EXCLUDE = [
     ".github/ISSUE_TEMPLATE/**",  # 주최 측이 넣는다
     ".gitleaksignore",  # 이 레포 이력의 오탐 fingerprint
     "docs/superpowers/plans/**",  # PR 점수 구현 계획 (이 레포 작업 기록)
+    "frontend/vercel.json",  # 이 레포의 옛 Vercel 연결이 main을 자동 배포하지 않게 (연결 해제 후 삭제)
+    ".github/dependabot.yml",  # 이 레포 의존성 알림 (팀 레포는 사내 GHE 정책을 따른다)
 ]
 # 주최 측이 제공하는 파일 — 어떤 경우에도 덮어쓰지 않는다
 PROTECTED = ["docs/security-policy.md", ".github/ISSUE_TEMPLATE/**"]

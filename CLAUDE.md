@@ -46,7 +46,7 @@
 - `frontend/` Next.js(App Router)+TS+Tailwind v4+shadcn/ui (KDS 2.0 토큰): `src/app/<route>/`(화면) · `src/features/<feature>/`(기능, `api.ts`) · `src/components/`·`src/lib/`(공용)
 - `backend/` FastAPI: `app/{routers,services,schemas}/<feature>.py`(기능, 라우터 자동 등록) · `app/core/`(config·db·quota) · `app/agent/`(AI 엔진) · `tests/`
 - `database/migrations/` SQLite 마이그레이션 (서버 시작 시 자동 적용)
-- `e2e/` 배포된 서버에 HTTP로 붙는 E2E 시험 (`make e2e`) · `scripts/` 파이프라인 스크립트 · `docs/evidence/` 시험 근거 (자동 생성, 커밋한다)
+- `e2e/` 배포된 서버에 HTTP로 붙는 E2E 시험 (`make e2e`) · `scripts/` 파이프라인 스크립트 · `docs/evidence/` 시험 근거 (팀 레포에서 자동 생성·커밋. 이 레포는 `.run/evidence/`)
 - 핵심: **features끼리 직접 import 금지**, 공용 코드는 기능 폴더에 두지 않는다.
 
 ## 명령 (입구는 `make`, 상세 `docs/pipeline.md`)
@@ -59,10 +59,10 @@
 | **`make ship`** | **작업 끝 — 검사·시험·PR·AI 리뷰·자동 머지** |
 | `make serve` / `make stop` / `make status` | 로컬 배포 (프로덕션 빌드 + 스모크) |
 | `make e2e` | 시험 전부 + 격리 배포 E2E (확인용. 기록 커밋은 `make record`) |
-| `make record` | 기록 담당: main에서 시험 기록을 자동 PR로 머지 (2~3시간마다, 제출 전) |
+| `make record` | 기록 담당: main에서 시험 기록을 자동 PR로 머지 (2~3시간마다, 제출 전) — **팀 레포 전용** |
 | `make lock-status` | 누가 머지 중인지 |
 | `make claims` / `make release ISSUE=12` | 누가 어떤 Issue를 잡았는지 / 내 선점 해제 |
-| `make submit-check` | 제출 직전 → 포털에 넣을 SHA |
+| `make submit-check` | 제출 직전 → 포털에 넣을 SHA — **팀 레포 전용** (`make docs`도 제출 문서가 있어야 의미 있음) |
 
 개별 명령: frontend `npm run lint && npm test && npm run build`, backend `.venv/bin/ruff check . && .venv/bin/ruff format --check . && .venv/bin/ty check app tests && .venv/bin/pytest`, E2E `backend/.venv/bin/python -m pytest e2e` (서버가 떠 있을 때).
 
