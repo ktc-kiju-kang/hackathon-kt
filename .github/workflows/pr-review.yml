@@ -1,0 +1,118 @@
+name: PR Review
+
+# PR 자동 점검 점수 (비차단). 설계: docs/superpowers/specs/2026-10-03-pr-review-scoring-design.md
+# 점수는 PR 코멘트 1개와 잡 요약으로 보여 준다. 실패해도 PR을 막지 않는다 (필수 체크 아님).
+# pull_request_target 은 쓰지 않는다 — 포크 PR 코드로 시크릿·쓰기 토큰을 쓰지 않기 위해.
+#
+# 잡을 둘로 나눈다 (실행 단계와 보고 단계의 권한 경계).
+#  - lint:  PR 코드를 설치·실행한다(npm ci, uv pip install, eslint, ruff, ty). 읽기 토큰만 가진다.
+#           결과 파일(lint/*.json|txt|code)과 areas.json 만 아티팩트로 넘긴다.
+#  - score: 쓰기 토큰(pull-requests/issues: write)을 가진다. 설치·빌드는 하지 않고,
+#           PR이 바꿀 수 있는 표준 라이브러리 전용 스크립트(scripts/pr_review_score.py)만 실행한다.
+#           같은 저장소 작성자는 이미 쓰기 권한자이고, 포크·Dependabot PR 토큰은 읽기 전용이라
+#           코멘트 쓰기만 실패한다(요약은 남는다).
+# 도구가 실패하면 결과 파일을 남기지 않거나 종료 코드를 기록해 '측정 못 함'으로 보고한다 (0건으로 오인 금지).
+on:
+  pull_request:
+    types: [opened, synchronize, edited, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read # --areas 가 변경 파일 목록을 읽는다
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: 채점 스크립트 자체 테스트
+        run: python3 scripts/test_pr_review_score.py
+      - id: areas
+        run: python3 scripts/pr_review_score.py --areas
+      - name: 결과 디렉터리와 areas.json
+        env:
+          FRONTEND: ${{ steps.areas.outputs.frontend }}
+          BACKEND: ${{ steps.areas.outputs.backend }}
+        run: |
+          mkdir -p lint
+          printf '{"frontend": %s, "backend": %s}\n' "${FRONTEND:-false}" "${BACKEND:-false}" > areas.json
+
+      # --- frontend: 설치 실패 시 eslint.json 이 없어 '측정 못 함' ---
+      - if: steps.areas.outputs.frontend == 'true'
+        uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - id: npm_ci
+        if: steps.areas.outputs.frontend == 'true'
+        continue-on-error: true
+        working-directory: frontend
+        run: npm ci
+      - if: steps.areas.outputs.frontend == 'true' && steps.npm_ci.outcome == 'success'
+        working-directory: frontend
+        run: |
+          set +e
+          npx eslint . --format json --output-file "$GITHUB_WORKSPACE/lint/eslint.json"
+          echo $? > "$GITHUB_WORKSPACE/lint/eslint.code"
+
+      # --- backend: 설치 실패 시 ruff.json·ruff-format.code·ty.txt 가 없어 '측정 못 함' ---
+      - if: steps.areas.outputs.backend == 'true'
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - id: uv_install
+        if: steps.areas.outputs.backend == 'true'
+        continue-on-error: true
+        working-directory: backend
+        run: |
+          pip install uv
+          uv venv
+          uv pip install -r requirements-dev.txt
+      - if: steps.areas.outputs.backend == 'true' && steps.uv_install.outcome == 'success'
+        working-directory: backend
+        run: |
+          set +e
+          .venv/bin/ruff check --output-format json . > "$GITHUB_WORKSPACE/lint/ruff.json"
+          echo $? > "$GITHUB_WORKSPACE/lint/ruff.code"
+          .venv/bin/ruff format --check . > /dev/null 2>&1
+          echo $? > "$GITHUB_WORKSPACE/lint/ruff-format.code"
+          .venv/bin/ty check --output-format concise app tests evals > "$GITHUB_WORKSPACE/lint/ty.txt" 2>&1
+          echo $? > "$GITHUB_WORKSPACE/lint/ty.code"
+
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: pr-review-lint
+          path: |
+            lint/
+            areas.json
+          if-no-files-found: warn
+
+  score:
+    needs: lint
+    if: always() # lint 가 실패·생략돼도 '측정 못 함'으로 보고한다
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write # PR 코멘트는 issues API
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+      - continue-on-error: true # 아티팩트가 없으면 lint 디렉터리 없이 진행
+        uses: actions/download-artifact@v8
+        with:
+          name: pr-review-lint
+          path: .
+      - name: 채점하고 코멘트 남기기
+        run: python3 scripts/pr_review_score.py --lint-dir lint

@@ -2,79 +2,222 @@
 
 > 이 프로젝트가 소프트웨어 개발 생명주기를 어떻게 돌리는지 한곳에 정리한다.
 > **자동 강제**(도구가 막거나 대신 해 주는 것)와 **관례**(사람·Claude가 지키는 것)를 구분하고, **없는 것은 한계로 적는다.**
-> 요약은 `CLAUDE.md`. 마지막 사실 확인: 2026-10-03.
+> 요약은 `CLAUDE.md`이며, 이 문서의 수동 확인 항목은 CI가 대신 보장하지 않는다.
+> 마지막 사실 확인: **2026-10-06**, 코드 기준 `ba5b896`(#67). 실행 증거는 [당일 작업 기록](worklog/2026-10-06.md#sdlc-문서-보완을-위한-추가-확인)에 남긴다.
+
+## 평가할 때 읽는 순서
+
+| 평가 관점 | 확인할 문서·증거 | 주의할 점 |
+|---|---|---|
+| 문제·범위·수용 기준 | [기획과 요구사항](PROJECT.md#요구사항과-수용-기준), 기능 이슈 | 화면이 있다는 것과 요구사항을 만족한다는 것은 다르다 |
+| 설계·변경 영향 | [API 계약](contracts/README.md), [구조](architecture.md), [ADR](decisions/) | 계약 문서만으로 구현·프론트 타입 일치를 증명하지 못한다 |
+| 구현·검증·리뷰 | 연결된 PR, CI 실행 링크, 아래 완료 정의 | 체크박스 대신 **대상 SHA·명령·결과·근거**를 함께 본다 |
+| 배포·운영·복구 | [배포 절차](deploy.md), Deploy 실행, health, [리허설](DEMO.md) | 배포 성공과 사용자 시나리오 성공은 별도로 확인한다 |
+| 회고·개선 | [작업 기록](worklog/), 아래 개선 목록 | 문제 발견 → 조치 → 재확인까지 이어져야 완료다 |
+
+**공식 해커톤 평가표·배점은 이 저장소에서 확인되지 않았다.** 따라서 문서 보완만으로 공식 점수나 상승 폭을 산정하지 않는다. [PR 리뷰 100점 설계](superpowers/specs/2026-10-03-pr-review-scoring-design.md)는 개별 PR의 참고 지표이며, SDLC 성숙도 점수나 현재 작동하는 자동화가 아니다.
+
+사용자 요청에 따른 **비공식 SDLC 자가평가는 8절**, 실제 설정에 근거한 **정적 분석·보안 현황과 추가 후보는 9절**에 구분해 둔다.
 
 ## 1. 단계 맵
 
-| 단계 | 이 프로젝트의 방식 | 산출물·도구 | 강제 |
-|---|---|---|---|
-| 요구사항·계획 | 이슈 하나 = 기능 하나. 템플릿에 목표·완료 조건·API 초안을 적고, 칸반 카드가 움직인다 (Todo·In Review·Done은 GitHub Projects 내장 워크플로로 자동 — 레포에 정의가 없고 설정은 `docs/TEAM.md`, In Progress만 `/start-task`) | `.github/ISSUE_TEMPLATE/`, `/new-issue`, 칸반, `docs/PROJECT.md`(주제·MVP·데모 시나리오) | 관례 (이슈 없이 시작 금지) |
-| 설계 | **계약 우선** — API를 문서로 먼저 정한다. 되돌리기 어려운 결정은 ADR | `docs/contracts/`, `docs/decisions/`(0001~0007), `docs/architecture.md` | 관례 + reviewer 점검 항목 |
-| 구현 | 브랜치 `<type>/<이슈번호>-…`, 기능 폴더, 작게 자주 머지 | `/start-task`, `/add-endpoint`·`/add-page`·`/add-agent-tool`, `.claude/rules/` | 관례 |
-| 테스트 | 아래 3절 | pytest, Vitest, evals, ESLint, ruff, ty, build | **CI가 강제** (evals 제외) |
-| 리뷰 | PR 전 셀프 리뷰와 충돌 검사. 공용 파일·남의 기능·계약·마이그레이션은 리뷰 요청 | `reviewer` 에이전트, `/pr-check`, PR 템플릿 | 관례 (승인은 필수 아님) |
-| 배포 | main 머지 → CI → migrate → backend → frontend → smoke | `.github/workflows/deploy.yml`, `docs/deploy.md` | **자동** |
-| 운영·회고 | 상태는 `/api/health`, 배포는 `/deploy-status`, 날짜별 기록 | `docs/DEMO.md`(시연·장애), `docs/worklog/` | 관례 |
+| 단계 | 진입 조건 | 산출물·도구 | 다음 단계로 넘어가는 조건 | 자동화 |
+|---|---|---|---|---|
+| 요구사항·계획 | 해결할 사용자 문제와 범위가 있음 | 기능 이슈, assignee, [기획](PROJECT.md), `/new-issue` | 목표·포함/제외 범위·관찰 가능한 완료 조건·담당자가 정해짐 | 이슈 선행은 관례. 칸반 자동화는 [Projects 설정](TEAM.md#칸반-github-projects) |
+| 설계 | 완료 조건과 영향받는 기능을 식별함 | [계약](contracts/README.md), [ADR](decisions/), [구조](architecture.md) | 정상·오류·경계 조건, 타입·DB·환경변수·이전 버전 호환 영향이 설명됨 | 관례 + reviewer 점검 |
+| 구현 | 필요한 계약과 담당 범위가 정해짐 | 이슈 브랜치, 기능 폴더, `/start-task`·기능별 스킬 | 완료 조건별 구현과 회귀 테스트가 있고 관련 문서가 갱신됨 | 관례 |
+| 테스트 | 검증할 변경과 대상 SHA가 정해짐 | 아래 테스트 전략, CI 결과, 필요 시 수동·LLM 평가 기록 | 필수 검증 성공. 미확인 영역은 이유·위험·후속 조치를 공개 | CI 자동, 화면·실제 LLM은 수동 |
+| 리뷰 | 검증 결과를 포함한 PR이 준비됨 | `reviewer`, `/pr-check`, PR 템플릿 | 차단 지적 해소, 요청한 담당자 리뷰에 답변 받음, 최신 변경 재확인 | 관례. 점수 자동화는 미구현 |
+| 배포 | 사람이 PR을 머지하고 main CI가 성공함 | [Deploy](../.github/workflows/deploy.yml), [배포 절차](deploy.md) | 4단계 결과·대상 SHA·health·변경 기능을 확인 | 파이프라인·스모크 자동, 기능 인수 수동 |
+| 운영·회고 | 배포 또는 장애·리허설 결과가 있음 | [리허설](DEMO.md), [작업 기록](worklog/), 후속 이슈 | 결과·원인/가설·조치·담당자·재확인 조건을 남김 | 수동. 정기 감시·자동 롤백 없음 |
+
+착수 전에는 이슈의 완료 조건을 **입력 → 관찰할 결과 → 실패 판정**으로 쓴다. 기능 작업은 이슈를 먼저 만들고 assign하며, 문서·인프라만 바꾸는 예외는 PR에 목적과 범위를 설명한다. 요구사항이 바뀌면 이슈·계약·검증 항목도 함께 갱신한다.
 
 ## 2. 완료의 정의 (Definition of Done)
 
-이슈가 끝났다고 하려면 아래를 모두 만족한다.
+**PR 머지 준비 완료**와 **운영 인수 완료**를 구분한다. 칸반이 자동으로 Done이 되더라도 배포·리허설 확인이 끝났다는 뜻은 아니다.
 
-1. 이슈의 **완료 조건**을 모두 충족했다 (이슈 본문 체크박스).
-2. **계약 문서·pydantic 스키마·프론트 타입이 일치**한다. 계약이 바뀌면 영향받는 담당자를 리뷰어로 지정한다.
-3. 변경한 쪽의 검증이 통과한다 — **CI가 강제** (`frontend`·`backend` 필수 체크).
-4. `scripts/check-conflicts.sh`(`/pr-check`) 충돌 없음, `reviewer` 셀프 리뷰 완료 — 관례, PR 템플릿 체크리스트.
-5. PR 본문에 `Closes #<이슈번호>` — 추적성. 머지하면 이슈가 닫히고 카드가 Done이 된다 (GitHub Projects 내장 워크플로, `docs/TEAM.md`).
-6. 규칙·구조·계약에 영향이 있으면 **같은 PR에서 문서를 고친다**.
-7. 머지 후 **배포를 확인**한다: Deploy 4단계 성공 + 운영 `/api/health`의 `version`이 머지 커밋과 같다 (`/deploy-status`). — 관례 (스모크 테스트는 자동).
+1. 이슈의 **완료 조건별 증거**가 있다. 충족하지 못한 조건을 체크하지 않는다.
+2. **계약·Pydantic 스키마·프론트 타입·mock**이 일치한다. 공용 파일·남의 기능·계약·마이그레이션은 담당자에게 리뷰를 요청하고 답을 받는다.
+3. 변경한 쪽의 검증이 성공했고, PR에 **실행한 명령·결과·대상 SHA·CI 링크**를 남겼다. 마지막 변경 뒤의 결과를 사용한다.
+4. 최신 main 반영, `scripts/check-conflicts.sh`(`/pr-check`) 확인, `reviewer` 셀프 리뷰와 지적 처리를 끝냈다. 데이터 손실·비밀값 노출·배포 장애·계약 파괴 등 차단 지적은 점수와 무관하게 해소한다.
+5. 기능 PR 본문에 `Closes #<이슈번호>`를 넣었다. 문서·인프라 예외에는 이슈 연결이 없는 이유를 쓴다.
+6. 규칙·구조·계약·환경변수에 영향이 있으면 같은 PR에서 문서를 고쳤고, DB 변경은 이전 코드와의 호환성을 설명했다.
+7. **머지 후 운영 인수**: Deploy 4단계와 로그의 경고·건너뜀, 대상 SHA와 health `version`, `db`, 변경 기능을 확인해 기록했다. 실패하면 이슈를 다시 열거나 연결된 후속 이슈로 추적한다.
 
-**자동 강제되는 것** (2026-10-03 확인): `main`은 보호 브랜치이고 필수 상태 체크는 `frontend`·`backend` 두 개다 (비관리자에게 강제). 승인 리뷰는 필수가 아니고 관리자는 우회할 수 있다. 머지된 브랜치는 자동 삭제된다. 그 밖(이슈 선행, 계약 우선, 셀프 리뷰, 배포 확인)은 관례다.
+**자동화의 확인 범위**: 2026-10-06 API로 `main.protected=true`, 머지된 브랜치 자동 삭제, CI·Deploy 실행을 확인했다. 세부 보호 설정 API는 404여서 필수 체크·관리자 우회·승인 조건을 재확인하지 못했다. **2026-10-03 기록상** 필수 체크는 `frontend`·`backend`, 승인 불필요, 관리자 우회 가능이었다. 설정이 현재도 같다는 단정은 하지 않으며, 확인 주체는 저장소 관리자다. 이슈 선행·계약 우선·셀프 리뷰·기능 인수는 CI가 강제하지 않는다.
+
+### 변경 유형별 검증 범위
+
+| 변경 | 필요한 확인 | 생략할 수 없는 설명 |
+|---|---|---|
+| Markdown만 | 링크·경로·명령·날짜·근거와 실제 상태 대조 | 앱 테스트를 재실행하지 않았다면 문서 전용 변경이라는 이유. 현재 CI는 문서 PR에도 실행됨 |
+| frontend / backend | 해당 영역 전체 검증 명령 + 변경 경로 테스트 | 실패·미실행 항목과 사용자 영향 |
+| API·DB·공용 코드 | 호출하는 기능·계약·이전 버전 호환까지 확대 | 영향받는 담당자 리뷰, 마이그레이션 적용·복구 방법 |
+| 프롬프트·모델·LLM 어댑터 | 무료 테스트와 필요 시 승인받은 실제 LLM 평가 | mock 통과만으로 품질을 보증하지 않음. 어댑터는 병렬 도구 호출·대화 2턴 확인 |
+| 의존성·CI·배포 설정 | 관련 CI + 배포 후 확인 | PR CI가 `deploy.yml` 실행까지 검증하지는 않음 |
 
 ## 3. 테스트 전략
 
 | 계층 | 무엇을 | 위치 | 실행 | 비용 |
 |---|---|---|---|---|
-| 단위·API | pytest 88개 — 계약의 이벤트 순서, 입력 검증, 사용량 한도, 단계 파이프라인. DB·LLM 없이(mock·가짜 공급자) | `backend/tests/` | CI 자동 | 무료 |
-| 단위 (frontend) | Vitest 14개 — `lib/sse.ts`(SSE 파서·스트림 읽기): 청크 분할, 끊김 감지, 서버 오류 문구, 헤더·취소 | `frontend/src/**/*.test.ts` | CI 자동 (`npm test`) | 무료 |
-| 정적 검사 | ruff(lint·format), ty(타입), ESLint | CI | 자동 | 무료 |
-| 비밀값 스캔 | gitleaks — 기본 규칙 + `.env.example`의 키처럼 긴 값 | `.gitleaks.toml`, `.github/workflows/security.yml` | PR·main push 자동 (**필수 체크는 아님**) | 무료 |
-| 빌드 | Next.js build (타입 검사 포함) | CI | 자동 | 무료 |
-| 품질 평가 | 실제 LLM으로 에이전트·radar·product 결과를 규칙으로 채점 | `backend/evals/` | **수동**, 실행 전 사용자 확인 | **실제 API 비용** |
-| 스모크 | health·version·db·화면·CORS | `scripts/smoke.sh` | 배포 후 자동 | 무료 |
+| 단위·API | pytest **91개** — 계약·입력 검증·한도·단계 파이프라인·Radar 결과 재사용 | [backend/tests](../backend/tests/) | CI 자동 | 무료 |
+| 단위 (frontend) | Vitest **14개** — SSE 청크 분할·끊김·오류 문구·헤더·취소 신호 전달 | [sse.test.ts](../frontend/src/lib/sse.test.ts) | CI 자동 | 무료 |
+| 정적 검사·빌드 | ruff check·format, ty(`app tests evals`), ESLint, Next.js build | [ci.yml](../.github/workflows/ci.yml) | CI 자동 | 무료 |
+| 비밀값 스캔 | gitleaks 기본 규칙 + `.env.example`의 긴 키 형태 | [.gitleaks.toml](../.gitleaks.toml), [security.yml](../.github/workflows/security.yml) | PR·main push 자동. 필수 체크 여부는 관리자 재확인 필요 | 무료 |
+| AI 평가 | 실제 LLM의 출력·근거·기대/금지 문구·PoC 기간을 케이스별 규칙으로 검사 | [backend/evals](../backend/evals/) | 수동, 실제 호출 전 사용자 확인 | 실제 API 비용·한도 사용 |
+| 스모크 | health·version·db, **홈(`/`) HTTP 200**, CORS | [smoke.sh](../scripts/smoke.sh) | 배포 후 자동 | LLM 호출 없음 |
+| 사용자 시나리오 | trends → radar → product → Markdown, 오류·예비안 | [DEMO.md](DEMO.md) | 수동 | 실시간 생성만 API 비용·한도 사용 |
+
+테스트 수는 **2026-10-06, `ba5b896`의 [CI 실행](https://github.com/ktc-kiju-kang/hackathon-kt/actions/runs/37414241028)** 로그 기준이며 커버리지 비율이 아니다. 테스트 파일이 있다는 것과 해당 변경에서 실행·성공했다는 것을 구분한다.
+
+### 검증 명령
+
+저장소 루트에서, 변경한 영역의 명령을 실행한다. PR 전에는 해당 영역 전체 검증을 마친다.
+
+```bash
+(cd frontend && npm run lint && npm test && npm run build)
+(cd backend && .venv/bin/ruff check . && .venv/bin/ruff format --check . && .venv/bin/ty check app tests evals && .venv/bin/pytest)
+```
+
+LLM 흐름의 무료 확인은 다음과 같다. **mock은 생성 품질 평가가 아니다.**
+
+```bash
+(cd backend && .venv/bin/python -m evals.run_radar_eval --provider mock)
+(cd backend && .venv/bin/python -m evals.run_product_eval --provider mock)
+```
+
+실제 LLM 평가는 사용자 승인 후 `--provider mock`을 빼고 실행한다. 실행 전 공급자·모델·케이스·호출 예산을 확인하고, 선택한 케이스가 1개 이상 실행됐는지와 케이스별 결과·소요 시간을 남긴다. `0/0`이나 과거 결과를 현재 성공으로 기록하지 않는다.
+
+### 요구사항별 검증 연결
+
+요구사항 ID와 수용 기준은 [PROJECT.md](PROJECT.md#요구사항과-수용-기준)가 기준이다.
+
+| 요구사항 | 현재 검증 근거 | 사람이 추가로 확인할 것 |
+|---|---|---|
+| REQ-01 트렌드 | [test_trends.py](../backend/tests/test_trends.py): KR 요약·국가·기간·잘못된 입력 | 국가·기간 선택 후 차트·출처 표시 |
+| REQ-02 기회·근거 | [test_radar.py](../backend/tests/test_radar.py): 단계 순서·근거 없는 결과 제외·서버 수치 사용 | 근거와 AI 추론 구분, 그룹사 관련성 |
+| REQ-03 Product·PoC | [test_product.py](../backend/tests/test_product.py), [product_cases.json](../backend/evals/product_cases.json) | **요청한 기간과 실제 PoC 기간 일치**, Markdown 복사·다운로드 내용 |
+| REQ-04 예비안 | [test_snapshot.py](../backend/tests/test_snapshot.py): 스냅샷 연결·404·한도 미사용 | 저장 시각·모델 안내와 Radar → Product 전환 |
+| REQ-05 비용·실패 처리 | [test_quota.py](../backend/tests/test_quota.py), [test_radar.py](../backend/tests/test_radar.py), [test_stages.py](../backend/tests/test_stages.py), [sse.test.ts](../frontend/src/lib/sse.test.ts) | 중지 시 스피너 종료, 오류 후 재시도 UX. 파서 테스트는 브라우저 조작 테스트가 아님 |
 
 - **원칙**: 외부 의존(DB·LLM)은 테스트에서 고정한다. CI에는 DB도 LLM 키도 없고, 로컬 `.env`에 실제 키가 있어도 테스트 결과가 달라지면 안 된다.
-- **한계 (솔직히)**:
-  - 프론트 자동 테스트는 **`lib/sse.ts` 한 곳(14개)뿐**이다. 컴포넌트·화면 동작 테스트는 없어서 UI는 사람이 직접 확인한다.
-  - 커버리지를 **측정하지 않는다**. E2E 테스트도 없다.
-  - 품질 평가(evals)는 비용 때문에 CI에서 돌지 않는다.
-  - **비밀값 스캔(`Security` 잡)은 필수 체크가 아니다.** 필수 지정에는 저장소 관리자 권한이 필요하다 (현재 필수는 `frontend`·`backend`). 알려진 키 형식과 `.env.example`의 긴 값만 잡으므로, 값 모양이 평범한 비밀값은 `reviewer` 점검 항목이 본다.
-  - **Dependabot은 버전 업데이트 PR만 온다.** 저장소 설정에서 *Dependabot alerts*(취약점 경고)가 꺼져 있어(2026-10-03 API 확인) 취약점 기반 보안 업데이트는 오지 않는다. GitHub Secret scanning·Push protection도 관리자 설정이다.
-  - 후속 후보: 컴포넌트 테스트(React Testing Library), 커버리지 기준선, 관리자 설정(필수 체크·Dependabot alerts·Secret scanning).
+- **한계**: 컴포넌트·E2E·커버리지 측정·실제 DB 통합 테스트는 없다. `ty`가 eval 코드를 검사해도 실제 LLM 평가를 실행하는 것은 아니다. 스모크는 3개 핵심 화면의 버튼·SSE·내보내기를 검증하지 않는다.
+- **평가 기준의 빈틈**: 현재 Product 케이스의 입력은 "3주 안에 PoC"지만 `max_weeks`는 **4**다. 평가 통과만으로 3주 요구 충족을 주장할 수 없다. 수정 전에는 리허설에서 직접 대조한다. 문자열 기반 평가는 사업성·개인정보 위험을 완전히 판단하지 못한다.
+- **관리자 설정 미확인**: Dependabot alerts는 2026-10-03에 꺼져 있었고, 2026-10-06 조회는 보안 설정을 반환하지 않았다. 현재 활성화 여부는 미확인이다. Secret scanning·Push protection·`Security / secrets` 필수 체크도 설정 증거 없이 완료로 표시하지 않는다.
 
 ## 4. 추적성
 
+```text
+요구사항 ID → 이슈(완료 조건·담당자) → 계약·ADR → PR(Closes #n)
+→ 검증 대상 SHA·명령·CI·리뷰 → 머지 SHA·Deploy → 기능 인수 → 작업 기록·후속 이슈
 ```
-이슈(목표·완료 조건) ←─ Closes #n ─ PR(변경·검증 체크리스트) ─→ 계약 문서 · ADR · 문서 변경
-        └─ 커밋 `<type>(<feature>): 요약`                         └─ docs/worklog/ (머지된 PR·결정·교훈)
-```
+
+PR 템플릿의 기존 항목을 유지하면서 완료 조건별로 `검증 방법 / 실제 결과 / 근거 링크 / 미확인 사유`를 적는다. 템플릿의 축약 명령보다 **위 검증 명령과 실제 CI**를 기준으로 한다. 로그·화면에는 키·개인정보를 제거하며, health 응답의 `client_ip`도 공개 기록에서 뺀다.
+
+예: #66 → [Radar 재사용 계약](contracts/radar.md) → #67 → `ba5b896`의 CI·Deploy → health 확인. **이 연결은 비용 절약 기능의 배포 증거이지 #32 사용자 리허설 완료 증거는 아니다.**
+
+AI 리뷰를 기록할 때는 리뷰 대상 SHA, `[심각도] 파일:줄 — 문제 — 제안`, 조치 결과, 확인하지 못한 것을 함께 남긴다. 추가 push로 동작이 바뀌면 영향받는 검증·리뷰를 갱신한다. 점수가 없더라도 근거 있는 지적과 처리 이력이 우선이다.
 
 ## 5. 되돌리기 (롤백)
 
-- **자동 롤백은 없다** (ADR 0004). 문제가 생기면 **revert PR**을 머지하면 같은 파이프라인으로 되돌아간다.
-- **DB 스키마는 되돌리지 않는다.** 그래서 마이그레이션은 이전 버전 코드와 호환되게 쓴다 (컬럼 추가 OK, drop·rename은 2단계).
-- 배포 중 실패하면: migrate 실패 → 이후 단계 중단 / backend 실패 → frontend 배포 안 함 / frontend 실패 → 이전 버전 유지.
+- **자동 롤백은 없다** ([ADR 0004](decisions/0004-deploy-pipeline.md)). 롤백 판단·단계별 실패 상태·복구 확인은 [배포 문서](deploy.md#실패-시-판단과-되돌리기)를 따른다.
+- 코드 회귀는 **revert PR → CI → 사람 머지 → Deploy → 기능 재확인**으로 복구한다. 새 revert 커밋이 생기므로 health는 옛 SHA가 아니라 **revert 배포 SHA**와 비교한다.
+- **DB 스키마·데이터는 코드 revert로 되돌아가지 않는다.** 마이그레이션은 이전 버전 코드와 호환되게 쓴다. 공유 DB에 직접 SQL을 실행하거나 적용 기록을 고치지 않는다.
+- 복구 시간·데이터 손실 허용량(RTO·RPO), DB 백업·복원 리허설 실적은 아직 정해지거나 검증되지 않았다. 숫자나 복구 보장을 임의로 적지 않는다.
 
-## 6. 장애 대응 (실제로 겪은 것 — 2026-10-02~03 작업 중 직접 만난 사례. 일부는 아직 `docs/worklog/`에 없다)
+## 6. 장애 대응
+
+발견자는 관련 이슈/PR에 발생 시각·영향·배포 SHA·증상을 남기고, 기능 담당자는 원인 확인과 조치를 맡는다. 권한이 필요한 작업은 [팀 담당 원칙](TEAM.md)에 따라 관리자에게 요청한다. 비밀값 의심 시 원문을 댓글에 붙이지 않고 키 폐기·교체부터 요청한다.
 
 | 증상 | 원인 | 조치 |
 |---|---|---|
-| Deploy의 backend 단계가 `Wait for new version`에서 15분 뒤 실패 (2026-10-02, `4d1e84c`) | 워크플로가 15분 안에 새 버전을 확인하지 못함(Render가 새 커밋을 못 띄운 것으로 보이며, 원인은 Render 대시보드 로그에서만 볼 수 있다) | 그사이 main에 새 커밋이 있으면 **다음 Deploy가 처리**한다 (실제로 다음 커밋에서 해소). 계속 실패하면 Render 로그를 보고 수동 재배포(`gh workflow run deploy.yml`, 사용자 확인) |
+| Deploy backend의 `Wait for new version` 실패 (`4d1e84c`) | 새 SHA를 확인하지 못함. Render 근본 원인은 미확정 | Render Events·로그와 후속 Deploy 확인. 원인을 해소한 뒤 사용자 승인으로 main 재배포. [경과](worklog/2026-10-06.md#10-02-배포-실패-경과) |
 | 운영 API 첫 요청이 응답이 없음(타임아웃) | Render free는 15분 미사용 시 잠든다 | `/api/health`를 반복 호출해 깨운다(약 1분). 시연 10분 전에 미리 |
-| radar·product·agent가 429 | LLM 무료 한도(분당·일일) | radar "저장된 결과 보기"(`docs/DEMO.md`), 한도 확인 |
-| 로컬 pytest가 `ModuleNotFoundError: anthropic` 등으로 수집 실패 | main에 의존성이 추가됐는데 로컬 venv가 낡음 | `uv pip install -r requirements-dev.txt` |
-| 로컬 build가 `.next/dev/types/… Cannot find module '…/page.js'`로 실패 | 삭제한 라우트를 가리키는 생성 캐시 | `rm -rf frontend/.next` (gitignore됨, CI에는 없음) |
-| 테스트·`fastapi dev`가 실제 공유 DB에 붙음 | `backend/.env`에 실제 Supabase 키가 있음 | 테스트는 설정을 고정(monkeypatch). 수동 확인은 `SUPABASE_URL=` 등을 비워 실행하고, 쓴 데이터는 지운다 |
-| Dependabot PR이 한꺼번에 열림 (설정 직후 첫 실행에 7개) | 첫 실행은 밀린 업데이트를 한 번에 만든다. 설정은 주 1회·그룹이지만 생태계마다 한도가 따로다 | CI 통과를 확인하고 **하나씩** 머지한다. GitHub Actions 메이저 업데이트(예: `checkout` 4→7)는 PR CI가 못 돌리는 `deploy.yml`에 영향이 있으니 머지 뒤 `Deploy`를 한 번 수동 실행해 확인한다 |
-| 비밀값 스캔이 `.env.example`의 빈 값 줄(`KEY=`)에서 오탐 | gitleaks `generic-api-key`가 줄바꿈을 넘어 다음 줄을 값으로 잡는다 | `.gitleaks.toml`에 규칙 1개×경로 1개로 좁힌 예외가 있다. 새 오탐은 파일 통째가 아니라 같은 방식으로 최소 범위만 허용한다 |
+| radar·product·agent가 429 | 앱 IP/일일 한도 또는 공급자 분당/일일 한도 | 스트림 시작 전 HTTP 429인지, 시작 후 `retry`/`error`인지 구분. [저장된 결과](DEMO.md)로 전환하고 반복 호출을 멈춤 |
+| 로컬 pytest가 의존성 누락으로 수집 실패 | main에 추가된 의존성과 로컬 venv 불일치 | `cd backend && uv pip install -r requirements-dev.txt` 후 같은 검증 재실행 |
+| 로컬 build가 삭제된 라우트의 생성 타입을 참조 | `.next/dev/types` 캐시 | dev 서버를 멈추고 `frontend/.next`가 생성 캐시인지 확인한 뒤 해당 캐시만 정리 |
+| 테스트·로컬 실행이 공유 DB에 접근 | 실제 설정이 격리되지 않음 | 테스트 fixture·메모리 저장소를 사용. 실수로 썼다면 영향 범위를 담당자에게 알리고 승인된 복구 절차로 처리 |
+| Dependabot PR이 여러 건 생성됨 | 첫 실행의 누적 업데이트·생태계별 한도 | 하나씩 검토. 액션·SDK 변경은 CI뿐 아니라 해당 배포·실제 API 확인도 필요 |
+| `.env.example` 빈 값 줄에서 비밀값 오탐 | 규칙이 다음 줄까지 값으로 인식 | [기존 예외](../.gitleaks.toml)처럼 규칙×경로를 최소화. 파일 통째 스캔 제외 금지 |
 
-더 많은 사례와 교훈은 `docs/worklog/`에 날짜별로 남긴다.
+작업 기록에는 `발생/발견 시각 → 영향 → 확인된 원인 / 미확정 가설 → 조치 PR·배포 → 재확인 결과 → 재발 방지 담당·이슈`를 남긴다. 후속 배포가 성공했다는 이유만으로 원인이 규명됐다고 쓰지 않는다.
+
+## 7. 남은 개선과 종료 조건
+
+다음은 **미완료 목록**이며, 문서에 적었다는 이유로 구현·운영 점수를 부여하지 않는다. 담당은 역할 기준이고 실제 assignee·일정은 이슈에서 확정한다.
+
+| 우선순위 | 개선 | 현재 근거·담당 | 완료로 볼 증거 |
+|---|---|---|---|
+| P0·시연 전 | 전체 리허설과 예비안 인수 | #32, 시연 담당 | [통과 기준](DEMO.md#리허설-통과-기준)별 실측·결과·자료 위치 |
+| P0·운영 확인 | 관리자 권한·보호/보안 설정 확인 | [TEAM](TEAM.md#권한), 저장소·서비스 관리자 | 설정 확인 일자와 비밀값을 제외한 결과. 적용 안 된 항목은 별도 결정 |
+| P1 | Product 평가의 3주 요구와 4주 허용 불일치 | `product_cases.json`, Product 담당 | 수용 기준과 같은 상한, 상한 초과 시 실패하는 회귀 확인 |
+| P1 | 핵심 UI·E2E·커버리지 기준선 | 위 테스트 한계, 해당 기능 담당 | 핵심 흐름·오류·예비안 자동 검증 결과와 측정한 기준선 |
+| P1 | 복구 리허설·관측·알림 | 자동 롤백·정기 감시·RTO/RPO 미정, 운영 담당 | 복구 실측, 알림 수신 확인, 합의된 목표와 한계 |
+| P1 | 정적 보안 분석·의존성 취약점 검사 | 아래 정적 분석·보안 개선 계획, 인프라 작업 담당·관리자 | 실제 검사 결과·오탐 처리·차단 기준·실패 경로 확인. 도구를 문서에 나열하는 것만으로 완료 아님 |
+| P2 | PR 점수 자동화 | [설계](superpowers/specs/2026-10-03-pr-review-scoring-design.md)·[계획](superpowers/plans/2026-10-04-pr-review-scoring-ci.md), 인프라 작업 담당 | 실제 워크플로·리포트·실패 경로·권한별 검증. 현재는 모두 계획 단계 |
+
+개선 이슈 생성·push·PR 생성·수동 재배포는 사용자 확인 후 진행하며, PR 머지는 사람이 한다.
+
+## 8. 현재 SDLC 자가평가 (비공식)
+
+**2026-10-06 기준: 70/100점.** 아래 배점은 이번 검토를 위한 자체 기준이며 공식 심사표·인증·자동 측정값이 아니다. 평가 범위는 **main `ba5b896`의 구현·기존 실행 기록과 현재 브랜치의 보완 문서**다. 보완 문서는 아직 main에 반영되지 않았으므로 실제 팀 채택이나 운영 개선 완료로 취급하지 않는다.
+
+문서·설정·실행 증거·반복 가능성·검증 범위를 함께 보는 **정성 평가**다. 항목별 0점은 증거 없음, 절반 수준은 일부 장치와 제한된 사례, 만점은 해당 범위의 절차와 실행·예외 처리까지 확인된 상태로 본다. 도구 개수나 테스트 개수를 그대로 점수로 환산하지 않는다. 계획·미확인은 구현 점수로 더하지 않고, 정적 품질과 보안 분석을 중복 가점하지 않는다.
+
+| 평가 영역 | 배점 | 현재 점수 | 인정 근거 | 주요 감점·미확인 |
+|---|---|---|---|---|
+| 요구사항·계획 | 10 | 8 | 사용자·MVP 범위, 기능 이슈, REQ-01~05·수용 기준 | 새 기준의 실제 인수·팀 채택 기록 부족, #32 미완료 |
+| 설계·계약 | 15 | 13 | 기능별 계약·ADR·구조 규칙, 근거 재검증·호환 정책 | 알려진 기능 간 import 예외, 계약↔프론트 타입 자동 대조 없음 |
+| 형상관리·리뷰 | 10 | 7 | PR·브랜치·충돌 검사·reviewer 절차, main 보호 확인 | 최신 필수 체크 세부 설정 미확인, 리뷰 증거·최신성 자동 검증 미구현 |
+| 정적 품질 분석 | 15 | 13 | ESLint·ruff lint/format·ty·Next.js build가 CI에서 실행 | 워크플로·셸 정적 검사 없음, 예외/경고의 지속 추적 지표 없음 |
+| 테스트·AI 품질 | 20 | 11 | pytest 91개·Vitest 14개, SSE·입력·한도·가짜 공급자 검증 | UI·E2E·커버리지·실제 DB 검증 없음, 현재 모델 리허설 미완료, PoC 3주/4주 기준 불일치 |
+| 보안·공급망 | 10 | 5 | gitleaks 설정·과거 실행 기록, 비밀값 분리, Dependabot 버전 갱신 | 현재 보안 설정·최신 스캔 결과 미확인, 전용 SAST·SCA 실행 증거 없음 |
+| 배포·복구 | 10 | 8 | CI 연계 4단계 배포·SHA 확인·스모크, 되돌리기 절차 | 복구 리허설 없음, DB 변경 적용·복원은 잡 성공만으로 보장 못 함 |
+| 운영·회고 | 10 | 5 | health·실제 장애 기록·예비안·수동 대응 절차 | 정기 감시·외부 알림·RTO/RPO·접근권한 인수 확인 부족 |
+| **합계** | **100** | **70** | **개발·배포 기반은 갖췄으나 품질·보안·운영의 검증 공백이 남음** | **문서 정비만으로 해소되지 않는 항목이 주요 감점** |
+
+점수를 올리는 우선순위는 **리허설과 PoC 기준 정합성 → 보안 설정·SCA/SAST의 실제 결과 → 핵심 UI 회귀 검증 → 복구·알림 실측**이다. 작업 이름만으로 고정 가점을 약속하지 않으며, 완료 증거가 생기면 해당 행만 같은 기준으로 재평가한다. 보안 점수는 취약점 개수나 “안전할 확률”을 뜻하지 않는다.
+
+## 9. 정적 분석·보안 현황과 추가 후보
+
+### 현재 확인한 장치
+
+| 구분 | 실제 설정·범위 | 확인 가능한 것과 한계 |
+|---|---|---|
+| Python 정적 품질 | [pyproject.toml](../backend/pyproject.toml)의 ruff `E/W/F/I/N/UP/B/RET`, `ruff format` | 형식·이름·일부 버그 패턴. **`B`는 bugbear이며 보안 전용 `S` 규칙이 아니다**. 현재 `S` 선택 없음 |
+| Python 타입 | CI의 `ty check app tests evals`, [개발 의존성](../backend/requirements-dev.txt)의 ty·ruff 버전 고정 | 타입 오류를 잡지만 권한·비밀값·취약한 의존성까지 판정하지 않음 |
+| frontend 정적 품질·타입 | [ESLint 설정](../frontend/eslint.config.mjs)의 Next core-web-vitals·TypeScript 규칙, [tsconfig](../frontend/tsconfig.json)의 `strict: true`, CI의 `npm run build` | 타입·정적 품질 확인. `skipLibCheck: true`이며 별도 보안 데이터 흐름 분석은 아님 |
+| 비밀값 스캔 | [Security 워크플로](../.github/workflows/security.yml)의 gitleaks, [.gitleaks.toml](../.gitleaks.toml)의 기본 규칙·좁은 예외 | 키 형태·이력 검사. 의미상 비밀값·외부 설정 전체를 보장하지 않음. 배포는 `CI` 성공을 트리거로 하므로 이 워크플로 성공을 별도로 기다리지 않음 |
+| 의존성 갱신 | [Dependabot](../.github/dependabot.yml): npm·pip·Actions 주간 업데이트 | **버전 업데이트 PR과 CVE 검사 통과는 다르다.** 보안 경고·자동 보안 업데이트의 관리자 설정은 미확인 |
+| 재현 가능한 입력 | frontend `package-lock.json` + `npm ci`; backend 일부 도구만 정확한 버전 고정 | [requirements.txt](../backend/requirements.txt)는 범위 지정이므로 시점별 설치 결과가 달라질 수 있음. 선언 파일 검사만으로 배포된 전체 의존성을 증명하지 못함 |
+| 전용 보안 분석 | 저장소 워크플로에서 CodeQL/Semgrep·npm audit·pip-audit·SBOM 작업은 확인되지 않음 | **도입 완료·실행 결과의 증거가 없음**. 단, CodeQL default setup은 YAML 없이 설정될 수 있으므로 파일 부재만으로 비활성이라고 단정하지 않음 |
+
+최신 Security 실행 조회는 이번 점검 중 GitHub 접근 정책의 **HTTP 403**으로 막혔다. 설정 파일 존재·과거 실행 기록과 현재 검사 성공을 구분한다. 이번 보안 리뷰는 검토한 변경에서 취약점을 보고하지 않았지만, **SAST·SCA 스캐너를 새로 실행하지 않았으므로 “취약점 0건”으로 기록하지 않는다.**
+
+### 추가할 수 있는 것 (후속 확인·도입 제안)
+
+기존 도구와 GitHub 기본 기능을 먼저 사용한다. 아래는 Markdown으로 정리한 후속 후보이며, **이번 변경은 패키지 설치·CI 수정·관리자 설정 활성화를 수행하지 않는다.**
+
+| 우선순위·범위 | 제안 | 적용 위치·시점 | 완료 증거·도입 조건 |
+|---|---|---|---|
+| P0·설정 확인 | gitleaks 필수 체크 여부, Dependabot alerts·Secret scanning·Push protection 확인·필요 시 활성화 | 관리자, main 보호·저장소 보안 설정 | 실제 체크 이름·활성화 일자·허용/차단 동작 확인. 권한·플랜·조직 정책 확인 전 가능하다고 단정하지 않음 |
+| P1·SCA | **npm audit + pip-audit**로 직접·전이 의존성의 알려진 취약점 검사 | 의존성 변경 PR·main·주간 실행. npm은 기존 CLI 사용, pip-audit은 별도 도구 설치/설정 PR 필요 | 정확한 해결 버전·조회 시각·CVE/GHSA·수정 버전·미검사 패키지·종료 코드가 있는 보고서. 네트워크 실패는 통과가 아님 |
+| P1·SAST | 공개 저장소에서 사용 가능한 **CodeQL default setup 우선 검토**(Python·JavaScript/TypeScript) | 관리자 설정과 첫 스캔 확인. 필요할 때만 별도 YAML로 세부 제어 | 언어별 실제 분석 결과·경로·오탐 처리 기록. 설정을 켰어도 분석 실패면 완료 아님. Actions 실행 자원·정책 확인 |
+| P1·워크플로 | **actionlint**, 실행 단계의 최소 권한과 액션 SHA 고정 | `.github/workflows/**` 변경 PR. 도구 추가와 설정 변경은 별도 PR | YAML/표현식 오류 재현·실패 확인, PR 코드 실행과 쓰기 토큰 경계 검토. 현재 gitleaks 액션은 SHA 고정이지만 checkout/setup 액션은 태그 사용 |
+| P1·보안 회귀 | 기존 pytest·Vitest로 접근 범위·입력 상한·CORS·한도·프롬프트 경계·화면 문자열 처리의 부정 사례 보강 | 해당 기능 변경 PR, 격리된 mock/테스트 환경 | 정상은 성공하고 허용되지 않은 입력·접근은 거부되는 테스트. 운영 API에 고의 부하·공격을 보내지 않음 |
+| P2·공급망 기록 | 배포된 해결 버전 목록/해시, SBOM·라이선스 기록, 배포 도구 버전 고정 검토 | 의존성·배포 설정 PR 및 릴리스 산출물 | 대상 SHA와 설치 결과를 연결한 산출물. SBOM 생성 자체가 취약점 검사 통과는 아님 |
+
+CodeQL을 쓸 수 없다면 **Semgrep 또는 Python의 ruff `S` 규칙을 대안으로 검토**하되 동시에 모두 도입하지 않는다. ruff `S`는 Python의 제한된 패턴 검사이므로 다중 언어 SAST나 SCA를 대체하지 못한다. 별도 `tsc --noEmit` 잡은 빠른 피드백이 필요할 때 선택하며, 이미 실행하는 Next.js build 타입 검사와 중복된 기능에 가점을 주지 않는다.
+
+### 검사 입력·차단·예외 처리 원칙
+
+1. **입력을 고정한다.** npm은 lockfile 기준 전체 의존성과 운영 의존성을 구분한다. Python은 CI/배포에서 실제 해결한 버전 목록을 남기고, 격리된 환경을 감사한다. `pip-audit -r`은 의존성 해결을 수행할 수 있어 임의 PR의 requirements를 쓰기 토큰·운영 키가 있는 환경에서 다루지 않는다.
+2. **도입 초기에는 발견과 차단을 분리한다.** 기존 결과를 분류한 뒤 신규 HIGH/CRITICAL 등 팀이 승인한 차단 기준을 적용한다. 단, 확인된 비밀값 노출·악용 가능한 치명적 결함은 도구의 보고 전용 여부와 무관하게 머지 보류다.
+3. **미실행·실패를 숨기지 않는다.** 스캐너 설치·규칙 로딩·네트워크·업로드 실패, 검사 대상 0개, 미해석 의존성은 별도로 기록한다. 필수 검사의 실행 실패를 `|| true`로 덮거나 깨끗한 보고서로 처리하지 않는다. 포크·Dependabot의 제한된 권한도 확인한다.
+4. **예외를 관리한다.** 오탐/허용 위험은 규칙·패키지·경로·사유·담당·만료일·후속 이슈를 남긴다. 파일 전체 제외·CVE 일괄 무시·`npm audit fix --force` 자동 실행으로 결과를 좋게 만들지 않는다.
+5. **증거와 정보 반출 범위를 확인한다.** 도구/규칙 버전, SHA, 검사 범위, 취약점 DB 조회 시각(제공되면 버전), 결과·건너뜀·예외를 보관한다. advisory 서비스에는 패키지 이름/버전 등 메타데이터가 전달될 수 있으므로 승인된 서비스만 사용하고 비밀값·비공개 의존성 정보가 보고서나 외부 서비스로 나가지 않게 한다.
+
+SCA 명령 후보는 `npm audit --json`과, **사전에 도구를 설치한 격리 환경**의 `pip-audit --format json`이다. 여기서는 실행하지 않았다. `npm audit --audit-level=high`는 **보고서 필터가 아니라 실패 임계값**이고, pip-audit에 같은 옵션이 있다고 가정하지 않는다. 게이트 정책은 도구별 결과 형식에 맞춰 별도로 정한다.
+
+도구 선택 근거: [CodeQL default setup 공식 문서](https://docs.github.com/en/code-security/how-tos/find-and-fix-code-vulnerabilities/configure-code-scanning/configure-code-scanning), [npm audit 공식 문서](https://docs.npmjs.com/cli/v11/commands/npm-audit/), [pip-audit 공식 문서](https://pypi.org/project/pip-audit/). 라이선스·지원 범위·권한·명령 옵션은 실제 도입 시 버전과 조직 정책에 맞춰 재확인한다.

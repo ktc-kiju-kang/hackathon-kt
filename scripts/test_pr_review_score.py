@@ -1,0 +1,465 @@
+import contextlib
+import io
+import json
+import os
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+import pr_review_score as s
+
+
+class ClassifyTest(unittest.TestCase):
+    def test_is_code(self):
+        self.assertTrue(s.is_code("backend/app/services/radar.py"))
+        self.assertTrue(s.is_code("frontend/src/features/radar/api.ts"))
+        self.assertFalse(s.is_code("backend/tests/test_radar.py"))
+        self.assertFalse(s.is_code("frontend/src/lib/sse.test.ts"))
+        self.assertFalse(s.is_code("frontend/src/components/ui/button.tsx"))
+        self.assertFalse(s.is_code("docs/SDLC.md"))
+
+    def test_is_test(self):
+        self.assertTrue(s.is_test("backend/tests/test_radar.py"))
+        self.assertTrue(s.is_test("frontend/src/lib/sse.test.ts"))
+        self.assertFalse(s.is_test("backend/app/services/radar.py"))
+
+    def test_is_contract_affecting(self):
+        self.assertTrue(s.is_contract_affecting("backend/app/routers/radar.py"))
+        self.assertTrue(s.is_contract_affecting("backend/app/schemas/radar.py"))
+        self.assertTrue(s.is_contract_affecting("frontend/src/features/radar/api.ts"))
+        self.assertFalse(s.is_contract_affecting("backend/app/services/radar.py"))
+
+
+def F(path, add=0, dele=0):
+    return {"filename": path, "additions": add, "deletions": dele}
+
+
+class ScoreTest(unittest.TestCase):
+    def test_issue(self):
+        self.assertEqual(s.score_issue("docs: x", "").score, 6)  # 면제
+        self.assertEqual(s.score_issue("chore(ci): x", "").score, 6)
+        self.assertEqual(s.score_issue("feat(a): x", "Closes #12").score, 6)
+        self.assertEqual(s.score_issue("fix: x", "fixes #3").score, 6)
+        self.assertEqual(s.score_issue("feat: x", "관련 #9").score, 4)
+        self.assertEqual(s.score_issue("feat: x", "없음").score, 0)
+
+    def test_issue_keyword_forms(self):
+        for body in (
+            "closed #4",
+            "Close #4",
+            "closes #4",
+            "Fixed #4",
+            "fix #4",
+            "resolved #4",
+            "Resolves #4",
+            "Closes ktc-kiju-kang/hackathon-kt#4",
+            "Fixes: #4",
+        ):
+            self.assertEqual(s.score_issue("feat: x", body).score, 6, body)
+        self.assertEqual(s.score_issue("feat: x", "disclosed #4").score, 4)  # 키워드 아님
+
+    def test_tests(self):
+        self.assertEqual(s.score_tests([F("docs/a.md", 5)]).score, 10)  # 코드 변경 없음
+        code, test = F("backend/app/a.py", 100), F("backend/tests/test_a.py", 10)
+        self.assertEqual(s.score_tests([code, test]).score, 10)
+        self.assertEqual(s.score_tests([F("backend/app/a.py", 30)]).score, 6)  # 30 이하
+        self.assertEqual(s.score_tests([F("backend/app/a.py", 20, 11)]).score, 0)  # 31
+
+    def test_contract(self):
+        r, c = F("backend/app/routers/radar.py", 3), F("docs/contracts/radar.md", 3)
+        self.assertEqual(s.score_contract([r]).score, 0)
+        self.assertEqual(s.score_contract([r, c]).score, 5)
+        self.assertEqual(s.score_contract([F("backend/app/services/radar.py")]).score, 5)
+
+    def test_no_size_item_and_auto_max_is_40(self):
+        self.assertFalse(hasattr(s, "score_size"))
+        self.assertFalse(hasattr(s, "is_size_excluded"))
+        items = [
+            *s.score_lint(False, False, None, None, None, None),
+            s.score_issue("feat: x", ""),
+            s.score_tests([]),
+            s.score_contract([]),
+            s.score_commits([]),
+            s.score_body(""),
+        ]
+        self.assertNotIn("PR 크기", [i.name for i in items])
+        self.assertEqual(sum(i.max for i in items), 40)
+        self.assertEqual(s.score_tests([]).max, 10)
+        self.assertEqual(s.score_body("").max, 6)
+
+    def test_commits(self):
+        ok, bad = "feat(x): a", "수정함"
+        self.assertEqual(s.score_commits([ok, ok, ok]).score, 3)
+        self.assertEqual(s.score_commits([ok, ok, bad]).score, 2)  # 2/3*3=2
+        self.assertEqual(s.score_commits([ok, bad, bad]).score, 1)
+        self.assertEqual(s.score_commits([bad]).score, 0)
+        self.assertEqual(s.score_commits(["Merge branch 'main'", ok]).score, 3)  # 머지 제외
+        self.assertEqual(s.score_commits(["Merge branch 'main'"]).score, 3)  # 대상 없음
+
+    def test_body(self):
+        full = "## 변경\n" + "가" * 200 + "\n## 검증\n- npm test 통과\n"
+        self.assertEqual(s.score_body(full).score, 6)
+        self.assertEqual(s.score_body("짧음").score, 0)
+        self.assertEqual(s.score_body("## 변경\n" + "가" * 200).score, 3)  # 길이+변경
+        no_item = "## 변경\n" + "가" * 200 + "\n## 검증\n\n"
+        self.assertEqual(s.score_body(no_item).score, 3)
+        alt = "## 변경 내용\n" + "가" * 200 + "\n## 확인\n1. 해봄\n"
+        self.assertEqual(s.score_body(alt).score, 6)
+
+
+class LintTest(unittest.TestCase):
+    def names(self, items):
+        return {i.name: i for i in items}
+
+    def test_not_applicable_is_full(self):
+        items = s.score_lint(False, False, None, None, None, None)
+        self.assertTrue(all(i.score == i.max and i.measured for i in items))
+        self.assertEqual(sum(i.max for i in items), 10)
+
+    def test_frontend_eslint(self):
+        d = self.names(s.score_lint(True, False, 0, None, None, None))
+        self.assertEqual(d["ESLint"].score, 3)
+        d = self.names(s.score_lint(True, False, 2, None, None, None))
+        self.assertEqual(d["ESLint"].score, 0)
+
+    def test_backend(self):
+        d = self.names(s.score_lint(False, True, None, 0, True, 0))
+        self.assertEqual([d[k].score for k in ("ruff check", "ruff format", "ty")], [3, 2, 2])
+        d = self.names(s.score_lint(False, True, None, 4, False, 1))
+        self.assertEqual([d[k].score for k in ("ruff check", "ruff format", "ty")], [0, 0, 1])
+        d = self.names(s.score_lint(False, True, None, 0, True, 3))
+        self.assertEqual(d["ty"].score, 0)
+
+    def test_unmeasured(self):
+        d = self.names(s.score_lint(True, False, None, None, None, None))
+        self.assertFalse(d["ESLint"].measured)
+
+    def test_total_scales_over_measured(self):
+        items = [s.Item("a", 6, 6), s.Item("b", 0, 4, measured=False), s.Item("c", 0, 10)]
+        total, missing = s.auto_total(items)
+        self.assertEqual(total, 15)  # 6/16 * 40
+        self.assertEqual(missing, ["b"])
+        self.assertEqual(s.auto_total([s.Item("a", 5, 5, measured=False)]), (0, ["a"]))
+
+
+def block(commit="abc1234", total=52, blocking="없음", scores=None, sections=True):
+    scores = scores or [13, 10, 10, 8, 7, 4]
+    rows = "\n".join(f"| {n} | {v}/{m} |" for (n, m), v in zip(s.AI_ITEMS.items(), scores))
+    secs = "\n".join(f"### {h}" for h in s.AI_SECTIONS) if sections else ""
+    return (
+        f"본문\n<!-- ai-review:start -->\n## AI 리뷰\n- 리뷰한 커밋: `{commit}`\n"
+        f"- 총점: {total}/60\n- 판정: 지적 처리 후 머지\n- 차단 이슈: {blocking}\n\n"
+        f"| 항목 | 점수 |\n|---|---|\n{rows}\n\n{secs}\n<!-- ai-review:end -->\n"
+    )
+
+
+class AiBlockTest(unittest.TestCase):
+    def test_ok(self):
+        r = s.parse_ai_block(block())
+        self.assertEqual(r.errors, [])
+        self.assertEqual((r.total, r.commit, r.blocking), (52, "abc1234", 0))
+
+    def test_blocking_count(self):
+        self.assertEqual(s.parse_ai_block(block(blocking="2건")).blocking, 2)
+
+    def test_missing_block(self):
+        r = s.parse_ai_block("블록 없음")
+        self.assertTrue(r.errors)
+
+    def test_sum_mismatch(self):
+        self.assertTrue(s.parse_ai_block(block(total=50)).errors)
+
+    def test_item_over_max(self):
+        r = s.parse_ai_block(block(total=56, scores=[16, 10, 10, 8, 7, 5]))
+        self.assertTrue(any("배점" in e for e in r.errors))
+
+    def test_missing_item(self):
+        text = block().replace("| 배포·운영 안전 | 4/5 |\n", "")
+        self.assertTrue(s.parse_ai_block(text).errors)
+
+    def test_bad_commit(self):
+        self.assertTrue(s.parse_ai_block(block(commit="xyz")).errors)
+        self.assertTrue(s.parse_ai_block(block(commit="a" * 41)).errors)  # 40자 초과
+        self.assertTrue(s.parse_ai_block(block(commit="abc1234z")).errors)
+        self.assertEqual(s.parse_ai_block(block(commit="a" * 40)).errors, [])
+
+    def test_total_denominator_must_be_exactly_60(self):
+        text = block().replace("총점: 52/60", "총점: 52/600")
+        self.assertTrue(any("총점" in e for e in s.parse_ai_block(text).errors))
+
+    def test_last_block_wins_over_placeholder(self):
+        example = block(commit="deadbee", total=60, scores=[15, 10, 10, 10, 10, 5])
+        real = block(commit="abc1234")
+        r = s.parse_ai_block(f"예시:\n{example}\n실제:\n{real}")
+        self.assertEqual(r.errors, [])
+        self.assertEqual((r.commit, r.total), ("abc1234", 52))
+
+    def test_missing_sections_are_warnings(self):
+        r = s.parse_ai_block(block(sections=False))
+        self.assertEqual(r.errors, [])
+        self.assertEqual(len(r.warnings), len(s.AI_SECTIONS))
+
+    def test_freshness(self):
+        shas = ["aaa1111" + "0" * 33, "bbb2222" + "0" * 33, "ccc3333" + "0" * 33]
+        self.assertEqual(s.commits_behind("ccc3333", shas), 0)
+        self.assertEqual(s.commits_behind("aaa1111", shas), 2)
+        self.assertIsNone(s.commits_behind("ddd4444", shas))
+
+    def test_verdict(self):
+        self.assertEqual(s.verdict(90, 0, True), "머지 가능")
+        self.assertEqual(s.verdict(85, 0, True), "머지 가능")
+        self.assertEqual(s.verdict(84, 0, True), "지적 처리 후 머지")
+        self.assertEqual(s.verdict(70, 0, True), "지적 처리 후 머지")
+        self.assertEqual(s.verdict(69, 0, True), "수정 필요")
+        self.assertEqual(s.verdict(99, 1, True), "수정 필요")  # 차단 이슈
+        self.assertEqual(s.verdict(40, 0, False), "AI 리뷰 필요")
+
+
+class RenderTest(unittest.TestCase):
+    def test_sanitize(self):
+        out = s.sanitize("@octocat [x](http://e.com) <script>\n줄바꿈", 200)
+        self.assertNotIn("@octocat", out)
+        self.assertNotIn("](", out)
+        self.assertNotIn("<script>", out)
+        self.assertNotIn("\n", out)
+        self.assertEqual(len(s.sanitize("가" * 500, 100)), 101)  # 100 + …
+
+    def test_sanitize_urls_pipes_amp_issue_refs(self):
+        out = s.sanitize("보세요 https://evil.example/x http://a.b | 표 & #12 와 #7")
+        self.assertNotIn("://", out)
+        self.assertIn(":\u200b//", out)
+        self.assertIn("\\|", out)
+        self.assertIn("&amp;", out)
+        self.assertNotRegex(out, r"#\d")
+        self.assertIn("#\u200b12", out)
+
+    def test_sanitize_amp_before_lt(self):
+        self.assertEqual(s.sanitize("<b>&"), "&lt;b>&amp;")
+
+    def _render(self, ai=None, behind=0):
+        items = [s.Item("이슈 연결", 6, 6, "Closes 있음"), s.Item("ty", 0, 2, "측정 못 함", False)]
+        return s.render_comment(items, 38, ["ty"], ai, behind, "abc1234")
+
+    def test_marker_and_no_ai(self):
+        out = self._render()
+        self.assertTrue(out.startswith(s.MARKER))
+        self.assertIn("AI 리뷰 필요", out)
+        self.assertIn("38/40", out)
+        self.assertIn("측정 못 함", out)
+
+    def test_with_ai_and_stale(self):
+        ai = s.parse_ai_block(block())
+        out = self._render(ai, behind=2)
+        self.assertIn("90/100", out)
+        self.assertIn("최신 아님", out)
+        self.assertIn("2개 커밋", out)
+
+    def test_ai_errors_listed(self):
+        ai = s.parse_ai_block(block(total=50))
+        out = self._render(ai)
+        self.assertIn("형식 오류", out)
+        self.assertIn("항목 합", out)
+
+
+class MainAbsentLintDirTest(unittest.TestCase):
+    """lint 잡이 실패·생략돼 결과 디렉터리가 없어도 채점은 '측정 못 함'으로 끝나야 한다."""
+
+    def test_absent_dir_reports_unmeasured(self):
+        pr = {"title": "feat: x", "body": "", "head": {"sha": "a" * 40}}
+        files = [F("frontend/src/a.ts", 1), F("backend/app/a.py", 1)]
+        commits = [{"sha": "a" * 40, "commit": {"message": "feat: x"}}]
+        posted = []
+        orig = (s.load_pr, s.gh_pages, s.upsert_comment)
+        s.load_pr = lambda: ("o/r", 1, pr)
+        s.gh_pages = lambda path: files if path.endswith("/files") else commits
+        s.upsert_comment = lambda repo, n, body: posted.append(body)
+        try:
+            s.main(["--lint-dir", str(Path(tempfile.mkdtemp()) / "absent")])
+        finally:
+            s.load_pr, s.gh_pages, s.upsert_comment = orig
+        body = posted[0]
+        for name in ("ESLint", "ruff check", "ruff format", "ty"):
+            row = next(x for x in body.splitlines() if x.startswith(f"| {name} |"))
+            self.assertIn("측정 못 함", row)
+            self.assertIn("—", row)
+
+
+def _comment(cid, body, utype="Bot", login="github-actions[bot]"):
+    return {"id": cid, "body": body, "user": {"type": utype, "login": login}}
+
+
+class UpsertCommentTest(unittest.TestCase):
+    def run_upsert(self, comments):
+        calls = []
+        orig = (s.gh, s.gh_pages)
+        s.gh_pages = lambda path: comments
+        s.gh = lambda *a, **k: calls.append(a) or ""
+        try:
+            s.upsert_comment("o/r", 7, f"{s.MARKER}\n본문")
+        finally:
+            s.gh, s.gh_pages = orig
+        return calls
+
+    def test_non_bot_marker_comment_is_ignored(self):
+        calls = self.run_upsert([_comment(1, s.MARKER, "User", "mallory")])
+        self.assertEqual(len(calls), 1)
+        self.assertNotIn("PATCH", calls[0])
+        self.assertIn("repos/o/r/issues/7/comments", calls[0])
+
+    def test_bot_comment_without_marker_is_ignored(self):
+        calls = self.run_upsert([_comment(1, "다른 봇 코멘트")])
+        self.assertNotIn("PATCH", calls[0])
+
+    def test_bot_marker_comment_is_patched(self):
+        calls = self.run_upsert([_comment(1, "x", "User", "u"), _comment(5, s.MARKER + " old")])
+        self.assertEqual(len(calls), 1)
+        self.assertIn("PATCH", calls[0])
+        self.assertIn("repos/o/r/issues/comments/5", calls[0])
+
+    def test_login_alone_counts_as_bot(self):
+        calls = self.run_upsert([_comment(9, s.MARKER, "User", "github-actions[bot]")])
+        self.assertIn("PATCH", calls[0])
+
+    def test_none_posts_new(self):
+        calls = self.run_upsert([])
+        self.assertEqual(len(calls), 1)
+        self.assertNotIn("PATCH", calls[0])
+
+
+class WriteFailureTest(unittest.TestCase):
+    def run_main(self, exc):
+        def boom(*a):
+            raise exc
+
+        orig = (s.load_pr, s.gh_pages, s.upsert_comment)
+        s.load_pr = lambda: ("o/r", 1, {"title": "t", "body": "", "head": {"sha": "a" * 40}})
+        s.gh_pages = lambda path: []
+        s.upsert_comment = boom
+        out = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(out):
+                s.main(["--lint-dir", "nope"])
+        finally:
+            s.load_pr, s.gh_pages, s.upsert_comment = orig
+        return out.getvalue()
+
+    def test_subprocess_error_message_has_http_status(self):
+        err = subprocess.CalledProcessError(
+            1, "gh", stderr="gh: Resource not accessible by integration (HTTP 403)"
+        )
+        self.assertIn("HTTP 403", self.run_main(err))
+
+    def test_json_error_is_caught(self):
+        self.assertIn("코멘트를 쓰지 못함", self.run_main(ValueError("bad json")))
+
+    def test_other_errors_propagate(self):
+        with self.assertRaises(KeyError):
+            self.run_main(KeyError("x"))
+
+    def test_report_failure_writes_summary_and_minimal_comment(self):
+        posted = []
+        d = Path(tempfile.mkdtemp())
+        ev = d / "event.json"
+        ev.write_text(json.dumps({"pull_request": {"number": 3}}))
+        env = {
+            "GITHUB_STEP_SUMMARY": str(d / "sum.md"),
+            "GITHUB_REPOSITORY": "o/r",
+            "GITHUB_EVENT_PATH": str(ev),
+        }
+        old_env = {k: os.environ.get(k) for k in env}
+        orig = s.upsert_comment
+        s.upsert_comment = lambda repo, n, body: posted.append((repo, n, body))
+        os.environ.update(env)
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                s.report_failure(KeyError("x"))
+        finally:
+            s.upsert_comment = orig
+            for k, v in old_env.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
+        self.assertIn("KeyError", (d / "sum.md").read_text())
+        self.assertEqual(posted[0][:2], ("o/r", 3))
+        self.assertIn(s.MARKER, posted[0][2])
+        self.assertIn("채점 실패: KeyError", posted[0][2])
+
+    def test_report_failure_never_raises(self):
+        orig = s.upsert_comment
+        s.upsert_comment = lambda *a: 1 / 0
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                s.report_failure(RuntimeError("x"))
+        finally:
+            s.upsert_comment = orig
+
+
+class LintParseTest(unittest.TestCase):
+    def setUp(self):
+        self.d = Path(tempfile.mkdtemp())
+
+    def test_eslint(self):
+        (self.d / "eslint.json").write_text(
+            json.dumps(
+                [{"errorCount": 2, "warningCount": 5}, {"errorCount": 1, "warningCount": 0}]
+            )
+        )
+        self.assertEqual(s.count_eslint(self.d), 3)
+        self.assertIsNone(s.count_eslint(self.d / "nope"))
+
+    def test_ruff(self):
+        (self.d / "ruff.json").write_text(json.dumps([{"code": "E501"}, {"code": "F401"}]))
+        self.assertEqual(s.count_ruff(self.d), 2)
+
+    def test_ruff_format(self):
+        (self.d / "ruff-format.code").write_text("0\n")
+        self.assertTrue(s.format_ok(self.d))
+        (self.d / "ruff-format.code").write_text("1\n")
+        self.assertFalse(s.format_ok(self.d))
+
+    def test_ty(self):
+        (self.d / "ty.txt").write_text(
+            "app/a.py:1:2: error[x] 메시지\napp/b.py:3:4: warning[y] 메시지\nFound 2 diagnostics\n"
+        )
+        self.assertEqual(s.count_ty(self.d), 2)
+        (self.d / "ty.txt").write_text("All checks passed!\n")
+        self.assertEqual(s.count_ty(self.d), 0)
+
+    def test_ruff_format_other_codes_unmeasured(self):
+        f = self.d / "ruff-format.code"
+        for code in ("2", "127", "", "abc"):
+            f.write_text(code)
+            self.assertIsNone(s.format_ok(self.d), code)
+        self.assertIsNone(s.format_ok(self.d / "nope"))
+
+    def test_ty_tool_failure_is_unmeasured(self):
+        f = self.d / "ty.txt"
+        for text in ("", "\n", "command not found: ty\n", "Traceback (most recent call last):\n"):
+            f.write_text(text)
+            self.assertIsNone(s.count_ty(self.d), text)
+        self.assertIsNone(s.count_ty(self.d / "nope"))
+
+    def test_ty_found_n_wins_over_counted_lines(self):
+        (self.d / "ty.txt").write_text("app/a.py:1:2: error[x] m\nFound 3 diagnostics\n")
+        self.assertEqual(s.count_ty(self.d), 3)
+        (self.d / "ty.txt").write_text("Found 1 diagnostic\n")
+        self.assertEqual(s.count_ty(self.d), 1)
+
+    def test_absent_lint_dir_is_all_unmeasured(self):
+        gone = self.d / "absent"
+        self.assertIsNone(s.count_eslint(gone))
+        self.assertIsNone(s.count_ruff(gone))
+        self.assertIsNone(s.format_ok(gone))
+        self.assertIsNone(s.count_ty(gone))
+
+    def test_broken_json_is_unmeasured(self):
+        (self.d / "ruff.json").write_text("not json")
+        self.assertIsNone(s.count_ruff(self.d))
+
+
+if __name__ == "__main__":
+    unittest.main()
