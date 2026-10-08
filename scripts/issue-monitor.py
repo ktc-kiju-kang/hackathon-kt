@@ -142,6 +142,7 @@ def issue_entity(issue: dict, claim_owner) -> dict:
         "comments": issue["comments"],
         "assoc": issue["assoc"],
         "author": issue["author"],
+        "closed_by": issue.get("closed_by") or "",
     }
 
 
@@ -156,6 +157,8 @@ def pr_entity(pr: dict, main_ci: str) -> dict:
         "failing": failing,
         "issues": linked_issues(pr),
         "merge_sha": ((pr.get("mergeCommit") or {}).get("oid") or "")[:7],
+        "author": (pr.get("author") or {}).get("login") or "",
+        "merged_by": (pr.get("mergedBy") or {}).get("login") or "",
         "main_ci": main_ci,
     }
 
@@ -171,8 +174,10 @@ def diff_issue(n: int, old, new: dict, fetch_comments) -> list:
         return [f"{ref} — {e}" for e in ev]
     if old["state"] != new["state"]:
         if new["state"] == "closed":
+            who = f" · {esc(new['closed_by'], 40)}" if new.get("closed_by") else ""
             ev.append(
-                "🚫 닫힘 (계획 없음)" if new["reason"] == "not_planned" else "✅ 닫힘 (완료)"
+                ("🚫 닫힘 (계획 없음)" if new["reason"] == "not_planned" else "✅ 닫힘 (완료)")
+                + who
             )
         else:
             ev.append("♻️ 다시 열림")
@@ -203,20 +208,30 @@ def diff_issue(n: int, old, new: dict, fetch_comments) -> list:
     return [f"{ref} — {e}" for e in ev]
 
 
+def merged_by_text(pr: dict) -> str:
+    """머지한 사람과 작성자. 같은 사람이면 한 번만 보여 준다."""
+    by, author = pr.get("merged_by") or "", pr.get("author") or ""
+    if by and author and by != author:
+        return f" · 머지 {esc(by, 40)} (작성 {esc(author, 40)})"
+    return f" · {esc(by or author, 40)}" if (by or author) else ""
+
+
 def diff_pr(n: int, old, new: dict) -> list:
     ref = f"{link(new['url'], esc(new['title'], 80))} *PR #{n}*"
     for_issue = (
         (" (이슈 " + ", ".join(f"#{i}" for i in new["issues"]) + ")") if new["issues"] else ""
     )
+    opened_by = f" · {esc(new['author'], 40)}" if new.get("author") else ""
+    merged = merged_by_text(new)
     ev = []
     if old is None:
         if new["state"] == "open":
-            ev.append(f"🔀 PR 열림{for_issue}")
+            ev.append(f"🔀 PR 열림{opened_by}{for_issue}")
         elif new["state"] == "merged":
-            ev.append(f"🎉 머지됨{for_issue}")
+            ev.append(f"🎉 머지됨{merged}{for_issue}")
     else:
         if old["state"] == "open" and new["state"] == "merged":
-            ev.append(f"🎉 머지됨{for_issue}")
+            ev.append(f"🎉 머지됨{merged}{for_issue}")
         elif old["state"] == "open" and new["state"] == "closed":
             ev.append(f"⛔ PR 닫힘 (머지 안 됨){for_issue}")
         elif old["state"] != new["state"] and new["state"] == "open":
@@ -480,6 +495,7 @@ def take_snapshot(repo: str, root, old_state: dict) -> dict:
                 "labels": [lb["name"] for lb in i["labels"]],
                 "assignees": [a["login"] for a in i["assignees"]],
                 "comments": i["comments"],
+                "closed_by": ((i.get("closed_by") or {}).get("login") or ""),
                 "assoc": i["author_association"],
                 "author": i["user"]["login"],
             },
@@ -494,7 +510,7 @@ def take_snapshot(repo: str, root, old_state: dict) -> dict:
             "--limit",
             "50",
             "--json",
-            "number,title,state,mergedAt,mergeCommit,headRefName,body,url,statusCheckRollup",
+            "number,title,state,mergedAt,mergeCommit,headRefName,body,url,statusCheckRollup,author,mergedBy",
         )
     )
     prs = {}

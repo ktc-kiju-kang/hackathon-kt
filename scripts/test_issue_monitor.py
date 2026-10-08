@@ -161,6 +161,47 @@ class DiffPrTest(unittest.TestCase):
         self.assertIn("main CI 실패", im.diff_pr(9, merged, dict(merged, main_ci="failure"))[0])
 
 
+class ActorTest(unittest.TestCase):
+    def test_pr_opened_shows_author(self):
+        ev = im.diff_pr(9, None, pr(author="kim"))
+        self.assertIn("PR 열림 · kim", ev[0])
+
+    def test_merge_shows_merger_and_author_when_different(self):
+        merged = pr(state="merged", author="kim", merged_by="kang")
+        ev = im.diff_pr(9, pr(author="kim"), merged)
+        self.assertIn("머지됨 · 머지 kang (작성 kim)", ev[0])
+
+    def test_merge_shows_single_name_when_same(self):
+        merged = pr(state="merged", author="kang", merged_by="kang")
+        ev = im.diff_pr(9, pr(author="kang"), merged)
+        self.assertIn("머지됨 · kang", ev[0])
+        self.assertNotIn("작성", ev[0])
+
+    def test_merge_without_actor_info_still_alerts(self):
+        ev = im.diff_pr(9, pr(), pr(state="merged"))
+        self.assertTrue(ev[0].endswith("🎉 머지됨 (이슈 #1)"))
+
+    def test_issue_closed_shows_who(self):
+        ev = im.diff_issue(1, issue(), issue(state="closed", closed_by="kang"), lambda n, a: [])
+        self.assertIn("✅ 닫힘 (완료) · kang", ev[0])
+        ev = im.diff_issue(1, issue(), issue(state="closed"), lambda n, a: [])
+        self.assertTrue(ev[0].endswith("✅ 닫힘 (완료)"))
+
+    def test_actor_names_are_escaped(self):
+        ev = im.diff_pr(9, None, pr(author="<!channel>"))
+        self.assertNotIn("<!channel>", ev[0])
+
+    def test_old_state_without_actor_fields_is_silent(self):
+        # 업그레이드 직후: 필드만 새로 생긴 변화는 알림 없이 상태만 갱신한다
+        old_pr = {k: v for k, v in pr().items() if k not in ("author", "merged_by")}
+        state = {"init": True, "issues": {}, "prs": {"9": old_pr}}
+        snap = {"issues": {}, "prs": {"9": pr(author="kim")}}
+        sent = []
+        st = im.run_cycle(state, snap, lambda lines: sent.append(lines) or True, lambda *a: [])
+        self.assertEqual(sent, [])
+        self.assertEqual(st["prs"]["9"]["author"], "kim")
+
+
 class CycleTest(unittest.TestCase):
     def snap(self, **kw):
         return {"issues": kw.get("issues", {}), "prs": kw.get("prs", {})}

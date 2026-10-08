@@ -111,12 +111,13 @@
       let col;
       if (i.state === 'closed') {
         col = 'done'; chips.unshift([i.reason === 'not_planned' ? '계획 없음' : '완료', i.reason === 'not_planned' ? null : 'ok']);
-        if (mergedPr) chips.push(['PR #' + mergedPr.number + ' 머지', 'ok']);
+        if (i.closed_by) chips.push(['닫음: ' + i.closed_by, null]);
+        if (mergedPr) chips.push(['PR #' + mergedPr.number + ' 머지' + (mergedPr.merged_by ? ' · ' + mergedPr.merged_by : ''), 'ok']);
         if (mergedPr && mergedPr.main_ci === 'success') chips.push(['main CI 통과', 'ok']);
         if (mergedPr && mergedPr.main_ci === 'failure') chips.push(['main CI 실패', 'bad']);
         if (mergedPr && mergedPr.main_ci === 'pending') chips.push(['main CI 진행 중', 'warn']);
       } else if (openPr) {
-        col = 'review'; chips.push(['PR #' + openPr.number, 'acc'], checkChip(openPr));
+        col = 'review'; chips.push(['PR #' + openPr.number + (openPr.author ? ' · ' + openPr.author : ''), 'acc'], checkChip(openPr));
       } else if ((i.labels || []).length) col = 'human';
       else if (i.claim || (i.assignees || []).length) col = 'work';
       else col = 'wait';
@@ -124,7 +125,7 @@
     });
     data.prs.forEach((p) => {
       if (linkedPr.has(p.number)) return;
-      const chips = [[p.state === 'merged' ? '머지됨' : p.state === 'closed' ? '닫힘' : '열림', p.state === 'merged' ? 'ok' : null], ['이슈 연결 없음', 'warn']];
+      const chips = [[p.state === 'merged' ? '머지됨' + (p.merged_by ? ' · ' + p.merged_by : '') : p.state === 'closed' ? '닫힘' : '열림' + (p.author ? ' · ' + p.author : ''), p.state === 'merged' ? 'ok' : null], ['이슈 연결 없음', 'warn']];
       if (p.state === 'open') chips.push(checkChip(p));
       cols[p.state === 'open' ? 'review' : 'done'].push({ kind: 'pr', number: p.number, title: p.title, url: p.url, chips });
     });
