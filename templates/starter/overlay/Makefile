@@ -1,6 +1,6 @@
 # 파이프라인 입구. 상세: docs/pipeline.md
 .DEFAULT_GOAL := help
-.PHONY: help setup dev sync verify serve stop status smoke e2e ship record lock-status docs submit-check
+.PHONY: help setup dev sync verify serve stop status smoke e2e ship record lock-status claims release docs submit-check
 
 help: ## 명령 목록
 	@grep -E '^[a-z0-9-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-13s %s\n", $$1, $$2}'
@@ -40,6 +40,12 @@ record: ## main에서 시험 기록(e2e-test.md·evidence)을 자동 PR로 머�
 
 lock-status: ## 머지 잠금 상태 (누가 머지 중인지)
 	@scripts/lock-status.sh
+
+claims: ## 누가 어떤 Issue를 잡고 있는지 (선점 목록, 오래 멈춘 것 경고)
+	@scripts/claim.sh list
+
+release: ## Issue 선점 해제 (손 뗄 때) — make release ISSUE=12
+	@scripts/claim.sh release $(ISSUE)
 
 docs: ## 제출 문서 ID 사슬 검사 (작성 중)
 	@python3 scripts/check-docs.py --draft

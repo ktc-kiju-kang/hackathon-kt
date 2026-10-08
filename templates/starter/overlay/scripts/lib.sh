@@ -32,6 +32,13 @@ source_version() {
 
 port_busy() { lsof -nP -iTCP:"$1" -sTCP:LISTEN >/dev/null 2>&1; }
 
+# free_port <시작> — 시작 번호부터 비어 있는 포트 (worktree 두 개에서 동시에 e2e를 돌려도 안 부딪히게)
+free_port() {
+  local p=$1
+  while port_busy "$p" && [ "$p" -lt $(( $1 + 50 )) ]; do p=$((p + 1)); done
+  echo "$p"
+}
+
 # wait_http <url> <초> — 200이 올 때까지 기다린다
 wait_http() {
   local url=$1 secs=${2:-60} i=0

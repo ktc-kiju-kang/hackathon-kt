@@ -9,7 +9,9 @@ set -uo pipefail
 need_setup
 VERSION=$(source_version)
 OUT="$RUN_DIR/e2e"; rm -rf "$OUT"; mkdir -p "$OUT"
-export E2E_API_PORT=${E2E_API_PORT:-18000} E2E_WEB_PORT=${E2E_WEB_PORT:-13000}
+E2E_API_PORT=${E2E_API_PORT:-$(free_port 18000)}
+E2E_WEB_PORT=${E2E_WEB_PORT:-$(free_port 13000)}
+export E2E_API_PORT E2E_WEB_PORT
 
 say "1/3 단위·API 시험"
 (cd "$ROOT/backend" && .venv/bin/pytest -q --junitxml="$OUT/backend.xml" >"$OUT/backend.log" 2>&1); be=$?

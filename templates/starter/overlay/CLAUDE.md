@@ -28,6 +28,7 @@
 ## 충돌 방지 규칙 (세 사람이 같은 것을 동시에 고치지 않게)
 | 충돌 원인 | 규칙 | 장치 |
 |---|---|---|
+| 같은 Issue | 세 사람이 같은 Issue를 동시에 잡지 않는다 — 선점은 GitHub의 `claim/<번호>` 브랜치를 **없을 때만** 만드는 것으로 판정(assignee는 여러 명이 될 수 있어 판정에 안 씀). 손 떼면 `make release ISSUE=<번호>` | `/start-task`(`scripts/claim.sh take`), `make ship`(남이 잡은 Issue면 멈춤, 머지 후 해제), `make claims` |
 | 같은 파일 | 기능별 폴더(`features/<f>/`, `{routers,services,schemas}/<f>.py`, `tests/test_<f>.py`, `e2e/test_<f>.py`). 남의 기능 파일은 고치지 않고 담당자에게 요청 | `make ship`의 충돌 검사(열린 PR과 같은 파일·기능이면 경고) |
 | 공용 파일 | `layout.tsx`, `src/app/page.tsx`, `app-shell.tsx`, `app-sidebar.tsx`(메뉴 한 줄은 OK), `api-client.ts`, `components/`, `app/core/`, `app/agent/`(`tools/<name>.py` 제외), `prompts.py`, 루트 설정 — **작은 단독 PR**(`chore/shared-<설명>`)로 먼저 ship | reviewer가 "설계·구조"에서 감점 |
 | 의존성 | `package.json`·`package-lock.json`·`requirements*.txt` 변경은 **단독 PR**(`chore/deps-<이름>`). 모두 Node 20/npm 10(`.nvmrc`) | `make setup`이 버전 경고, `make sync`가 "make setup 필요" 안내 |
@@ -66,6 +67,7 @@
 | `make e2e` | 시험 전부 + 격리 배포 E2E (확인용. 기록 커밋은 `make record`) |
 | `make record` | 기록 담당: main에서 시험 기록을 자동 PR로 머지 (2~3시간마다, 제출 전) |
 | `make lock-status` | 누가 머지 중인지 |
+| `make claims` / `make release ISSUE=12` | 누가 어떤 Issue를 잡았는지 / 내 선점 해제 |
 | `make submit-check` | 제출 직전 → 포털에 넣을 SHA |
 
 개별 명령: frontend `npm run lint && npm test && npm run build`, backend `.venv/bin/ruff check . && .venv/bin/ruff format --check . && .venv/bin/ty check app tests && .venv/bin/pytest`, E2E `backend/.venv/bin/python -m pytest e2e` (서버가 떠 있을 때).
