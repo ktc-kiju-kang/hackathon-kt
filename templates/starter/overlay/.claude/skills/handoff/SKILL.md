@@ -18,4 +18,5 @@ disable-model-invocation: true
 6. 커밋 후 `/pr-check`(충돌 검사) → `scripts/sync.sh`로 main 반영 → 검증 재실행 → `scripts/check-conflicts.sh` ❌ 0개.
 7. `.github/pull_request_template.md` 형식으로 PR 본문 초안을 보여준다. 첫 줄 `Closes #<번호>`, REQ·TC ID와 시험 결과 요약을 넣는다.
 8. 사용자 확인 후 `git push -u origin <branch>` → `gh pr create`. Claude는 머지하지 않는다.
+   - PR이 열리면 **PR Review** 워크플로가 자동 점검 40점(린트·타입, 이슈 연결, 테스트 동반, 문서·계약, 커밋 규약, PR 본문)을 코멘트로 남긴다 (`scripts/pr_review_score.py`, 비차단). 깎인 항목을 확인하고 고칠 수 있으면 같은 PR에서 고친다. 사내 CI가 안 돌면 생략.
 9. 머지 후 Issue가 **completed**로 닫혔는지 확인하고, Issue 본문(또는 댓글)에 **커밋 주소와 테스트 명령·결과**를 붙이자고 안내한다 (`gh issue comment <번호> --body ...`, 사용자 확인 후).

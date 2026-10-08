@@ -12,6 +12,7 @@
 | 작업 규칙 | `CLAUDE.md`(채점 근거 규칙 포함), `.claude/` 규칙·스킬(`/new-issue`→`/start-task`→`/add-endpoint`→`/handoff`)·reviewer | 이 레포 + 덮어쓰기 |
 | 제출 문서 | `README.md` + `docs/` 7개, `scripts/check-docs.py`, `docs/submission-guide.md` | `templates/submission/` |
 | **파이프라인** | `make setup·dev·verify·serve·stop·status·e2e·submit-check`, `scripts/*.sh`, `e2e/`(배포 서버 대상 HTTP 시험), `scripts/e2e-report.py`(TC 결과 자동 기록), `docs/pipeline.md`(단계·게이트·시간표·장애 대응), 스킬 `/plan-topic`·`/submit` | 덮어쓰기 |
+| PR 점수 | **PR Review** 워크플로(자동 점검 40점 코멘트, 비차단) + `scripts/pr_review_score.py`·테스트 — #80 (ktc-jehyuk-kim). 키트용 패치: venv 설치, `ty check app tests`, `e2e/`를 테스트로 인정 | 이 레포 + 패치 |
 | CI | frontend·backend·docs·**e2e**(설치 → 격리 배포 → E2E) (`.github/workflows/ci.yml`), gitleaks | 덮어쓰기 |
 
 빠지는 것: 이 레포의 주제 기능(trends·radar·product)과 데이터, Vercel·Render·Supabase 배포 설정, 칸반 자동화, evals, `deploy-status` 스킬.

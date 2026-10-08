@@ -32,6 +32,10 @@ INCLUDE = [
     "scripts/check-conflicts.sh",
     "scripts/new-worktree.sh",
     "scripts/session-context.sh",
+    "scripts/pr_review_score.py",
+    "scripts/test_pr_review_score.py",
+    ".github/workflows/pr-review.yml",
+    "docs/superpowers/specs/2026-10-03-pr-review-scoring-design.md",
     "backend/**",
     "frontend/**",
     "docs/contracts/README.md",
@@ -268,6 +272,23 @@ PATCHES = [
         "frontend/eslint.config.mjs",
         '    ".next/**",\n',
         '    ".next/**",\n    ".next-e2e/**", // scripts/e2e.sh 격리 빌드\n',
+    ),
+    (
+        ".github/workflows/pr-review.yml",
+        "          pip install uv\n          uv venv\n"
+        "          uv pip install -r requirements-dev.txt\n",
+        "          python -m venv .venv\n"
+        "          .venv/bin/pip install -r requirements-dev.txt\n",
+    ),
+    (
+        ".github/workflows/pr-review.yml",
+        "ty check --output-format concise app tests evals",
+        "ty check --output-format concise app tests",
+    ),
+    (
+        "scripts/pr_review_score.py",
+        'TEST_RE = re.compile(r"^(backend/tests/.+|.+\\.test\\.(ts|tsx))$")',
+        'TEST_RE = re.compile(r"^(backend/tests/.+|e2e/.+|.+\\.test\\.(ts|tsx))$")  # e2e/: 키트',
     ),
     (
         ".gitignore",

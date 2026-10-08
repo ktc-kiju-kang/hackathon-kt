@@ -33,7 +33,8 @@ say "frontend"
 step eslint "$F" npm run lint
 step vitest "$F" npm test
 step next-build "$F" env NEXT_DIST_DIR=.next-e2e npm run build  # make serve 중인 .next를 덮지 않게
-say "문서·보안"
+say "문서·보안·PR 점수"
+[ -f "$ROOT/scripts/test_pr_review_score.py" ] && step pr-score-test "$ROOT" python3 scripts/test_pr_review_score.py
 if [ "$strict" = 1 ]; then
   step docs-strict "$ROOT" "$PY" scripts/check-docs.py
 else
