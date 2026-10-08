@@ -30,6 +30,7 @@
 | 배포·환경변수 | `docs/deploy.md` | 링크 |
 | SDLC 단계·완료 정의·테스트 전략·되돌리기·장애 대응 | `docs/SDLC.md` | 링크 |
 | 본선 제출 문서 8개(채점 근거)·ID 사슬 검사 | `templates/submission/GUIDE.md` | 링크 |
+| 본선 시작 키트(배정 레포로 내보내기) | `templates/starter/README.md` | 링크 |
 | 기획·MVP / 시연 / 계약 / 결정 / 작업 기록 / 팀·칸반 | `docs/PROJECT.md` / `docs/DEMO.md` / `docs/contracts/` / `docs/decisions/` / `docs/worklog/` / `docs/TEAM.md` | 링크 |
 
 > 규칙 파일은 해당 경로의 파일을 읽거나 고칠 때 자동으로 들어온다. 작업을 시작하기 전에 규칙이 필요하면 직접 읽는다.

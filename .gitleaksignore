@@ -1,0 +1,5 @@
+# gitleaks 오탐 예외 — 한 건씩 fingerprint(커밋:파일:규칙:줄)로만 등록한다. 파일·규칙 통째 예외 금지.
+# 등록 전에 실제 값이 비어 있거나 가짜인지 확인하고 이유를 적는다.
+
+# 빈 값 줄 `LLM_API_KEY=` 뒤 `LLM_EFFORT=medium`을 generic-api-key가 값으로 오인 (PR #79, 다음 커밋에서 줄 순서 조정)
+96b09f503d5e04c63cf8a5262a413b2c03a962b7:templates/starter/overlay/backend/.env.example:generic-api-key:12

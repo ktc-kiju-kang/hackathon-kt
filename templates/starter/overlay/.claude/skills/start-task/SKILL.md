@@ -1,0 +1,17 @@
+---
+name: start-task
+description: Issue 작업 시작 — 본인 assign, 브랜치 또는 worktree 생성, 관련 REQ·AC·계약 요약, 시험 시나리오 먼저 적기. Issue를 가져가 작업을 시작할 때 사용.
+argument-hint: <이슈번호>
+disable-model-invocation: true
+---
+Issue 작업을 시작한다: $ARGUMENTS
+
+1. Issue 번호가 없으면 `gh issue list --state open --search "no:assignee"`로 미배정 Issue를 보여주고 고르게 한다. 없으면 `/new-issue`를 제안한다.
+2. `gh issue view <번호>`로 목적·완료 조건을 읽고, 제목의 REQ ID로 `docs/prd.md`의 REQ·AC를 찾아 요약한다.
+3. 다른 사람이 assign돼 있으면 멈추고 사용자에게 확인한다. 아니면 `gh issue edit <번호> --add-assignee @me`.
+4. 브랜치 `feat/<번호>-<설명>`(버그면 `fix/`)을 최신 main 기준으로 만든다:
+   - 현재 main이고 미커밋 변경이 없으면: `git fetch origin main && git checkout -b <branch> origin/main`
+   - 이미 다른 작업 중이면: `scripts/new-worktree.sh <번호> <설명> [type]` 후 경로 안내
+5. **시험부터**: 이 REQ의 TC가 `docs/e2e-test.md`에 없으면 AC마다 GIVEN/WHEN/THEN 시나리오를 상태 `미실행`으로 먼저 적는다 (정상·오류·권한 경계).
+6. 작업 범위를 안내한다: `frontend/src/app/<route>/`, `frontend/src/features/<feature>/`, `backend/app/{routers,services,schemas}/<feature>.py`, `backend/tests/test_<feature>.py`, `docs/contracts/<feature>.md`, (DB) `database/migrations/`. 같은 파일을 다른 열린 PR이 건드리면(`gh pr list`) 알린다.
+7. 새 API가 필요하면 `/add-endpoint`로 계약부터 정하자고 제안한다. 보안 기준(`docs/security-policy.md`) 중 이 REQ에 해당하는 SEC가 있으면 짚어 준다.
