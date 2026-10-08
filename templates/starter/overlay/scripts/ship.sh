@@ -21,7 +21,12 @@ issue=""; [[ "$branch" =~ ^[a-z]+/([0-9]+)- ]] && issue=${BASH_REMATCH[1]}
 [ -z "$(git status --porcelain)" ] || die "커밋 안 된 변경이 있습니다 — 커밋 후 다시 (git status)"
 
 say "1/9 main 반영"
+before_sync=$(git rev-parse HEAD)
 "$ROOT/scripts/sync.sh" || exit 1
+if [ -z "${SHIP_REEXEC:-}" ] && [ -n "$(git diff --name-only "$before_sync" HEAD -- scripts Makefile)" ]; then
+  warn "main에서 파이프라인 스크립트가 바뀌었습니다 → 새 버전으로 다시 실행"
+  SHIP_REEXEC=1 exec "$ROOT/scripts/ship.sh"
+fi
 [ -n "$(git log --oneline origin/main..HEAD)" ] || die "main과 차이가 없습니다"
 if [ "$KIND" = record ]; then  # 생성된 시험 기록만 담겼는지 확인 — 리뷰 없이 머지하는 유일한 경로
   extra=$(git diff --name-only origin/main...HEAD | grep -vE '^docs/(evidence/|e2e-test\.md$|prd\.md$)' || true)
@@ -145,4 +150,7 @@ else
   echo "   되돌리기: git switch -c revert/$pr-main && git revert --no-edit $(git rev-parse --short HEAD) && make ship"
   exit 1
 fi
-[ -n "$issue" ] && echo "  Issue #$issue: $(gh issue view "$issue" --json state,stateReason -q '.state + " " + (.stateReason // "")' 2>/dev/null)"
+if [ -n "$issue" ]; then
+  echo "  Issue #$issue: $(gh issue view "$issue" --json state,stateReason -q '.state + " " + (.stateReason // "")' 2>/dev/null)"
+fi
+exit 0

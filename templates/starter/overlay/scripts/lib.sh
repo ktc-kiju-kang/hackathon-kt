@@ -1,6 +1,7 @@
 # 공통 함수 — scripts/*.sh 에서 source 한다. macOS 기본 bash 3.2와 호환되게 쓴다.
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 RUN_DIR=${RUN_DIR:-"$ROOT/.run"}  # pid·로그 (gitignore). e2e.sh가 격리 실행에 다른 폴더를 쓴다
+mkdir -p "$RUN_DIR"
 API_PORT=${API_PORT:-8000}
 WEB_PORT=${WEB_PORT:-3000}
 PY="$ROOT/backend/.venv/bin/python"

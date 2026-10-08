@@ -28,7 +28,7 @@
 | `make verify` | ruff·ty·pytest·e2e lint·eslint·vitest·next build(격리 폴더)·문서 검사·(있으면) gitleaks 커밋 이력. 하나가 실패해도 끝까지 돌고 요약, 로그 `.run/verify/`. `make serve` 중에 돌려도 된다 |
 | `make serve` | **로컬 배포**: 프로덕션 빌드 → backend `fastapi run` + frontend `next start` 백그라운드(이 PC에서만, 127.0.0.1) → health·화면 스모크. 실패하면 스스로 내린다. 로그 `.run/` |
 | `make e2e` | ① backend pytest·frontend vitest ② **격리 로컬 배포**(포트 18000/13000·새 DB·mock LLM)에 `e2e/` 시험 ③ TC별 결과를 `e2e-test.md`·`prd.md`에 기록, 근거(JUnit XML·로그·요약)를 `docs/evidence/`에 저장. `make serve`로 떠 있는 서버와 DB·빌드를 건드리지 않는다 |
-| `make ship` | 작업 브랜치 → main. ① main merge ② verify ③ 충돌 검사 ④ e2e(확인만, 기록 되돌림) ⑤ push·PR(`Closes #`, 확인 결과 자동 기록) ⑥ AI 리뷰(`claude -p --agent reviewer` → PR 본문 "AI 리뷰" 블록, PR 점수 60점 형식) ⑦ Issue 근거 댓글 ⑧ 머지 잠금 → main이 바뀌었으면 다시 반영·verify → CI 대기 → squash 머지 ⑨ main에서 verify. 어느 단계든 기준 미달이면 멈춘다 |
+| `make ship` | 작업 브랜치 → main. ① main merge ② verify ③ 충돌 검사 ④ e2e(확인만, 기록 되돌림) ⑤ push·PR(`Closes #`, 확인 결과 자동 기록) ⑥ AI 리뷰(`claude -p` + reviewer 지침 → PR 본문 "AI 리뷰" 블록, PR 점수 60점 형식) ⑦ Issue 근거 댓글 ⑧ 머지 잠금 → main이 바뀌었으면 다시 반영·verify → CI 대기 → squash 머지 ⑨ main에서 verify. 어느 단계든 기준 미달이면 멈춘다 |
 | `make record` | main에서 e2e → `docs/record-<시각>` 브랜치에 기록 파일만 커밋 → ship(리뷰 생략, 기록 파일만 허용) |
 | `make submit-check` | 제출 전 4가지 확인 → 포털에 넣을 SHA 출력. 근거는 **전체 PASS**여야 하고, 근거 이후 바뀐 것이 문서(`docs/`·`*.md`)뿐이어야 한다 |
 
