@@ -31,10 +31,10 @@
   .dot.ok { background: #3ccf7a; } .dot.bad { background: #ff6b81; } .dot.warn { background: #e5b559; }
   .counts { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
   .count { background: var(--tape); color: var(--cardink); border: 2px solid var(--ink); padding: 0 8px; font-size: 12px; font-weight: 700; }
-  .road { position: relative; height: 84px; margin: 6px -14px 0; border-top: 3px solid var(--ink); background: var(--sky); overflow: hidden; }
+  .road { position: relative; height: 98px; margin: 6px -14px 0; border-top: 3px solid var(--ink); background: var(--sky); overflow: hidden; }
   .road > svg.scene { position: absolute; left: 0; bottom: 0; }
-  .truck { position: absolute; bottom: 3px; left: 0; animation: drive 16s steps(64) infinite; }
-  @keyframes drive { to { left: calc(100% - 80px); } }
+  .truck { position: absolute; bottom: 12px; left: 0; animation: drive 16s steps(64) infinite; }
+  @keyframes drive { to { left: calc(100% - 330px); } }
   main { display: grid; grid-template-columns: 1fr 340px; gap: 18px; padding: 18px 20px; align-items: start; }
   @media (max-width: 1000px) { main { grid-template-columns: 1fr; } }
   .board { display: grid; grid-template-columns: repeat(5, minmax(200px, 1fr)); gap: 14px; overflow-x: auto; padding: 0 6px 8px 0; }
@@ -49,7 +49,7 @@
   .work .cards { background-image: repeating-linear-gradient(45deg, transparent 0 6px, var(--grid) 6px 8px); }
   .review .cards { background-image: linear-gradient(90deg, transparent 0 calc(50% - 2px), var(--grid) calc(50% - 2px) calc(50% + 2px), transparent calc(50% + 2px)); }
   .done .cards { background-image: linear-gradient(45deg, var(--grid) 25%, transparent 25%, transparent 75%, var(--grid) 75%), linear-gradient(45deg, var(--grid) 25%, transparent 25%, transparent 75%, var(--grid) 75%); background-size: 16px 16px; background-position: 0 0, 8px 8px; }
-  .card { position: relative; border: 3px solid var(--ink); background: var(--box); color: var(--cardink); box-shadow: 3px 3px 0 var(--ink); padding: 8px 48px 8px 16px; }
+  .card { position: relative; border: 3px solid var(--ink); background: var(--box); color: var(--cardink); box-shadow: 3px 3px 0 var(--ink); padding: 8px 56px 8px 16px; min-height: 76px; }
   .card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 6px; background: var(--tape); border-right: 3px solid var(--ink); }
   .card::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 4px; margin-top: -2px; background: var(--tape); opacity: .35; pointer-events: none; }
   .card a { color: var(--cardink); text-decoration: none; font-weight: 700; position: relative; z-index: 1; }
@@ -61,13 +61,18 @@
   .side { position: absolute; right: 6px; bottom: 6px; z-index: 1; }
   .bc { position: absolute; right: 6px; top: 6px; background: var(--tape); border: 2px solid var(--ink); padding: 2px; z-index: 1; }
   .empty { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; padding: 6px 4px; }
-  .walk { animation: bob .6s steps(2) infinite; }
+  .walk { animation: bob .5s steps(1) infinite; }
+  .idle { animation: bob 1.4s steps(1) infinite; }
+  .fa { animation: showA .5s steps(1) infinite; } .fb { animation: showB .5s steps(1) infinite; }
+  .wa { animation: showA .24s steps(1) infinite; } .wb { animation: showB .24s steps(1) infinite; }
+  @keyframes showA { 0% { visibility: visible; } 50% { visibility: hidden; } }
+  @keyframes showB { 0% { visibility: hidden; } 50% { visibility: visible; } }
   .leg1 { animation: legA .6s steps(1) infinite; } .leg2 { animation: legB .6s steps(1) infinite; }
-  @keyframes bob { 50% { transform: translateY(-3px); } }
+  @keyframes bob { 50% { transform: translateY(-2px); } }
   @keyframes legA { 0% { transform: translateY(0); } 50% { transform: translateY(-1px); } }
   @keyframes legB { 0% { transform: translateY(-1px); } 50% { transform: translateY(0); } }
   .courier { position: fixed; left: 0; top: 0; z-index: 50; pointer-events: none; }
-  .bubble { position: absolute; left: 44px; top: -14px; white-space: nowrap; background: var(--panel); color: var(--ink); border: 2px solid var(--ink); padding: 0 6px; font-size: 11px; font-weight: 700; }
+  .bubble { position: absolute; left: 50px; top: -6px; white-space: nowrap; background: var(--panel); color: var(--ink); border: 2px solid var(--ink); padding: 0 6px; font-size: 11px; font-weight: 700; }
   .conf { position: fixed; width: 6px; height: 6px; z-index: 60; pointer-events: none; }
   aside { max-height: calc(100vh - 190px); overflow: auto; }
   aside h2 { font-size: 13px; margin: 0; padding: 7px 10px; position: sticky; top: 0; background: var(--ink); color: var(--panel); }
@@ -112,7 +117,7 @@
   // 글자 하나 = 픽셀 하나. k=윤곽선 h=모자 u=작업복 s=피부 e=눈 b=상자 t=테이프 w=흰색 r=빨강 d=갈색 c=파랑 y=노랑
   // L/R=왼/오른 다리(걷기)
   const PAL = { k: 'var(--ink)', s: '#f2c9a0', e: '#2b1c0e', b: '#d9a05b', t: '#f1dca0', w: '#ffffff', r: '#c4313f', d: '#7a4a1e', c: '#2a62c9', y: '#f0c030', g: '#9aa0a6', L: 'var(--ink)', R: 'var(--ink)' };
-  const WORKER = [
+  const OLD_WORKER = [
     '...kkkkkk...', '..khhhhhhk..', '.khhhhhhhhk.', '..kssssssk..', '..ksssesek..', '..kssssssk..', '...kkkkkk...',
     '.kkuuuuuukk.', 'kbbbbbbbbbbk', 'kbttbbbbttbk', 'kbbbbbbbbbbk', 'kbttbbbbttbk', '.kkbbbbbbkk.', '...kuuuuk...', '...LL..RR...', '..LLL..RRR..',
   ];
@@ -128,7 +133,42 @@
     house: ['....kk....', '...krrk...', '..krrrrk..', '.krrrrrrk.', 'kkkkkkkkkk', 'kwwkkkkwwk', 'kwwkddkwwk', 'kkkkddkkkk', 'kbbbddbbbk', 'kkkkkkkkkk'],
     truck: ['kkkkkkkkk....', 'kbbbbbbbk....', 'kbbbtbbbkkkk.', 'kbbbtbbbkcck.', 'kbbbtbbbkccck', 'kbbbbbbbkkkkk', 'kkkkkkkkkkkkk', '.LLL....RRR..', '.LLL....RRR..'],
   };
-  const WORKERS = [['#c4313f', '#2a62c9'], ['#2f8f46', '#7a3fa0'], ['#e0a020', '#c4313f'], ['#2a9d9d', '#5b3a1e'], ['#8a4fbf', '#2f8f46']];
+  const WORKERS = [['#d8342a', '#d8342a'], ['#2a62c9', '#2a62c9'], ['#2f8f46', '#2f8f46'], ['#e0861a', '#e0861a'], ['#8a4fbf', '#8a4fbf']];
+  // 일꾼 도안 16x23 (오른쪽을 보고 소포를 안고 걷는다). 머리 / 몸통 / 다리 두 프레임을 따로 두고 합친다.
+  Object.assign(PAL, { G: '#2f8f46', N: '#2b2b3a', n: '#5b3a1e', S: '#d9a77c', p: '#e8998d', m: '#3b4a6b', M: '#2d3a55', o: '#2b1c0e', B: '#b37d3a', W: '#f6f1e0', E: '#ffffff' });
+  const fit = (rows) => rows.map((r) => r.padEnd(16, '.').slice(0, 16));
+  // 귀여운 2등신 배달원: 큰 머리(모자+흰 로고, 큰 눈, 볼터치, 웃는 입) + 소포를 안은 몸통
+  const HEAD = fit([
+    '....kkkkkkkk....', '...khhhhhhhhk...', '..khhhhWWhhhhk..', '..khhhhWWhhhhk..', '.kHHHHHHHHHHHHk.',
+    '..knssssssssnk..', '..ksseesseessk..', '..ksseesseessk..', '..kspsssssspsk..', '..kssssrrssssk..', '...kssssssssk...', '....kkkkkkkk....',
+  ]);
+  const TORSO = fit([
+    '...kkWuuuuWkk...', '..kuuuWuuWuuk...', '..kssbbbbbbssk..', '..kubbttttbbuk..', '..kubbbttbbbuk..', '..kuBBBBBBBBuk..', '...kmmmmmmmmk...',
+  ].map((r) => r.padStart(16, '.')));
+  const TORSO_IDLE = fit([
+    '...kkWuuuuWkk...', '..kuuuWuuWuuk...', '.ksuuuuuuuuuusk.', '.ksuuuuuuuuuusk.', '..kuuuuuuuuuuk..', '..kuuuUUUUuuuk..', '...kmmmmmmmmk...',
+  ]);
+  const LEGS_A = fit(['...kmmk..kmmk...', '...kmmk..kmmk...', '..kooook.kooook.']);
+  const LEGS_B = fit(['...kmmk...kmmk..', '..kmmk....kmmk..', '.kooook...kooook']);
+  const CUST_HEAD = fit([
+    '....kkkkkkkk....', '...kNNNNNNNNk...', '..kNNNNNNNNNNk..', '..kNNNssssNNNk..', '..kNsssssssNNk..',
+  ]).concat(HEAD.slice(5));
+  const CUST_BODY = fit([
+    '...kkuuuuuukk...', '..kuuuuuuuuuuk..', '.ksuuuuuuuuuusk.', '.ksuuuuuuuuuusk.', '..kuuuUUUUuuuk..', '..kuuuuuuuuuuk..', '...kmmmmmmmmk...',
+  ]);
+  const BUBBLE = ['.kkkkkkkkkk.', 'kwwwwwwwwwwk', 'kwwwwwwwwGwk', 'kwwwwwwwGwwk', 'kwGwwwwGwwwk', 'kwwGwwGwwwwk', 'kwwwGGwwwwwk', '.kwwwwwwwwk.', '..kkkkkkkk..', '..kwk.......', '..kk........'];
+  const shade = (hex) => '#' + [1, 3, 5].map((i) => Math.round(parseInt(hex.substr(i, 2), 16) * 0.78).toString(16).padStart(2, '0')).join('');
+  function drawRows(parent, rows, ox, oy, pal) {
+    rows.forEach((row, yy) => {
+      let x = 0;
+      while (x < row.length) {
+        const ch = row[x];
+        if (ch === '.' || !pal[ch]) { x++; continue; }
+        let x2 = x; while (x2 < row.length && row[x2] === ch) x2++;
+        rect(parent, ox + x, oy + yy, x2 - x, 1, pal[ch]); x = x2;
+      }
+    });
+  }
 
   function svgEl(w, h, scale, cls) {
     const s = document.createElementNS(NS, 'svg');
@@ -158,9 +198,54 @@
   }
   const hash = (str) => { let h = 7; for (const c of String(str)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; };
   function worker(scale, carrying, seed) {
-    const [hat, uni] = WORKERS[hash(seed) % WORKERS.length];
-    const rows = carrying ? WORKER : WORKER.slice(0, 7).concat(IDLE_BODY, WORKER.slice(12));
-    return pix(rows, scale, { h: hat, u: uni }, carrying ? 'walk' : '');
+    const [hat] = WORKERS[hash(seed) % WORKERS.length];
+    const pal = Object.assign({}, PAL, { k: '#2b1c0e', h: hat, H: shade(hat), u: hat, U: shade(hat) });
+    const s = svgEl(16, 23, scale, carrying ? 'walk' : '');
+    rect(s, 2, 22, 12, 1, '#2b1c0e'); s.lastChild.setAttribute('opacity', '.25'); // 그림자
+    [[LEGS_A, 'fa'], [LEGS_B, 'fb']].forEach(([legs, cls]) => {
+      const g = document.createElementNS(NS, 'g'); if (carrying) g.setAttribute('class', cls);
+      drawRows(g, HEAD, 0, 0, pal); drawRows(g, carrying ? TORSO : TORSO_IDLE, 0, 12, pal); drawRows(g, legs, 0, 19, pal);
+      s.append(g);
+    });
+    return s;
+  }
+  // 수령인: 초록 티셔츠, 서서 천천히 까딱인다
+  function customer(scale, seed) {
+    const pal = Object.assign({}, PAL, { k: '#2b1c0e', u: '#5fb04a', U: '#3f8a34' }), s = svgEl(16, 23, scale, 'idle');
+    rect(s, 2, 22, 12, 1, '#2b1c0e'); s.lastChild.setAttribute('opacity', '.25');
+    drawRows(s, CUST_HEAD, 0, 0, pal); drawRows(s, CUST_BODY, 0, 12, pal); drawRows(s, LEGS_A, 0, 19, pal);
+    return s;
+  }
+
+  // 택배 픽업트럭 50x24: 파란 차체 + 열린 짐칸의 골판지 상자 + 큰 하늘색 창 + 노란 헤드라이트 + 둥근 바퀴(허브가 돈다)
+  function disc(s, cx, cy, r, fill, cls) {
+    for (let dy = -r; dy <= r; dy++) { const w = Math.floor(Math.sqrt(r * r - dy * dy + 0.25)); rect(s, cx - w, cy + dy, 2 * w + 1, 1, fill, cls); }
+  }
+  function cardboard(s, x, yy, w, h, arrows) {
+    rect(s, x, yy, w, h, '#a8681f'); rect(s, x + 1, yy + 1, w - 2, h - 2, '#e3a94f'); rect(s, x + 1, yy + 1, w - 2, 2, '#f0c27a');
+    rect(s, x + ((w / 2) | 0) - 1, yy + 1, 2, 5, '#d79a3a'); rect(s, x + ((w / 2) | 0) - 1, yy + 1, 2, 1, '#f2d492'); // 테이프 홈
+    if (arrows) [x + 3, x + w - 6].forEach((ax) => { const ay = yy + h - 6; rect(s, ax + 1, ay, 1, 1, '#a8681f'); rect(s, ax, ay + 1, 3, 1, '#a8681f'); rect(s, ax + 1, ay + 2, 1, 3, '#a8681f'); });
+  }
+  function truckSprite(scale, cls) {
+    const s = svgEl(50, 24, scale, cls), D = '#1b3a8c', M = '#3f72e6', L = '#7aa6f5', G = document.createElementNS(NS, 'g');
+    G.setAttribute('transform', 'translate(6,0)'); s.append(G);
+    rect(G, 2, 23, 42, 1, '#000000'); G.lastChild.setAttribute('opacity', '.25'); // 그림자
+    rect(G, -4, 8, 2, 2, '#ffffff', 'wa'); G.lastChild.setAttribute('opacity', '.85'); rect(G, -6, 5, 3, 3, '#ffffff', 'wb'); G.lastChild.setAttribute('opacity', '.85'); // 연기
+    cardboard(G, 2, 1, 9, 6, false); cardboard(G, 2, 7, 9, 6, false); cardboard(G, 11, 1, 11, 12, true); // 짐칸의 상자들
+    rect(G, 0, 11, 23, 8, D); rect(G, 1, 12, 21, 6, M); rect(G, 1, 12, 21, 1, L); rect(G, 1, 13, 1, 4, L); // 짐칸 옆판
+    rect(G, 27, 2, 10, 1, D); rect(G, 24, 3, 15, 1, D); rect(G, 23, 4, 17, 15, D); rect(G, 37, 9, 7, 10, D); // 운전석 외곽(둥근 지붕)
+    rect(G, 28, 3, 8, 1, L); rect(G, 25, 4, 13, 1, M); rect(G, 24, 5, 14, 12, M); rect(G, 38, 10, 5, 8, M); rect(G, 24, 5, 1, 7, L); // 차체색 + 하이라이트
+    rect(G, 26, 5, 11, 8, D); rect(G, 27, 6, 9, 6, '#bfe0f7'); // 큰 창
+    [[28, 11], [29, 10], [30, 9], [31, 8], [32, 7], [33, 6], [31, 11], [32, 10], [33, 9], [34, 8], [35, 7]].forEach(([wx, wy]) => rect(G, wx, wy, 1, 1, '#ffffff'));
+    rect(G, 32, 14, 3, 1, D); rect(G, 31, 6, 1, 1, '#9fc4e6'); // 손잡이
+    rect(G, 40, 9, 5, 5, '#c99a1e'); rect(G, 41, 10, 3, 3, '#f5c542'); rect(G, 41, 10, 3, 1, '#ffe27a'); // 헤드라이트
+    rect(G, 38, 17, 7, 3, D); rect(G, 38, 18, 6, 1, '#9aa0a6'); rect(G, 0, 18, 44, 2, D); rect(G, 1, 18, 21, 1, M); // 범퍼·하부
+    [[9, 19], [34, 19]].forEach(([cx, cy]) => {
+      disc(G, cx, cy, 6, D); disc(G, cx, cy, 5, '#1a1a1a'); disc(G, cx, cy, 3, '#9aa0a6'); disc(G, cx, cy, 1, '#555a60');
+      rect(G, cx, cy - 2, 1, 5, '#6b7075', 'wa'); rect(G, cx - 2, cy, 5, 1, '#6b7075', 'wa');                       // 허브 프레임 A (+)
+      [[-2, -2], [-1, -1], [1, 1], [2, 2], [2, -2], [1, -1], [-1, 1], [-2, 2]].forEach(([dx, dy]) => rect(G, cx + dx, cy + dy, 1, 1, '#6b7075', 'wb')); // 프레임 B (x)
+    });
+    return s;
   }
   function barcode(seed) {
     const h = hash(seed), s = svgEl(30, 8, 2, 'bc-svg'); let x = 0;
@@ -180,12 +265,10 @@
     rect(s, 0, H - 6, W, 6, 'var(--ink)'); // 도로
     for (let x = 2; x < W; x += 8) rect(s, x, H - 3, 4, 1, '#f1dca0');
     road.replaceChildren(s);
-    const truck = svgEl(26, 16, 3, 'truck'); // 택배 트럭
-    rect(truck, 0, 1, 16, 11, 'var(--ink)'); rect(truck, 1, 2, 14, 9, '#d9a05b'); rect(truck, 7, 2, 3, 9, '#f1dca0'); rect(truck, 2, 3, 3, 3, '#ffffff'); rect(truck, 3, 4, 1, 1, 'var(--ink)');
-    rect(truck, 16, 4, 9, 8, 'var(--ink)'); rect(truck, 17, 5, 7, 6, '#2a62c9'); rect(truck, 19, 6, 4, 3, '#bfe3ff'); rect(truck, 24, 9, 2, 2, '#f0c030');
-    [[2, 12], [17, 12]].forEach(([x, y]) => { rect(truck, x, y, 5, 4, 'var(--ink)', 'leg1'); rect(truck, x + 1, y + 1, 3, 2, '#cfd3d6', 'leg1'); });
-    road.append(truck);
-    const home = pix(ICONS.house, 3); home.style.cssText = 'position:absolute;right:6px;bottom:15px'; road.append(home);
+    road.append(truckSprite(3, 'truck'));
+    const home = pix(ICONS.house, 4); home.style.cssText = 'position:absolute;right:6px;bottom:15px'; road.append(home);
+    const who = customer(3, 'who'); who.style.cssText = 'position:absolute;right:62px;bottom:15px'; road.append(who);
+    const bub = pix(BUBBLE, 3); bub.style.cssText = 'position:absolute;right:112px;bottom:50px'; road.append(bub);
   }
   function burst(x, y) { // 도착 색종이
     const colors = ['#c4313f', '#f0c030', '#2a62c9', '#2f8f46', '#8a4fbf'];
@@ -264,7 +347,7 @@
     (item.chips || []).forEach(([t, k]) => row.append(chip(t, k)));
     if (row.childNodes.length) c.append(row);
     c.append(barcode(key));
-    const sp = colKey === 'work' || colKey === 'review' ? worker(2, true, key) : colKey === 'wait' ? worker(2, false, key) : colKey === 'done' ? pix(PARCEL, 2) : null;
+    const sp = colKey === 'work' || colKey === 'review' ? worker(2, true, key) : colKey === 'wait' ? worker(2, false, key) : colKey === 'done' ? customer(2, key) : null;
     if (sp) { sp.classList.add('side'); c.append(sp); }
     return c;
   }
@@ -369,7 +452,7 @@
       $('live').className = 'dot bad'; $('liveText').textContent = '모니터에 연결할 수 없음 (scripts/monitor.sh status)';
     }
   }
-  $('logo').append(pix(ICONS.truck, 3));
+  $('logo').append(truckSprite(1));
   drawRoad(); let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(drawRoad, 200); });
   if (DEMO) { const d = el('div', 'demo', '데모 모드: 가짜 티켓'); document.body.append(d); }
   tick(); setInterval(tick, DEMO ? 3000 : 5000);
