@@ -55,6 +55,8 @@ def init_db() -> None:
             return
         with _connect() as conn:
             with conn.transaction():
+                # 서버 둘이 동시에 처음 뜰 때 create ... if not exists끼리도 부딪힐 수 있다
+                conn.execute("select pg_advisory_xact_lock(%s)", (_MIGRATION_LOCK,))
                 conn.execute(
                     sql.SQL("create schema if not exists {}").format(
                         sql.Identifier(settings.database_schema)

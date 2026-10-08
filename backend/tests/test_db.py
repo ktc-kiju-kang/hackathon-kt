@@ -47,3 +47,15 @@ def test_db_chat_store_roundtrip():
     [msg] = store.list_messages(conv["id"])
     assert Message.model_validate(msg["data"]).content == "안녕"
     assert store.get_conversation("missing") is None
+
+
+def test_db_chat_store_strips_nul():
+    """PostgreSQL은 NUL을 저장하지 못한다 — 500 대신 지우고 저장한다."""
+    store = DbChatStore()
+    conv = store.create_conversation("client-a", "a\x00b")
+    store.append_messages(conv["id"], [Message(role="user", content="안\x00녕")])
+    store.set_title(conv["id"], "제\x00목")
+    saved = store.get_conversation(conv["id"])
+    assert saved is not None and saved["title"] == "제목"
+    [msg] = store.list_messages(conv["id"])
+    assert Message.model_validate(msg["data"]).content == "안녕"
