@@ -4,6 +4,7 @@
 #   → 5 push·PR 생성/갱신 → 6 AI 리뷰(PR 본문 블록) → 7 Issue에 근거 댓글
 #   → 8 머지 잠금 → main이 그새 바뀌었으면 다시 sync·verify → CI 대기 → squash 머지 → 잠금 해제
 #   → 9 main에서 make verify (머지 후 깨졌는지)
+# 시작 전 Issue 선점 확인(scripts/claim.sh — 남이 잡은 Issue면 멈춤), 머지 후 선점 해제.
 # 환경변수: SHIP_NO_MERGE=1 (PR·리뷰까지만), SHIP_SKIP_E2E=1, SHIP_KIND=record (make record 전용)
 set -uo pipefail
 . "$(dirname "$0")/lib.sh"
@@ -19,6 +20,9 @@ branch=$(git branch --show-current)
 issue=""; [[ "$branch" =~ ^[a-z]+/([0-9]+)- ]] && issue=${BASH_REMATCH[1]}
 [[ "$branch" =~ ^(feat|fix)/ ]] && [ -z "$issue" ] && die "feat·fix 브랜치는 이슈 번호가 필요합니다 (feat/12-...)"
 [ -z "$(git status --porcelain)" ] || die "커밋 안 된 변경이 있습니다 — 커밋 후 다시 (git status)"
+if [ -n "$issue" ] && [ "$KIND" != record ]; then
+  "$ROOT/scripts/claim.sh" check "$issue" || exit 1
+fi
 
 say "1/9 main 반영"
 before_sync=$(git rev-parse HEAD)
@@ -148,6 +152,7 @@ gh pr merge "$pr" --squash --delete-branch --match-head-commit "$head" >/dev/nul
   || { cat "$RUN_DIR/ship-merge.err"; die "머지 실패 — 보호 규칙(승인 필수 등)이면 팀원 승인 후 다시"; }
 lock_release
 ok "PR #$pr 머지"
+[ -n "$issue" ] && { "$ROOT/scripts/claim.sh" done "$issue" >/dev/null 2>&1 || warn "Issue #$issue 선점 해제 실패 — scripts/claim.sh done $issue"; }
 
 say "9/9 머지 후 main 확인"
 git switch -q main && git pull -q --ff-only

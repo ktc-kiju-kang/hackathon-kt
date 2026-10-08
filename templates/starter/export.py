@@ -179,7 +179,8 @@ PATCHES = [
         '      "Bash(scripts/smoke.sh:*)",\n',
         '      "Bash(python3 scripts/check-docs.py:*)",\n'
         '      "Bash(make help)",\n      "Bash(make verify)",\n      "Bash(make status)",\n'
-        '      "Bash(make docs)",\n      "Bash(make smoke)",\n',
+        '      "Bash(make docs)",\n      "Bash(make smoke)",\n'
+        '      "Bash(make claims)",\n      "Bash(scripts/claim.sh list)",\n',
     ),
     (
         ".claude/rules/frontend.md",
