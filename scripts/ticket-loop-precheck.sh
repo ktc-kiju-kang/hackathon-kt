@@ -6,6 +6,11 @@
 #            ③ 내 티켓의 PR이 머지 없이 닫혔거나 체크가 실패했다 (머지된 티켓은 cleanup 이 정리한다)
 # agent-pause 라벨이 있는 열린 Issue 가 있으면 항상 IDLE.
 set -uo pipefail
+# GitHub 연결이 멈추면 3분마다 프로세스가 쌓이므로 90초 안에 끝나지 않으면 스스로 중단한다 (macOS 에는 timeout 이 없다).
+if [ -z "${PRECHECK_INNER:-}" ]; then
+  # 자식은 자기 프로세스 그룹·임시 파일 출력으로 돌려, 시간 초과 시 그룹째 죽이고 멈춘 gh 가 출력 파이프를 붙잡지 않게 한다
+  PRECHECK_INNER=1 exec perl -e '$t = "/tmp/ticket-precheck.$$"; $p = fork; if (!$p) { setpgrp(0, 0); open STDOUT, ">", $t; open STDERR, ">&STDOUT"; exec @ARGV } $SIG{ALRM} = sub { kill "TERM", -$p; unlink $t; print "ERROR 사전 점검 시간 초과(" . ($ENV{PRECHECK_TIMEOUT} || 90) . "초) — GitHub 연결 확인\n"; exit 2 }; alarm($ENV{PRECHECK_TIMEOUT} || 90); waitpid $p, 0; $c = $? >> 8; if (open F, $t) { print <F>; close F } unlink $t; exit $c' "$0" "$@"
+fi
 HERE=$(cd "$(dirname "$0")" && pwd)
 T="$HERE/ticket-claim.sh"
 err() { echo "ERROR $*"; exit 2; }
