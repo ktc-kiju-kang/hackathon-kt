@@ -239,11 +239,6 @@ PATCHES = [
         "`database/migrations/0001_chat.sql`",
     ),
     (
-        ".claude/skills/sync/SKILL.md",
-        "`uv pip install -r requirements-dev.txt`",
-        "`.venv/bin/pip install -r requirements-dev.txt`",
-    ),
-    (
         ".github/pull_request_template.md",
         "(frontend: lint+build / backend: ruff+pytest)",
         "(frontend: lint+test+build / backend: ruff+ty+pytest)",

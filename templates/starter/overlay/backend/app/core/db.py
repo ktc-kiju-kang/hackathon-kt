@@ -5,8 +5,8 @@
         rows = db.execute("select * from items where owner = ?", (owner,)).fetchall()
 
 - DB 파일: `settings.database_path` (기본 backend/data/app.db, gitignore). 외부 서비스 없음.
-- 마이그레이션: `database/migrations/NNNN_<설명>.sql`을 번호순으로 한 번씩, 첫 연결 때 적용한다
-  (`schema_migrations`에 기록). 이미 적용된 파일은 고치지 말고 새 번호로 추가한다.
+- 마이그레이션: `database/migrations/YYYYMMDDHHMM_<설명>.sql`을 이름순으로 한 번씩 적용한다
+  (서버 시작 시, `schema_migrations`에 기록). 적용된 파일은 고치지 말고 새 파일로 추가한다.
 """
 
 import re
@@ -19,7 +19,8 @@ from pathlib import Path
 from app.core.config import settings
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[3] / "database" / "migrations"
-_NAME = re.compile(r"\d{4}_[a-z0-9_]+")
+# NNNN_설명(키트 기본) 또는 YYYYMMDDHHMM_설명(새 파일 — 세 사람이 동시에 만들어도 번호가 안 겹친다)
+_NAME = re.compile(r"(\d{4}|\d{12})_[a-z0-9_]+")
 _lock = threading.Lock()
 _ready: set[str] = set()
 
@@ -52,7 +53,9 @@ def init_db() -> None:
                 if f.stem in done:
                     continue
                 if not _NAME.fullmatch(f.stem):
-                    raise RuntimeError(f"마이그레이션 파일 이름은 NNNN_<설명>.sql: {f.name}")
+                    raise RuntimeError(
+                        f"마이그레이션 파일 이름은 YYYYMMDDHHMM_<설명>.sql: {f.name}"
+                    )
                 sql = f.read_text(encoding="utf-8")
                 conn.executescript(
                     f"begin;\n{sql}\n"

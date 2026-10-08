@@ -61,3 +61,47 @@ stop_bg() {
   fi
   rm -f "$f"
 }
+
+# ---- 머지 잠금 (세 사람이 동시에 머지하지 않게) -------------------------------------
+# GitHub에 refs/heads/merge-lock 브랜치를 "없을 때만" 만든다 (--force-with-lease=ref: 는 원자적 생성).
+# 잠금 커밋 메시지에 누가·언제를 남긴다. 15분 넘은 잠금은 주인이 죽은 것으로 보고 가져온다.
+LOCK_REF=refs/heads/merge-lock
+LOCK_STALE_SEC=${LOCK_STALE_SEC:-900}
+
+lock_info() {  # 현재 잠금: "<sha> <epoch> <누가>" 또는 빈 값
+  local sha
+  sha=$(git -C "$ROOT" ls-remote origin "$LOCK_REF" 2>/dev/null | cut -f1)
+  [ -n "$sha" ] || return 0
+  git -C "$ROOT" fetch -q origin "$LOCK_REF" 2>/dev/null || true
+  echo "$sha $(git -C "$ROOT" log -1 --format='%ct %s' "$sha" 2>/dev/null)"
+}
+
+lock_acquire() {  # lock_acquire <설명> — 잡을 때까지 기다린다 (최대 10분)
+  local what=$1 tree commit info age waited=0
+  tree=$(git -C "$ROOT" hash-object -t tree /dev/null)
+  while :; do
+    commit=$(git -C "$ROOT" commit-tree "$tree" -m "$(git config user.name): $what" </dev/null)
+    if git -C "$ROOT" push -q --force-with-lease="$LOCK_REF:" origin "$commit:$LOCK_REF" 2>/dev/null; then
+      LOCK_SHA=$commit
+      return 0
+    fi
+    info=$(lock_info)
+    if [ -n "$info" ]; then
+      age=$(( $(date +%s) - $(echo "$info" | cut -d' ' -f2) ))
+      if [ "$age" -gt "$LOCK_STALE_SEC" ]; then
+        warn "${age}초 지난 잠금을 가져옵니다: $(echo "$info" | cut -d' ' -f3-)"
+        git -C "$ROOT" push -q --force-with-lease="$LOCK_REF:$(echo "$info" | cut -d' ' -f1)" origin ":$LOCK_REF" 2>/dev/null || true
+        continue
+      fi
+      [ $((waited % 30)) -eq 0 ] && echo "  머지 대기 중 — $(echo "$info" | cut -d' ' -f3-) (${age}초째)"
+    fi
+    [ "$waited" -ge 600 ] && return 1
+    sleep 5; waited=$((waited + 5))
+  done
+}
+
+lock_release() {  # 내 잠금일 때만 지운다
+  [ -n "${LOCK_SHA:-}" ] || return 0
+  git -C "$ROOT" push -q --force-with-lease="$LOCK_REF:$LOCK_SHA" origin ":$LOCK_REF" 2>/dev/null || true
+  LOCK_SHA=
+}
