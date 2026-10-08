@@ -2,7 +2,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class Health(BaseModel):
@@ -12,3 +12,4 @@ class Health(BaseModel):
     db: Literal["ok", "error", "unconfigured"] = "unconfigured"
     llm: str | None = None  # 에이전트 LLM 공급자 (anthropic | gemini | openai | mock)
     client_ip: str | None = None  # 서버가 사용량 한도에 쓰는 요청자 IP (본인 IP만 보인다)
+    uptime_seconds: int = Field(ge=0)  # 서버 프로세스 시작 후 지난 초 (재시작·콜드 스타트 확인용)
