@@ -12,14 +12,18 @@ import {
   formatUptime,
   getDashboard,
   getGithubStatus,
+  parseSuite,
+  reqProgress,
   runState,
   testedSameAsRunning,
+  testTotals,
   type Checks,
   type Dashboard,
   type GithubStatus,
 } from './api'
+import { DotStrip, Legend, Meter, StatTile, ToneIcon, type Dot, type Segment, type Tone } from './charts'
 
-// KDS: 섹션 제목은 카드 밖, 카드 안에 카드 없음, 정상 상태에는 태그 없음(예외만 강조), 빈 상태는 회색 한 줄
+// KDS: 섹션 제목은 카드 밖, 카드 안에 카드 없음, 정상에는 태그 없음(예외만 강조), 빨강은 실패에만, 빈 상태는 회색 한 줄
 export function DashboardView() {
   const [data, setData] = useState<Dashboard | null>(null)
   const [gh, setGh] = useState<GithubStatus | null>(null)
@@ -37,18 +41,7 @@ export function DashboardView() {
       .finally(() => setLoading(false))
     void getGithubStatus()
       .then(setGh)
-      .catch((e: Error) =>
-        setGh({
-          status: 'error',
-          message: e.message,
-          repo: null,
-          fetched_at: null,
-          issues: [],
-          pulls: [],
-          main_runs: [],
-          claims: [],
-        }),
-      )
+      .catch((e: Error) => setGh({ ...EMPTY_GH, status: 'error', message: e.message }))
   }, [])
 
   useEffect(() => {
@@ -72,18 +65,32 @@ export function DashboardView() {
         }
       />
       {error && <ErrorLine message={`현황을 불러오지 못했어요: ${error}`} onRetry={refresh} />}
+      {!data && !error && <p className="text-sm text-muted-foreground">불러오는 중…</p>}
+      {data && <Kpis data={data} gh={gh} />}
       {data && (
-        <>
-          <ServerSection data={data} />
+        <div className="grid gap-10 lg:grid-cols-2">
           <TestsSection data={data} />
           <ReqsSection data={data} />
-        </>
+        </div>
       )}
-      {!data && !error && <p className="text-sm text-muted-foreground">불러오는 중…</p>}
       <GithubSection gh={gh} />
+      {data && <ServerSection data={data} />}
     </div>
   )
 }
+
+const EMPTY_GH: GithubStatus = {
+  status: 'unconfigured',
+  message: null,
+  repo: null,
+  fetched_at: null,
+  issues: [],
+  pulls: [],
+  main_runs: [],
+  claims: [],
+}
+
+const short = (sha?: string | null) => (sha ? sha.slice(0, 7) + (sha.endsWith('-dirty') ? '-dirty' : '') : '-')
 
 function Section({ title, children, aside }: { title: string; children: React.ReactNode; aside?: React.ReactNode }) {
   return (
@@ -101,43 +108,102 @@ function Empty({ children }: { children: React.ReactNode }) {
   return <p className="text-sm text-muted-foreground">{children}</p>
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+/** 맨 위 지표 4개: 서버 · 시험 통과 · 요구사항 검증 · main CI. */
+function Kpis({ data, gh }: { data: Dashboard; gh: GithubStatus | null }) {
+  const s = data.server
+  const serverOk = s.status === 'ok' && s.db === 'ok'
+  const t = testTotals(data.tests.suites)
+  const testTone: Tone = data.tests.status === 'none' ? 'rest' : t.failed || t.missing ? 'bad' : 'good'
+  const r = reqProgress(data.reqs.items)
+  const runs = gh?.status === 'ok' ? gh.main_runs : []
+  const runStates = runs.map((x) => runState(x.status, x.conclusion))
+  const lastRun = runStates[0]
   return (
-    <div className="space-y-1">
-      <dt className="text-[13px] text-muted-foreground">{label}</dt>
-      <dd className="text-[15px]">{children}</dd>
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <StatTile
+        label="서버·DB"
+        tone={serverOk ? 'good' : 'bad'}
+        value={serverOk ? '정상' : s.db === 'ok' ? s.status : 'DB 오류'}
+        sub={`실행 ${formatUptime(s.uptime_seconds)} · ${short(s.version)} · 마이그레이션 ${data.migrations.length}개`}
+      />
+      <StatTile
+        label="시험 통과"
+        tone={testTone}
+        value={
+          data.tests.status === 'none' ? (
+            <span className="text-muted-foreground">-</span>
+          ) : (
+            <>
+              {t.passed}
+              <span className="text-base font-normal text-muted-foreground"> / {t.total}</span>
+            </>
+          )
+        }
+        sub={data.tests.status === 'none' ? '시험 기록 없음 — make e2e' : `실패 ${t.failed}${t.missing ? ` · 실행 실패 묶음 ${t.missing}` : ''} · ${data.tests.ran_at ?? ''}`}
+      >
+        <Meter
+          label="시험"
+          segments={[
+            { key: 'p', label: '통과', value: t.passed, tone: 'good' },
+            { key: 'f', label: '실패', value: t.failed, tone: 'bad' },
+          ]}
+        />
+      </StatTile>
+      <StatTile
+        label="요구사항 검증"
+        tone={r.total === 0 ? 'rest' : r.verified === r.total ? 'good' : 'rest'}
+        value={
+          r.total === 0 ? (
+            <span className="text-muted-foreground">-</span>
+          ) : (
+            <>
+              {r.verified}
+              <span className="text-base font-normal text-muted-foreground"> / {r.total}</span>
+            </>
+          )
+        }
+        sub={r.total === 0 ? 'docs/prd.md 없음' : `${Math.round((r.verified / r.total) * 100)}% 검증됨`}
+      >
+        <Meter
+          label="요구사항"
+          segments={[
+            { key: 'v', label: '검증됨', value: r.verified, tone: 'good' },
+            { key: 'o', label: '미검증', value: r.total - r.verified, tone: 'rest' },
+          ]}
+        />
+      </StatTile>
+      <StatTile
+        label="main CI"
+        tone={lastRun === 'fail' ? 'bad' : lastRun === 'ok' ? 'good' : 'rest'}
+        value={
+          runs.length === 0 ? (
+            <span className="text-muted-foreground">-</span>
+          ) : (
+            <>
+              {runStates.filter((x) => x === 'ok').length}
+              <span className="text-base font-normal text-muted-foreground"> / {runs.length} 성공</span>
+            </>
+          )
+        }
+        sub={gh?.status === 'ok' ? '최근 실행 (왼쪽이 최신)' : gh?.status === 'error' ? 'GitHub 불러오기 실패' : 'GitHub 설정 필요'}
+      >
+        {runs.length > 0 && <DotStrip label="main 최근 실행" dots={runDots(runs)} />}
+      </StatTile>
     </div>
   )
 }
 
-const short = (sha?: string | null) => (sha ? sha.slice(0, 7) + (sha.endsWith('-dirty') ? '-dirty' : '') : '-')
-
-function ServerSection({ data }: { data: Dashboard }) {
-  const s = data.server
-  return (
-    <Section title="서버·DB" aside={`확인 ${new Date(data.generated_at).toLocaleTimeString('ko-KR')}`}>
-      <Card>
-        <CardContent>
-          <dl className="grid grid-cols-2 gap-6 md:grid-cols-5">
-            <Field label="실행 버전">
-              <code className="text-sm">{short(s.version)}</code>
-            </Field>
-            <Field label="실행 시간">{formatUptime(s.uptime_seconds)}</Field>
-            <Field label="LLM">{s.llm ?? '-'}</Field>
-            <Field label="DB">
-              {s.db === 'ok' ? '연결됨' : <Badge variant="destructive">{s.db ?? '알 수 없음'}</Badge>}
-            </Field>
-            <Field label="마이그레이션">{data.migrations.length}개 적용</Field>
-          </dl>
-          {data.migrations.length > 0 && (
-            <p className="mt-4 text-[13px] text-muted-foreground">
-              {data.migrations.map((m) => m.version).join(' · ')}
-            </p>
-          )}
-        </CardContent>
-      </Card>
-    </Section>
-  )
+function runDots(runs: GithubStatus['main_runs']): Dot[] {
+  return runs.map((r) => {
+    const st = runState(r.status, r.conclusion)
+    return {
+      key: r.url,
+      tone: st === 'ok' ? 'good' : st === 'fail' ? 'bad' : 'rest',
+      running: st === 'running',
+      href: r.url,
+      tip: `${r.name} · ${r.sha} · ${st === 'running' ? '진행 중' : (r.conclusion ?? r.status)} · ${new Date(r.created_at).toLocaleString('ko-KR')}`,
+    }
+  })
 }
 
 function TestsSection({ data }: { data: Dashboard }) {
@@ -151,47 +217,55 @@ function TestsSection({ data }: { data: Dashboard }) {
   }
   const same = testedSameAsRunning(data.server.version, t.sha)
   return (
-    <Section title="시험 결과" aside={`${t.ran_at ?? ''} · ${t.run_id}`}>
+    <Section title="시험 결과" aside={t.ran_at ?? undefined}>
       <Card>
-        <CardContent className="space-y-4">
-          <div className="flex flex-wrap items-center gap-3 text-[15px]">
-            {t.overall === 'FAIL' ? (
-              <Badge variant="destructive">FAIL</Badge>
-            ) : (
-              <span className="font-semibold">전체 {t.overall ?? '-'}</span>
-            )}
-            <span className="text-muted-foreground">
-              커밋 <code className="text-sm">{short(t.sha)}</code>
+        <CardContent className="space-y-5">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[13px] text-muted-foreground">
+            {t.overall === 'FAIL' && <Badge variant="destructive">FAIL</Badge>}
+            <span>
+              커밋 <code>{short(t.sha)}</code>
             </span>
             {t.dirty && <Badge variant="outline">커밋 안 된 코드로 실행 — 제출 근거 아님</Badge>}
-            {same === false && (
-              <span className="text-[13px] text-destructive">실행 중인 버전과 시험한 커밋이 달라요</span>
-            )}
+            {same === false && <Badge variant="outline">실행 중인 버전과 다른 커밋을 시험함</Badge>}
           </div>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>묶음</TableHead>
-                <TableHead>결과</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {t.suites.map((s) => (
-                <TableRow key={s.name}>
-                  <TableCell>{s.name}</TableCell>
-                  <TableCell className={/실패 [1-9]|결과 없음/.test(s.result) ? 'text-destructive' : undefined}>
-                    {s.result}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <ul className="space-y-4">
+            {t.suites.map((s) => {
+              const p = parseSuite(s.result)
+              return (
+                <li key={s.name} className="space-y-1.5">
+                  <div className="flex items-baseline justify-between gap-2 text-sm">
+                    <span>{s.name}</span>
+                    <span className={p && p.failed === 0 ? 'text-muted-foreground tabular-nums' : 'text-destructive tabular-nums'}>
+                      {p ? `${p.total - p.failed} / ${p.total}` : s.result}
+                    </span>
+                  </div>
+                  <Meter
+                    label={s.name}
+                    segments={
+                      p
+                        ? [
+                            { key: 'p', label: '통과', value: p.total - p.failed, tone: 'good' },
+                            { key: 'f', label: '실패', value: p.failed, tone: 'bad' },
+                          ]
+                        : [{ key: 'x', label: '실행 실패', value: 1, tone: 'bad' }]
+                    }
+                  />
+                </li>
+              )
+            })}
+          </ul>
+          <Legend
+            segments={[
+              { key: 'p', label: '통과', value: testTotals(t.suites).passed, tone: 'good' },
+              { key: 'f', label: '실패', value: testTotals(t.suites).failed, tone: 'bad' },
+            ]}
+          />
           {t.tcs.length > 0 ? (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-28">TC</TableHead>
-                  <TableHead className="w-24">결과</TableHead>
+                  <TableHead className="w-24">TC</TableHead>
+                  <TableHead className="w-20">결과</TableHead>
                   <TableHead>테스트</TableHead>
                 </TableRow>
               </TableHeader>
@@ -199,8 +273,11 @@ function TestsSection({ data }: { data: Dashboard }) {
                 {t.tcs.map((c) => (
                   <TableRow key={c.tc}>
                     <TableCell>{c.tc}</TableCell>
-                    <TableCell className={c.result.startsWith('FAIL') ? 'text-destructive' : undefined}>
-                      {c.result}
+                    <TableCell>
+                      <span className="flex items-center gap-1.5">
+                        <ToneIcon tone={c.result.startsWith('PASS') ? 'good' : c.result.startsWith('FAIL') ? 'bad' : 'rest'} />
+                        {c.result}
+                      </span>
                     </TableCell>
                     <TableCell className="text-[13px] text-muted-foreground">{c.test}</TableCell>
                   </TableRow>
@@ -216,25 +293,35 @@ function TestsSection({ data }: { data: Dashboard }) {
   )
 }
 
+const reqTone = (state: string): Tone =>
+  state === '검증됨' ? 'good' : state.startsWith('구현됨') ? 'partial' : 'rest'
+
 function ReqsSection({ data }: { data: Dashboard }) {
   const r = data.reqs
-  const done = r.items.filter((i) => i.state === '검증됨').length
+  const p = reqProgress(r.items)
+  const segments: Segment[] = p.byState.map(([state, n]) => ({
+    key: state,
+    label: state,
+    value: n,
+    tone: reqTone(state),
+  }))
   return (
-    <Section title="요구사항 진행" aside={r.items.length ? `검증됨 ${done} / ${r.items.length}` : undefined}>
+    <Section title="요구사항 진행" aside={p.total ? `검증됨 ${p.verified} / ${p.total}` : undefined}>
       {r.status === 'none' ? (
         <Empty>docs/prd.md가 없어요 — 팀 레포에서 /plan-topic으로 요구사항을 만들면 보여요</Empty>
       ) : r.items.length === 0 ? (
         <Empty>prd.md에 REQ가 없어요</Empty>
       ) : (
         <Card>
-          <CardContent>
+          <CardContent className="space-y-5">
+            <Meter label="요구사항 상태" height={12} segments={segments} />
+            <Legend segments={segments} />
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-24">ID</TableHead>
+                  <TableHead className="w-20">ID</TableHead>
                   <TableHead>요구사항</TableHead>
-                  <TableHead className="w-20">우선순위</TableHead>
-                  <TableHead className="w-20">Issue</TableHead>
+                  <TableHead className="w-16">Issue</TableHead>
                   <TableHead className="w-32">상태</TableHead>
                 </TableRow>
               </TableHeader>
@@ -242,11 +329,16 @@ function ReqsSection({ data }: { data: Dashboard }) {
                 {r.items.map((i) => (
                   <TableRow key={i.id}>
                     <TableCell>{i.id}</TableCell>
-                    <TableCell>{i.title}</TableCell>
-                    <TableCell className="text-muted-foreground">{i.priority}</TableCell>
+                    <TableCell>
+                      {i.title}
+                      <span className="ml-2 text-[13px] text-muted-foreground">{i.priority}</span>
+                    </TableCell>
                     <TableCell className="text-muted-foreground">{i.issue}</TableCell>
-                    <TableCell className={i.state === '검증됨' ? 'font-semibold' : 'text-muted-foreground'}>
-                      {i.state}
+                    <TableCell>
+                      <span className="flex items-center gap-1.5">
+                        <ToneIcon tone={reqTone(i.state)} />
+                        <span className={i.state === '검증됨' ? undefined : 'text-muted-foreground'}>{i.state}</span>
+                      </span>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -259,7 +351,12 @@ function ReqsSection({ data }: { data: Dashboard }) {
   )
 }
 
-const CHECKS: Record<Checks, string> = { pass: '통과', fail: '실패', pending: '진행 중', none: '검사 없음' }
+const CHECKS: Record<Checks, { tone: Tone; label: string; running?: boolean }> = {
+  pass: { tone: 'good', label: '통과' },
+  fail: { tone: 'bad', label: '실패' },
+  pending: { tone: 'rest', label: '진행 중', running: true },
+  none: { tone: 'rest', label: '검사 없음' },
+}
 
 function Link({ href, children }: { href: string; children: React.ReactNode }) {
   return (
@@ -290,121 +387,106 @@ function GithubSection({ gh }: { gh: GithubStatus | null }) {
     )
   }
   const owner = new Map(gh.claims.map((c) => [c.issue, c.owner]))
+  const count = (f: (i: GithubStatus['issues'][number]) => boolean) => gh.issues.filter(f).length
+  const issueSegments: Segment[] = [
+    { key: 'c', label: '선점됨', value: count((i) => owner.has(i.number)), tone: 'good' },
+    { key: 'a', label: '배정만', value: count((i) => !owner.has(i.number) && i.assignees.length > 0), tone: 'rest' },
+    { key: 'u', label: '미배정', value: count((i) => !owner.has(i.number) && i.assignees.length === 0), tone: 'rest' },
+  ]
+  const fetched = gh.fetched_at ? new Date(gh.fetched_at).toLocaleTimeString('ko-KR') : ''
   return (
-    <Section
-      title="GitHub"
-      aside={`${gh.repo} · ${gh.fetched_at ? new Date(gh.fetched_at).toLocaleTimeString('ko-KR') : ''} 기준 (1분 캐시)`}
-    >
-      <div className="space-y-6">
-        <div className="space-y-2">
-          <h3 className="text-[15px] font-semibold">main 최근 실행</h3>
-          {gh.main_runs.length === 0 ? (
-            <Empty>main에서 실행된 워크플로가 없어요</Empty>
-          ) : (
-            <ul className="space-y-1 text-sm">
-              {gh.main_runs.map((r) => {
-                const st = runState(r.status, r.conclusion)
-                return (
-                  <li key={r.url} className="flex flex-wrap items-center gap-2">
-                    {st === 'fail' ? (
-                      <Badge variant="destructive">실패</Badge>
-                    ) : (
-                      <span className="w-14 text-muted-foreground">
-                        {st === 'ok' ? '성공' : st === 'running' ? '진행 중' : r.conclusion}
-                      </span>
-                    )}
-                    <Link href={r.url}>{r.name}</Link>
-                    <code className="text-[13px] text-muted-foreground">{r.sha}</code>
-                    <span className="text-[13px] text-muted-foreground">
-                      {new Date(r.created_at).toLocaleString('ko-KR')}
-                    </span>
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-        </div>
-
-        <div className="space-y-2">
+    <Section title="GitHub" aside={`${gh.repo} · ${fetched} 기준`}>
+      <div className="grid gap-10 lg:grid-cols-2">
+        <div className="space-y-3">
           <h3 className="text-[15px] font-semibold">열린 PR {gh.pulls.length}개</h3>
           {gh.pulls.length === 0 ? (
             <Empty>열린 PR이 없어요</Empty>
           ) : (
             <Card>
               <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-16">#</TableHead>
-                      <TableHead>제목</TableHead>
-                      <TableHead className="w-32">작성자</TableHead>
-                      <TableHead className="w-24">CI</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {gh.pulls.map((p) => (
-                      <TableRow key={p.number}>
-                        <TableCell>{p.number}</TableCell>
-                        <TableCell>
-                          <Link href={p.url}>{p.title}</Link>
-                          {p.draft && <span className="ml-2 text-[13px] text-muted-foreground">초안</span>}
-                          <div className="text-[13px] text-muted-foreground">{p.branch}</div>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">{p.author}</TableCell>
-                        <TableCell>
-                          {p.checks === 'fail' ? (
-                            <Badge variant="destructive">실패</Badge>
-                          ) : (
-                            <span className="text-muted-foreground">{CHECKS[p.checks]}</span>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                <ul className="divide-y divide-border">
+                  {gh.pulls.map((p) => {
+                    const c = CHECKS[p.checks]
+                    return (
+                      <li key={p.number} className="flex items-start gap-3 py-3 first:pt-0 last:pb-0">
+                        <ToneIcon tone={c.tone} running={c.running} className="mt-0.5" />
+                        <div className="min-w-0 flex-1">
+                          <Link href={p.url}>
+                            <span className="truncate">
+                              #{p.number} {p.title}
+                            </span>
+                          </Link>
+                          <div className="text-[13px] text-muted-foreground">
+                            {p.author} · {p.branch}
+                            {p.draft && ' · 초안'}
+                          </div>
+                        </div>
+                        <span className={p.checks === 'fail' ? 'text-sm text-destructive' : 'text-sm text-muted-foreground'}>
+                          CI {c.label}
+                        </span>
+                      </li>
+                    )
+                  })}
+                </ul>
               </CardContent>
             </Card>
           )}
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-3">
           <h3 className="text-[15px] font-semibold">열린 Issue {gh.issues.length}개</h3>
           {gh.issues.length === 0 ? (
             <Empty>열린 Issue가 없어요</Empty>
           ) : (
             <Card>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-16">#</TableHead>
-                      <TableHead>제목</TableHead>
-                      <TableHead className="w-40">담당</TableHead>
-                      <TableHead className="w-40">선점</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {gh.issues.map((i) => (
-                      <TableRow key={i.number}>
-                        <TableCell>{i.number}</TableCell>
-                        <TableCell>
-                          <Link href={i.url}>{i.title}</Link>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {i.assignees.join(', ') || '미배정'}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {owner.has(i.number) ? (owner.get(i.number) ?? '알 수 없음') : '-'}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+              <CardContent className="space-y-4">
+                <Meter label="Issue 담당 현황" segments={issueSegments} />
+                <Legend segments={issueSegments} />
+                <ul className="divide-y divide-border">
+                  {gh.issues.map((i) => (
+                    <li key={i.number} className="flex items-start gap-3 py-3 last:pb-0">
+                      <ToneIcon tone={owner.has(i.number) ? 'good' : 'rest'} className="mt-0.5" />
+                      <div className="min-w-0 flex-1">
+                        <Link href={i.url}>
+                          #{i.number} {i.title}
+                        </Link>
+                        <div className="text-[13px] text-muted-foreground">
+                          {owner.has(i.number)
+                            ? `선점 ${owner.get(i.number) ?? '알 수 없음'}`
+                            : i.assignees.length
+                              ? `담당 ${i.assignees.join(', ')} · 선점 안 됨`
+                              : '미배정'}
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
               </CardContent>
             </Card>
           )}
         </div>
       </div>
+    </Section>
+  )
+}
+
+function ServerSection({ data }: { data: Dashboard }) {
+  const s = data.server
+  return (
+    <Section title="서버·DB 상세" aside={`확인 ${new Date(data.generated_at).toLocaleTimeString('ko-KR')}`}>
+      <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm md:grid-cols-4">
+        {[
+          ['실행 버전', <code key="v">{short(s.version)}</code>],
+          ['LLM', s.llm ?? '-'],
+          ['DB', s.db === 'ok' ? '연결됨' : (s.db ?? '알 수 없음')],
+          ['마이그레이션', data.migrations.map((m) => m.version).join(' · ') || '없음'],
+        ].map(([k, v]) => (
+          <div key={k as string} className="space-y-1">
+            <dt className="text-[13px] text-muted-foreground">{k}</dt>
+            <dd>{v}</dd>
+          </div>
+        ))}
+      </dl>
     </Section>
   )
 }

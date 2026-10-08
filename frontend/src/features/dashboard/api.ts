@@ -119,3 +119,37 @@ export function runState(status: string, conclusion: string | null): 'ok' | 'fai
   if (conclusion === 'failure' || conclusion === 'timed_out' || conclusion === 'startup_failure') return 'fail'
   return 'other' // cancelled 등 — 새 실행으로 대체된 것
 }
+
+/** 시험 묶음 결과 "61개 중 실패 0" → 개수. "결과 없음 (실행 실패)" 등은 null. */
+export function parseSuite(result: string): { total: number; failed: number } | null {
+  const m = /(\d+)개 중 실패 (\d+)/.exec(result)
+  return m ? { total: Number(m[1]), failed: Number(m[2]) } : null
+}
+
+/** 모든 묶음 합계. 결과가 없는 묶음(실행 실패)은 missing으로 센다. */
+export function testTotals(suites: Tests['suites']) {
+  let total = 0
+  let failed = 0
+  let missing = 0
+  for (const s of suites) {
+    const p = parseSuite(s.result)
+    if (!p) missing += 1
+    else {
+      total += p.total
+      failed += p.failed
+    }
+  }
+  return { total, failed, passed: total - failed, missing }
+}
+
+/** REQ 진행: 검증됨 / 전체 (제외는 전체에서 뺀다), 상태별 개수. */
+export function reqProgress(items: Req[]) {
+  const counted = items.filter((i) => !i.state.startsWith('제외'))
+  const byState = new Map<string, number>()
+  for (const i of counted) byState.set(i.state, (byState.get(i.state) ?? 0) + 1)
+  return {
+    verified: counted.filter((i) => i.state === '검증됨').length,
+    total: counted.length,
+    byState: [...byState.entries()],
+  }
+}

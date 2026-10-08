@@ -16,7 +16,8 @@ need_docker() {
 }
 have_docker() { command -v docker >/dev/null && docker info >/dev/null 2>&1; }
 export API_PORT WEB_PORT
-GIT_REMOTE_URL=$(git -C "$ROOT" remote get-url origin 2>/dev/null || true); export GIT_REMOTE_URL
+GIT_REMOTE_URL=$(git -C "$ROOT" remote get-url origin 2>/dev/null | sed -E 's#://[^@/]+@#://#' || true)  # 주소 속 자격 증명은 뺀다
+export GIT_REMOTE_URL
 dc() { docker compose "$@"; }
 dcdev() { docker compose -f compose.yaml -f compose.dev.yaml "$@"; }
 running() { [ -n "$(dc ps -q api web 2>/dev/null)" ]; }  # db만 떠 있는 것(make db·verify)은 실행 중 아님

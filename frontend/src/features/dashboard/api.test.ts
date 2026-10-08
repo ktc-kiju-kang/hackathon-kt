@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatUptime, runState, testedSameAsRunning } from './api'
+import { formatUptime, parseSuite, reqProgress, runState, testedSameAsRunning, testTotals } from './api'
 
 describe('formatUptime', () => {
   it('큰 단위 두 개까지 보여 준다', () => {
@@ -31,5 +31,33 @@ describe('runState', () => {
     expect(runState('completed', 'success')).toBe('ok')
     expect(runState('completed', 'failure')).toBe('fail')
     expect(runState('completed', 'cancelled')).toBe('other')
+  })
+})
+
+describe('parseSuite·testTotals', () => {
+  it('"N개 중 실패 M"을 읽고, 실행 실패 묶음은 missing으로 센다', () => {
+    expect(parseSuite('61개 중 실패 2')).toEqual({ total: 61, failed: 2 })
+    expect(parseSuite('결과 없음 (실행 실패)')).toBeNull()
+    expect(
+      testTotals([
+        { name: 'a', result: '61개 중 실패 2' },
+        { name: 'b', result: '3개 중 실패 0' },
+        { name: 'c', result: '결과 없음 (실행 실패)' },
+      ]),
+    ).toEqual({ total: 64, failed: 2, passed: 62, missing: 1 })
+  })
+})
+
+describe('reqProgress', () => {
+  it('제외된 REQ는 전체에서 뺀다', () => {
+    const r = (id: string, state: string) => ({ id, title: '', priority: '', issue: '', state })
+    expect(reqProgress([r('REQ-01', '검증됨'), r('REQ-02', '계획'), r('REQ-11', '제외(시간)')])).toEqual({
+      verified: 1,
+      total: 2,
+      byState: [
+        ['검증됨', 1],
+        ['계획', 1],
+      ],
+    })
   })
 })

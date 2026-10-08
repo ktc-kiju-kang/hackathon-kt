@@ -27,11 +27,11 @@ Response 200:
   }
 }
 ```
-- `tests`: 최근 `make e2e` 근거 `docs/evidence/<실행>/summary.md` (없으면 `.run/evidence/`) 중 가장 최근 것
+- `tests`: `make e2e` 근거 `docs/evidence/<실행>/summary.md`·`.run/evidence/<실행>/summary.md` 두 곳 중 가장 최근 실행 (폴더 이름이 시각으로 시작)
 - `reqs`: `docs/prd.md` 요구사항 표 (ID·요구사항·우선순위·Issue·상태). `{{자리표시}}`는 그대로 보인다
 
 ## GET /api/dashboard/github — v1
-GitHub(또는 사내 GHE) 현황. 60초 캐시 (API 한도 보호).
+GitHub(또는 사내 GHE) 현황. 60초 캐시 (토큰이 없으면 5분 — API 한도 보호), 한 번 갱신은 15초 상한.
 
 Response 200:
 ```
@@ -47,7 +47,7 @@ Response 200:
   "claims": [{ "issue": int, "owner": string | null }]   // scripts/claim.sh의 claim/<번호> 브랜치
 }
 ```
-- 설정 (`backend/.env`): `GITHUB_REPO=owner/name`(비우면 git origin 주소에서), `GITHUB_TOKEN`(읽기 전용 토큰 — 공개 github.com 레포는 없어도 됨, 시간당 60회), `GITHUB_API_URL`(비우면 github.com, 사내 GHE는 origin 호스트의 `/api/v3`)
+- 설정 (`backend/.env`): `GITHUB_REPO=owner/name`(비우면 git origin 주소에서), `GITHUB_TOKEN`(읽기 전용 토큰 — 공개 github.com 레포는 없어도 됨, 시간당 60회), `GITHUB_API_URL`(비우면 github.com, origin이 다른 호스트면 그 호스트의 `/api/v3` — 이때 토큰은 보내지 않으므로 사내 GHE에 토큰을 쓰려면 직접 적는다)
 - `unconfigured` = 레포를 알 수 없음, `error` = 인증 실패·한도 초과·네트워크 (그 칸만 표시, 나머지 화면은 정상)
 - 개수 상한: Issue 50 · PR 10(PR마다 check-run 조회) · main 실행 5 · claim 10
 

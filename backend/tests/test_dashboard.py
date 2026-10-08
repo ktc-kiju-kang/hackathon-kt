@@ -4,6 +4,7 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
+from app.core import db
 from app.core.config import settings
 from app.main import app
 from app.services import dashboard, dashboard_github
@@ -58,7 +59,10 @@ def _github_settings(monkeypatch):
 def test_dashboard_local_sections_empty_repo(repo_root):
     body = client.get("/api/dashboard").json()
     assert body["server"]["status"] == "ok" and body["server"]["db"] == "ok"
-    assert [m["version"] for m in body["migrations"]] == ["0001_chat"]  # 테스트 schema에 적용됨
+    # 테스트 schema에 적용된 마이그레이션 = 레포의 마이그레이션 파일 전부
+    assert [m["version"] for m in body["migrations"]] == sorted(
+        f.stem for f in db.MIGRATIONS_DIR.glob("*.sql")
+    )
     assert body["tests"] == {
         "status": "none",
         "run_id": None,
@@ -216,3 +220,40 @@ def test_github_is_cached(monkeypatch):
 def test_repo_and_api_from_remote(remote, repo, api):
     assert dashboard_github._repo_from_remote(remote) == repo
     assert dashboard_github._api_from_remote(remote) == api
+
+
+@pytest.mark.parametrize(
+    ("reply", "expect"),
+    [
+        (httpx.Response(403, headers={"x-ratelimit-remaining": "0"}), "한도 초과"),
+        (httpx.Response(404), "GITHUB_TOKEN 필요"),  # 토큰 없이 비공개 레포
+        (httpx.Response(200, text="<html>login</html>"), "응답 형식 오류"),  # GHE 로그인 페이지
+        (httpx.Response(200, json={"unexpected": 1}), "응답 형식 오류"),
+    ],
+)
+def test_github_failures_become_error_status(monkeypatch, reply, expect):
+    monkeypatch.setattr(settings, "github_repo", "team/app")
+    _fake_github(monkeypatch, lambda req: reply)
+    r = client.get("/api/dashboard/github")
+    assert r.status_code == 200
+    assert r.json()["status"] == "error" and expect in r.json()["message"]
+
+
+def test_token_not_sent_to_non_github_origin(monkeypatch):
+    """origin이 GitHub이 아닌 호스트면(미러 등) GITHUB_API_URL 없이 토큰을 보내지 않는다."""
+    monkeypatch.setattr(settings, "git_remote_url", "https://mirror.example/team/app.git")
+    monkeypatch.setattr(settings, "github_token", TOKEN)
+    seen: list[str | None] = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        seen.append(req.headers.get("Authorization"))
+        return httpx.Response(401)
+
+    _fake_github(monkeypatch, handler)
+    client.get("/api/dashboard/github")
+    assert seen and all(h is None for h in seen)
+
+
+def test_bad_repo_name_is_unconfigured(monkeypatch):
+    monkeypatch.setattr(settings, "github_repo", "team/../../admin?x=1")
+    assert client.get("/api/dashboard/github").json()["status"] == "unconfigured"
