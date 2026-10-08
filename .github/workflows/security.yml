@@ -1,8 +1,7 @@
 name: Security
 
 # 비밀값 스캔 (gitleaks). 공개 저장소라 키·토큰이 커밋되면 바로 노출된다.
-# 배포(Deploy)는 `CI` 워크플로 완료만 트리거로 쓰므로 이 워크플로는 배포 흐름과 무관하다.
-# 설정: .gitleaks.toml · 문서: docs/SDLC.md
+# 설정: .gitleaks.toml
 on:
   pull_request:
   push:

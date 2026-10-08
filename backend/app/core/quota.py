@@ -1,6 +1,6 @@
 """단순 메모리 기반 사용량 제한. 공개 데모 API가 LLM 비용을 무제한으로 쓰지 않게 한다.
 
-인스턴스 하나(Render free) 기준이다. 여러 인스턴스로 늘리면 DB/Redis 기반으로 바꿔야 한다.
+서버 프로세스 하나 기준이다. 여러 인스턴스로 늘리면 DB/Redis 기반으로 바꿔야 한다.
 """
 
 import ipaddress
@@ -35,7 +35,7 @@ def _valid_ip(value: str) -> str | None:
 def client_ip(request: Request) -> str:
     """사용량 한도용 클라이언트 IP. 클라이언트가 바꿀 수 있는 값을 쓰지 않는다.
 
-    - `CF-Connecting-IP`: Render 앞단의 Cloudflare가 실제 방문자 IP로 **항상 덮어쓴다** → 우선.
+    - `CF-Connecting-IP`: Cloudflare 같은 앞단 프록시가 실제 방문자 IP로 **항상 덮어쓴다** → 우선.
       `True-Client-IP`는 zone 설정이 켜져 있을 때만 덮어쓴다. 꺼져 있으면 클라이언트 값이
       그대로 통과하므로 쓰지 않는다.
     - 없으면 `X-Forwarded-For`의 **마지막 값**(가장 가까운 프록시가 붙인 값). 첫 값은 클라이언트가

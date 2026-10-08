@@ -1,5 +1,5 @@
 // 공용 SSE 클라이언트. 기능별 api.ts는 URL·이벤트 타입·mock만 갖고, 스트림 읽기·파싱은 여기서 한다.
-// 서버 형식: `event: <type>\ndata: <json>\n\n`, 15초마다 `: ping` 주석 (계약: docs/contracts/radar.md "스트림 형식")
+// 서버 형식: `event: <type>\ndata: <json>\n\n`, 15초마다 `: ping` 주석 (계약: docs/contracts/chat.md)
 
 export type SseEvent = { type: string; data: unknown }
 

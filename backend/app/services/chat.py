@@ -71,7 +71,7 @@ async def send_message(
     """사용자 메시지를 저장하고 에이전트를 돌려 SSE 문자열을 스트리밍한다.
 
     권한·한도 체크는 스트림 시작 전에 끝낸다 (스트림 도중엔 HTTP 상태코드를 바꿀 수 없음).
-    Supabase 클라이언트는 동기라 모두 스레드에서 호출한다 (다른 스트림을 막지 않게).
+    DB 호출(sqlite3)은 동기라 모두 스레드에서 호출한다 (다른 스트림을 막지 않게).
     """
     conv = await asyncio.to_thread(_owned, conversation_id, client_id)
     history = await asyncio.to_thread(_history, conversation_id)

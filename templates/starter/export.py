@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""본선 시작 키트 내보내기 — 이 레포의 공용 부분 + 로컬 실행용 덮어쓰기 + 제출 문서 8개.
+"""본선 시작 키트 내보내기 — 이 레포(= 키트 원본) + 팀 레포용 덮어쓰기 + 제출 문서 8개.
 
 사용:
   python3 templates/starter/export.py <대상 폴더> [--force] [--dry-run]
 
 - 대상 폴더는 배정받은 팀 레포를 clone한 곳 (빈 폴더도 가능).
-- 대상에 이미 있는 파일은 **건너뛰고 목록을 보여 준다** (주최 측이 넣어 둔 README 등 보호).
+- 대상에 이미 있는 파일은 **건너뛰고** 키트 버전을 <파일>.kit 로 옆에 둔다 (주최 측 README 보호).
   --force면 덮어쓴다. 단 주최 측 파일(PROTECTED)은 --force여도 건드리지 않는다.
-- 기능 코드(trends·radar·product)·배포 설정(Vercel·Render·Supabase)은 빠진다.
+- 이 레포 전용 파일(EXCLUDE)은 빠진다.
 """
 
 import fnmatch
@@ -21,287 +21,25 @@ REPO = Path(__file__).resolve().parents[2]
 KIT = REPO / "templates" / "starter"
 SUBMISSION = REPO / "templates" / "submission"
 
-# 이 레포에서 가져올 파일 (git이 추적하는 파일만, glob)
-INCLUDE = [
-    ".claude/**",
-    ".github/pull_request_template.md",
-    ".github/workflows/security.yml",
-    ".gitignore",
-    ".gitleaks.toml",
-    "scripts/sync.sh",
-    "scripts/check-conflicts.sh",
-    "scripts/new-worktree.sh",
-    "scripts/session-context.sh",
-    "scripts/pr_review_score.py",
-    "scripts/test_pr_review_score.py",
-    ".github/workflows/pr-review.yml",
-    "docs/superpowers/specs/2026-10-03-pr-review-scoring-design.md",
-    "backend/**",
-    "frontend/**",
-    "docs/contracts/README.md",
-    "docs/contracts/chat.md",
-    "docs/contracts/health.md",
-    "docs/decisions/0000-template.md",
-]
-# 그중 뺄 것 (이 레포의 주제 기능·배포 전용)
+# 이 레포가 곧 키트다 (2026-10-08 정리). 추적 파일을 그대로 내보내고 EXCLUDE(이 레포 전용)만
+# 뺀다. 팀 레포용으로 달라야 하는 파일만 overlay/에 있다 (CLAUDE.md, CI).
+INCLUDE = ["**"]
 EXCLUDE = [
-    ".claude/skills/deploy-status/**",
-    "backend/data/**",
-    "backend/evals/**",
-    "backend/app/*/trends.py",
-    "backend/app/*/radar.py",
-    "backend/app/*/product.py",
-    "backend/app/services/snapshot.py",
-    "backend/app/agent/tools/get_ai_usage_trends.py",
-    "backend/tests/test_trends.py",
-    "backend/tests/test_radar.py",
-    "backend/tests/test_product.py",
-    "backend/tests/test_snapshot.py",
-    "backend/tests/test_contracts.py",
-    "backend/tests/test_tool_get_ai_usage_trends.py",
-    "frontend/src/app/trends/**",
-    "frontend/src/app/radar/**",
-    "frontend/src/app/product/**",
-    "frontend/src/features/trends/**",
-    "frontend/src/features/radar/**",
-    "frontend/src/features/product/**",
-    "frontend/vercel.json",
+    "templates/**",  # 키트 원본·제출 문서 템플릿 (제출 문서는 아래에서 따로 넣는다)
+    "README.md",  # 팀 레포 README는 제출 문서 템플릿에서
+    "CLAUDE.md",  # 팀 레포용은 overlay/CLAUDE.md
+    ".github/workflows/ci.yml",  # 팀 레포용은 overlay (문서 검사 잡 포함)
+    ".github/ISSUE_TEMPLATE/**",  # 주최 측이 넣는다
+    ".gitleaksignore",  # 이 레포 이력의 오탐 fingerprint
+    "docs/superpowers/plans/**",  # PR 점수 구현 계획 (이 레포 작업 기록)
+    "frontend/vercel.json",  # 이 레포의 옛 Vercel 연결이 main을 자동 배포하지 않게 (연결 해제 후 삭제)
+    ".github/dependabot.yml",  # 이 레포 의존성 알림 (팀 레포는 사내 GHE 정책을 따른다)
 ]
 # 주최 측이 제공하는 파일 — 어떤 경우에도 덮어쓰지 않는다
 PROTECTED = ["docs/security-policy.md", ".github/ISSUE_TEMPLATE/**"]
 
 # (파일, 바꿀 문자열, 새 문자열) — 원본이 바뀌어 문자열이 없으면 실패해서 알 수 있게 한다
 PATCHES = [
-    (
-        "frontend/src/app/layout.tsx",
-        "  title: 'KT Group AI Opportunity Radar',\n"
-        "  description: 'AI 활용 트렌드로 KT 그룹사의 AI 사업 기회와 PoC를 설계하는 에이전트',",
-        "  title: '서비스 이름',\n  description: '한 줄 소개',",
-    ),
-    (
-        "frontend/src/app/agent/page.tsx",
-        "title: 'AI 에이전트 · KT Group'",
-        "title: 'AI 에이전트'",
-    ),
-    (
-        "frontend/src/features/chat/ChatView.tsx",
-        "// 서비스 주제(AI 활용 트렌드 → KT 그룹 사업 기회)에 맞춘 예시."
-        " 에이전트 도구 get_ai_usage_trends로 답할 수 있는 질문\n"
-        "const EXAMPLES = [\n"
-        "  '한국에서 업무용 AI 활용은 1년 동안 어떻게 바뀌었어?',\n"
-        "  '한국과 미국의 AI 활용 주제를 비교해 줘',\n"
-        "  'KT Cloud가 주목할 만한 AI 활용 트렌드는?',\n]",
-        "// 주제에 맞춘 예시 질문으로 바꾼다 (에이전트 도구로 답할 수 있는 질문)\n"
-        "const EXAMPLES = ['지금 몇 시야?', '1234 곱하기 5678은?']",
-    ),
-    (
-        "frontend/src/features/chat/ToolStep.tsx",
-        "  get_ai_usage_trends: 'AI 활용 트렌드 조회',\n",
-        "",
-    ),
-    (
-        "frontend/src/lib/sse.ts",
-        '(계약: docs/contracts/radar.md "스트림 형식")',
-        "(계약: docs/contracts/chat.md)",
-    ),
-    (
-        "frontend/src/features/chat/ToolStep.tsx",
-        "const regionNames = new Intl.DisplayNames(['ko'], { type: 'region' })\n\n",
-        "",
-    ),
-    (
-        "frontend/src/features/chat/ToolStep.tsx",
-        "  if (name === 'get_ai_usage_trends') {\n"
-        "    const country = typeof input.country === 'string'"
-        " ? safeRegion(input.country) : '전 세계'\n"
-        "    const months = typeof input.months === 'number' ? input.months : 12\n"
-        "    return `${country} · 최근 ${months}개월 비교`\n"
-        "  }\n",
-        "",
-    ),
-    (
-        "frontend/src/features/chat/ToolStep.tsx",
-        "function safeRegion(code: string): string {\n"
-        "  try {\n"
-        "    return regionNames.of(code) ?? code\n"
-        "  } catch {\n"
-        "    return code\n"
-        "  }\n"
-        "}\n\n",
-        "",
-    ),
-    (
-        "backend/app/agent/stages.py",
-        '"""단계형 LLM 생성 파이프라인 실행 (radar·product 공통).',
-        '"""단계형 LLM 생성 파이프라인 실행.',
-    ),
-    (
-        "backend/app/agent/stages.py",
-        '계약: docs/contracts/radar.md "스트림 형식"',
-        "계약: docs/contracts/stages.md",
-    ),
-    (
-        "backend/app/agent/stages.py",
-        "(예: opportunity)",
-        "",
-    ),
-    (
-        "backend/app/agent/structured.py",
-        '"""구조화 출력 + 단계형 SSE 헬퍼 (radar·product 공통). 계약: docs/contracts/radar.md',
-        '"""구조화 출력 + 단계형 SSE 헬퍼. 계약: docs/contracts/stages.md',
-    ),
-    (
-        "backend/app/services/chat.py",
-        "Supabase 클라이언트는 동기라 모두 스레드에서 호출한다",
-        "DB 호출(sqlite3)은 동기라 모두 스레드에서 호출한다",
-    ),
-    (
-        "docs/contracts/README.md",
-        "- [trends](trends.md) — OpenAI Signals 트렌드 지표 (#22)\n"
-        "- [radar](radar.md) — 그룹사 + Opportunity 생성 (SSE, #23)\n"
-        "- [product](product.md) — Product Card·PoC 생성 (SSE, #24)\n",
-        "- [stages](stages.md) — LLM 단계형 생성 공통 스트림 형식\n",
-    ),
-    (
-        "docs/contracts/README.md",
-        "- Base: 로컬 `http://localhost:8000`, 배포 `https://hackathon-kt-api.onrender.com`",
-        "- Base: 로컬 `http://localhost:8000`",
-    ),
-    (
-        "docs/contracts/health.md",
-        "(`db` = Supabase 연결·키 확인 결과. DB 장애여도 health는 200 — Render 헬스체크가 서비스를"
-        " 내리지 않도록)",
-        "(`db` = SQLite 연결·마이그레이션 확인 결과, `version` = 실행 중인 git 커밋."
-        " DB 장애여도 health는 200)",
-    ),
-    (
-        ".claude/settings.json",
-        '      "Bash(scripts/smoke.sh:*)",\n',
-        '      "Bash(python3 scripts/check-docs.py:*)",\n'
-        '      "Bash(make help)",\n      "Bash(make verify)",\n      "Bash(make status)",\n'
-        '      "Bash(make docs)",\n      "Bash(make smoke)",\n'
-        '      "Bash(make claims)",\n      "Bash(scripts/claim.sh list)",\n',
-    ),
-    (
-        ".claude/rules/frontend.md",
-        " (예: `features/radar/api.ts`의 `saveSelectedOpportunity`)",
-        "",
-    ),
-    (
-        ".claude/rules/frontend.md",
-        "(`features/chat|radar|product/api.ts`)",
-        "(`features/chat/api.ts`)",
-    ),
-    (
-        ".claude/rules/frontend.md",
-        "구조·분업 규칙은 `docs/architecture.md`.",
-        "구조·분업 규칙은 `CLAUDE.md`.",
-    ),
-    (
-        ".claude/skills/add-page/SKILL.md",
-        ", 예시는 `features/trends/TrendCharts.tsx`",
-        ", 예시는 `features/samples/DashboardSample.tsx`",
-    ),
-    (
-        ".claude/skills/add-page/SKILL.md",
-        " (예: radar → product, `sessionStorage`)",
-        " (`sessionStorage`)",
-    ),
-    (
-        "backend/tests/test_quota.py",
-        "from app.agent.providers.mock import MockProvider\n",
-        "",
-    ),
-    (
-        "backend/tests/test_quota.py",
-        "def test_spoofed_forwarded_for_does_not_bypass_quota(monkeypatch, use_provider):\n"
-        "    from app.core.config import settings\n\n"
-        '    monkeypatch.setattr(settings, "chat_rate_per_ip", 2)\n'
-        "    use_provider(MockProvider())\n",
-        "def test_spoofed_forwarded_for_does_not_bypass_quota(monkeypatch):\n"
-        "    from app.core.config import settings\n\n"
-        '    monkeypatch.setattr(settings, "chat_rate_per_ip", 2)\n'
-        '    owner = {"X-Client-Id": "quota-client"}\n'
-        '    conv = client.post("/api/chat/conversations", json={}, headers=owner).json()\n',
-    ),
-    (
-        "backend/tests/test_quota.py",
-        "        # 같은 요청은 재사용돼 한도를 쓰지 않으므로 요청마다 count를 바꾼다\n"
-        '        body = {"company_id": "kt-cloud", "count": count}\n'
-        '        return client.post("/api/radar/opportunities", json=body, headers=headers)'
-        ".status_code\n",
-        "        url = f\"/api/chat/conversations/{conv['id']}/messages\"\n"
-        '        body = {"content": f"{count} 더하기 1"}\n'
-        "        return client.post(url, json=body, headers={**owner, **headers}).status_code\n",
-    ),
-    (
-        "docs/contracts/chat.md",
-        "`database/migrations/0002_chat.sql`",
-        "`database/migrations/0001_chat.sql`",
-    ),
-    (
-        ".github/pull_request_template.md",
-        "(frontend: lint+build / backend: ruff+pytest)",
-        "(frontend: lint+test+build / backend: ruff+ty+pytest)",
-    ),
-    (
-        ".claude/agents/reviewer.md",
-        "**import 방향**(ADR 0007)",
-        "**import 방향**(`CLAUDE.md` 구조)",
-    ),
-    (
-        "backend/app/core/__init__.py",
-        "(docs/decisions/0007-folder-structure.md)",
-        "(CLAUDE.md 협업 규칙 5)",
-    ),
-    (
-        ".github/workflows/security.yml",
-        "# 설정: .gitleaks.toml · 문서: docs/SDLC.md",
-        "# 설정: .gitleaks.toml",
-    ),
-    (
-        ".gitleaks.toml",
-        "(2026-10-02 실제로 정체불명의 53자 값이 들어갈 뻔함, docs/worklog/2026-10-02.md).",
-        "(실제로 정체불명의 긴 값이 들어갈 뻔한 적이 있음).",
-    ),
-    (
-        "frontend/eslint.config.mjs",
-        '    ".next/**",\n',
-        '    ".next/**",\n    ".next-e2e/**", // scripts/e2e.sh 격리 빌드\n',
-    ),
-    (
-        ".github/workflows/pr-review.yml",
-        "          pip install uv\n          uv venv\n"
-        "          uv pip install -r requirements-dev.txt\n",
-        "          python -m venv .venv\n"
-        "          .venv/bin/pip install -r requirements-dev.txt\n",
-    ),
-    (
-        ".github/workflows/pr-review.yml",
-        "ty check --output-format concise app tests evals",
-        "ty check --output-format concise app tests",
-    ),
-    (
-        "scripts/pr_review_score.py",
-        'TEST_RE = re.compile(r"^(backend/tests/.+|.+\\.test\\.(ts|tsx))$")',
-        'TEST_RE = re.compile(r"^(backend/tests/.+|e2e/.+|.+\\.test\\.(ts|tsx))$")  # e2e/: 키트',
-    ),
-    (
-        ".claude/skills/add-page/SKILL.md",
-        "5. **메뉴** — `frontend/src/components/app-sidebar.tsx`의 `MENU_GROUPS`에"
-        " `{ title, href, icon }` 한 줄 (lucide 아이콘). 공용 파일이므로 **이 한 줄 외에는"
-        " 고치지 않는다.** 새 그룹이 필요하면 사용자에게 확인.",
-        "5. **메뉴** — `frontend/src/components/menu-items.ts`에 **import 한 줄 + 항목 한 줄**만"
-        " 추가한다 (`{ title, href, icon, order }`, 아이콘 import는 따로 한 줄)."
-        " 이 파일은 merge=union이라 동시에 추가해도 충돌하지 않는다. 기존 줄은 고치지 않는다.",
-    ),
-    (
-        ".gitignore",
-        "# 일반\n",
-        "# 로컬 DB (SQLite)\nbackend/data/*.db\nbackend/data/*.db-*\n\n"
-        "# 로컬 배포·시험 실행 파일 (scripts/serve.sh·e2e.sh)\n"
-        ".run/\nfrontend/.next-e2e/\n\n# 일반\n",
-    ),
     (
         "README.md",
         "요구 환경: {{Node 20 / Python 3.12 등}}\n\n```sh\n"

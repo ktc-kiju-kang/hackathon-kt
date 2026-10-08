@@ -1,8 +1,0 @@
--- 0001: 초기 마이그레이션 (주제 확정 전 placeholder)
--- 예시:
--- create table public.items (
---   id uuid primary key default gen_random_uuid(),
---   name text not null,
---   created_at timestamptz not null default now()
--- );
--- alter table public.items enable row level security;

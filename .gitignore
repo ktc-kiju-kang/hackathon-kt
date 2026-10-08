@@ -10,6 +10,14 @@ hackathon-rules/
 
 # worktree
 
+# 로컬 DB (SQLite)
+backend/data/*.db
+backend/data/*.db-*
+
+# 로컬 배포·시험 실행 파일 (scripts/serve.sh·e2e.sh)
+.run/
+frontend/.next-e2e/
+
 # 일반
 .DS_Store
 node_modules/

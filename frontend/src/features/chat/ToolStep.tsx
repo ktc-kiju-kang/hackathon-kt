@@ -3,29 +3,13 @@ import type { ToolActivity } from './useChat'
 
 // 도구 실행을 한글 단계로 보여 주고, 원문(JSON)은 접어 둔다
 const TOOL_LABEL: Record<string, string> = {
-  get_ai_usage_trends: 'AI 활용 트렌드 조회',
   calculator: '계산',
   get_current_time: '현재 시간 확인',
 }
 
-const regionNames = new Intl.DisplayNames(['ko'], { type: 'region' })
-
 function describeInput(name: string, input: Record<string, unknown>): string {
-  if (name === 'get_ai_usage_trends') {
-    const country = typeof input.country === 'string' ? safeRegion(input.country) : '전 세계'
-    const months = typeof input.months === 'number' ? input.months : 12
-    return `${country} · 최근 ${months}개월 비교`
-  }
   if (name === 'calculator' && typeof input.expression === 'string') return input.expression
   return ''
-}
-
-function safeRegion(code: string): string {
-  try {
-    return regionNames.of(code) ?? code
-  } catch {
-    return code
-  }
 }
 
 export function ToolStep({ tool }: { tool: ToolActivity }) {

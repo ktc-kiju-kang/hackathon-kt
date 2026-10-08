@@ -30,14 +30,25 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.13'
-      # uv 로 설치한다 (pip 보다 빠르고 로컬 명령과 같다). Render 운영 빌드는 pip 그대로.
-      - run: pip install uv
-      - run: uv venv && uv pip install -r requirements-dev.txt
+      - run: python -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
       - run: .venv/bin/ruff check .
       - run: .venv/bin/ruff format --check .
-      - run: .venv/bin/ty check app tests evals
+      - run: .venv/bin/ty check app tests
       - run: .venv/bin/pytest
-  # 본선 시작 키트가 이 레포의 변경으로 깨지지 않는지 (templates/starter/README.md)
+  # 로컬 배포 파이프라인 그대로: 설치 → 격리 배포 → E2E (docs/pipeline.md). 결과 기록은 로컬 make e2e로 커밋한다.
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+      - run: make setup
+      - run: make e2e
+  # 시작 키트가 이 레포의 변경으로 깨지지 않는지: 내보낸 키트(팀 레포와 같은 상태)에서 파이프라인 그대로
   starter-kit:
     runs-on: ubuntu-latest
     steps:
@@ -49,7 +60,6 @@ jobs:
         with:
           node-version: 20
       - run: python3 templates/starter/export.py "$RUNNER_TEMP/kit"
-      # 배정 레포처럼 git 저장소로 만든 뒤 파이프라인을 그대로 돌린다 (설치 → 검사 → 격리 배포 E2E)
       - working-directory: ${{ runner.temp }}/kit
         run: |
           git init -q -b main && git add -A

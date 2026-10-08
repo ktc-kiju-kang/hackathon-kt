@@ -5,7 +5,6 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from starlette.requests import Request
 
-from app.agent.providers.mock import MockProvider
 from app.core.quota import client_ip
 from app.main import app
 
@@ -63,20 +62,21 @@ def test_stale_keys_are_swept(monkeypatch):
     assert set(quota._hits) == {"2.2.2.2"}
 
 
-def test_spoofed_forwarded_for_does_not_bypass_quota(monkeypatch, use_provider):
+def test_spoofed_forwarded_for_does_not_bypass_quota(monkeypatch):
     from app.core.config import settings
 
     monkeypatch.setattr(settings, "chat_rate_per_ip", 2)
-    use_provider(MockProvider())
+    owner = {"X-Client-Id": "quota-client"}
+    conv = client.post("/api/chat/conversations", json={}, headers=owner).json()
 
     def call(spoof: str, count: int) -> int:
         headers = {
             "CF-Connecting-IP": "1.1.1.1",
             "X-Forwarded-For": f"{spoof}, 1.1.1.1, 172.68.0.1",
         }
-        # 같은 요청은 재사용돼 한도를 쓰지 않으므로 요청마다 count를 바꾼다
-        body = {"company_id": "kt-cloud", "count": count}
-        return client.post("/api/radar/opportunities", json=body, headers=headers).status_code
+        url = f"/api/chat/conversations/{conv['id']}/messages"
+        body = {"content": f"{count} 더하기 1"}
+        return client.post(url, json=body, headers={**owner, **headers}).status_code
 
     assert [call(f"9.9.9.{i}", 3 + i) for i in range(3)] == [200, 200, 429]
 

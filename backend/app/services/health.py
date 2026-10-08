@@ -1,56 +1,44 @@
-import base64
-import json
 import logging
+import subprocess
 from datetime import UTC, datetime
+from functools import lru_cache
 from typing import Literal
 
 from app.agent.providers import get_provider
 from app.core.config import settings
-from app.core.db import get_supabase
+from app.core.db import get_db
 from app.schemas.health import Health
 
 log = logging.getLogger(__name__)
 
 
-def key_role(key: str) -> str | None:
-    """Supabase 키의 역할 (anon / service_role). 키 값 자체는 로그에 남기지 않는다."""
-    if key.startswith("sb_secret_"):
-        return "service_role"
-    if key.startswith("sb_publishable_"):
-        return "anon"
-    parts = key.split(".")
-    if len(parts) == 3:  # legacy JWT 키
-        try:
-            payload = json.loads(base64.urlsafe_b64decode(parts[1] + "=" * (-len(parts[1]) % 4)))
-            return payload.get("role")
-        except ValueError:
-            return None
-    return None
-
-
-def check_db() -> Literal["ok", "error", "unconfigured"]:
-    """Supabase 연결·키 확인.
-
-    anon 키로도 RLS 테이블 조회는 '빈 결과'로 성공하므로, 조회 전에 키 역할부터 확인한다.
-    """
-    if not settings.supabase_url or not settings.supabase_service_role_key:
-        return "unconfigured"
-    role = key_role(settings.supabase_service_role_key)
-    if role != "service_role":
-        log.warning("SUPABASE_SERVICE_ROLE_KEY is not a service_role key (role=%s)", role)
-        return "error"
+def check_db() -> Literal["ok", "error"]:
+    """SQLite 연결과 마이그레이션 적용 확인."""
     try:
-        get_supabase().table("schema_migrations").select("version").limit(1).execute()
+        with get_db() as db:
+            db.execute("select version from schema_migrations limit 1").fetchall()
         return "ok"
-    except Exception as e:  # 키 오류·네트워크·타임아웃 모두 error로 보고 (health 자체는 200 유지)
+    except Exception as e:  # 파일 권한·마이그레이션 오류 모두 error (health 자체는 200 유지)
         log.warning("db health check failed: %s", e)
         return "error"
+
+
+@lru_cache
+def _git_sha() -> str | None:
+    """실행 중인 소스의 커밋 SHA. 시험 결과에 SHA를 남길 때 쓴다 (git이 없으면 None)."""
+    try:
+        out = subprocess.run(
+            ["git", "rev-parse", "HEAD"], capture_output=True, text=True, timeout=2, check=True
+        )
+        return out.stdout.strip() or None
+    except (OSError, subprocess.SubprocessError):
+        return None
 
 
 def _llm_name() -> str | None:
     try:
         return get_provider().name
-    except Exception:  # 잘못된 LLM_PROVIDER여도 health는 살아 있어야 한다 (Render 헬스체크)
+    except Exception:  # 잘못된 LLM_PROVIDER여도 health는 살아 있어야 한다
         log.warning("LLM provider misconfigured", exc_info=True)
         return None
 
@@ -59,7 +47,7 @@ def get_health() -> Health:
     return Health(
         status="ok",
         time=datetime.now(UTC),
-        version=settings.render_git_commit or None,
+        version=settings.app_version or _git_sha(),
         db=check_db(),
         llm=_llm_name(),
     )

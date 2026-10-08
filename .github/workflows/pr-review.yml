@@ -74,9 +74,8 @@ jobs:
         continue-on-error: true
         working-directory: backend
         run: |
-          pip install uv
-          uv venv
-          uv pip install -r requirements-dev.txt
+          python -m venv .venv
+          .venv/bin/pip install -r requirements-dev.txt
       - if: steps.areas.outputs.backend == 'true' && steps.uv_install.outcome == 'success'
         working-directory: backend
         run: |
@@ -85,7 +84,7 @@ jobs:
           echo $? > "$GITHUB_WORKSPACE/lint/ruff.code"
           .venv/bin/ruff format --check . > /dev/null 2>&1
           echo $? > "$GITHUB_WORKSPACE/lint/ruff-format.code"
-          .venv/bin/ty check --output-format concise app tests evals > "$GITHUB_WORKSPACE/lint/ty.txt" 2>&1
+          .venv/bin/ty check --output-format concise app tests > "$GITHUB_WORKSPACE/lint/ty.txt" 2>&1
           echo $? > "$GITHUB_WORKSPACE/lint/ty.code"
 
       - if: always()

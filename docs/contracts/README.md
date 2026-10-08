@@ -4,7 +4,7 @@
 > 구현보다 계약이 먼저다. 다른 기능이 쓰는 계약을 바꾸면 그 기능 담당자에게 PR 리뷰를 요청한다.
 
 ## 공통
-- Base: 로컬 `http://localhost:8000`, 배포 `https://hackathon-kt-api.onrender.com`
+- Base: 로컬 `http://localhost:8000`
 - 모든 경로는 `/api/<feature>/...` 접두사
 - 자동 문서: `/api/docs` (FastAPI). 구현 스키마는 `backend/app/schemas/<feature>.py`, 프론트 타입은 `frontend/src/features/<feature>/api.ts`
 - 에러 응답: `{ "detail": string }` (FastAPI 기본)
@@ -29,6 +29,4 @@ Errors: 404 { "detail": "..." }
 ## 목록
 - [health](health.md) — 서버 상태 확인
 - [chat](chat.md) — AI 에이전트 대화 (SSE 스트리밍)
-- [trends](trends.md) — OpenAI Signals 트렌드 지표 (#22)
-- [radar](radar.md) — 그룹사 + Opportunity 생성 (SSE, #23)
-- [product](product.md) — Product Card·PoC 생성 (SSE, #24)
+- [stages](stages.md) — LLM 단계형 생성 공통 스트림 형식

@@ -4,18 +4,18 @@
 > 결정: **로컬 우선** — 외부 서비스(Vercel·Render·Supabase) 없이 PC에서 실행하고 시험한다 (2026-10-08 팀 결정).
 
 ## 무엇이 들어가나
-| 구분 | 내용 | 출처 |
-|---|---|---|
-| 프론트 | Next.js 16 + TS + Tailwind v4 + shadcn/ui + **KDS 2.0 토큰**, 공용 레이아웃·사이드바·PageHeader·ErrorLine·AI 라벨, `/agent`(AI 채팅), `/samples/*`(UI 예시), Vitest | 이 레포 그대로 |
-| 백엔드 | FastAPI(라우터 자동 등록), AI 에이전트 엔진(Claude·Gemini·OpenAI 호환·**mock**), 사용량 한도, `/api/health`(`version`=git SHA), pytest 54개 | 이 레포 + 덮어쓰기 |
-| DB | **SQLite** (`backend/data/app.db`), `database/migrations/*.sql` 서버 시작 시 자동 적용, 대화 저장 | 덮어쓰기 |
-| 작업 규칙 | `CLAUDE.md`(채점 근거 규칙 포함), `.claude/` 규칙·스킬(`/new-issue`→`/start-task`→`/add-endpoint`→`/handoff`)·reviewer | 이 레포 + 덮어쓰기 |
-| 제출 문서 | `README.md` + `docs/` 7개, `scripts/check-docs.py`, `docs/submission-guide.md` | `templates/submission/` |
-| **파이프라인** | `make setup·dev·verify·serve·stop·status·e2e·submit-check`, `scripts/*.sh`, `e2e/`(배포 서버 대상 HTTP 시험), `scripts/e2e-report.py`(TC 결과 자동 기록), `docs/pipeline.md`(단계·게이트·시간표·장애 대응), 스킬 `/plan-topic`·`/submit` | 덮어쓰기 |
-| PR 점수 | **PR Review** 워크플로(자동 점검 40점 코멘트, 비차단) + `scripts/pr_review_score.py`·테스트 — #80 (ktc-jehyuk-kim). 키트용 패치: venv 설치, `ty check app tests`, `e2e/`를 테스트로 인정 | 이 레포 + 패치 |
-| CI | frontend·backend·docs·**e2e**(설치 → 격리 배포 → E2E) (`.github/workflows/ci.yml`), gitleaks | 덮어쓰기 |
+**이 레포가 곧 키트다** (2026-10-08 정리). `export.py`는 이 레포의 추적 파일을 그대로 내보내고, 이 레포 전용 파일(`EXCLUDE`: 레포 README·CLAUDE.md·CI·`templates/` 등)만 빼고, 팀 레포용 `overlay/`(팀 `CLAUDE.md`·문서 검사 잡이 있는 CI)와 제출 문서 8개를 넣는다.
 
-빠지는 것: 이 레포의 주제 기능(trends·radar·product)과 데이터, Vercel·Render·Supabase 배포 설정, 칸반 자동화, evals, `deploy-status` 스킬.
+| 구분 | 내용 |
+|---|---|
+| 프론트 | Next.js 16 + TS + Tailwind v4 + shadcn/ui + **KDS 2.0 토큰**, 공용 레이아웃·사이드바(메뉴는 `menu-items.ts`, merge=union)·PageHeader·ErrorLine·AI 라벨·`api-client`(ApiError·detail·204), `/agent`(AI 채팅), `/samples/*`, Vitest |
+| 백엔드 | FastAPI(라우터 자동 등록), AI 에이전트 엔진(Claude·Gemini·OpenAI 호환·**mock**), 사용량 한도, `/api/health`(`version`=git SHA), pytest |
+| DB | **SQLite** (`backend/data/app.db`), `database/migrations/YYYYMMDDHHMM_*.sql` 서버 시작 시 자동 적용 |
+| 파이프라인 | `make setup·dev·sync·verify·serve·e2e·ship·record·claims·submit-check`, `e2e/`, `scripts/e2e-report.py`(TC 결과 자동 기록), `scripts/ai-review.py`(헤드리스 AI 리뷰), `scripts/claim.sh`(Issue 선점), 머지 잠금, `docs/pipeline.md` |
+| 작업 규칙 | 팀 `CLAUDE.md`(채점 근거·충돌 방지 규칙), `.claude/` 규칙·스킬(`/plan-topic`→`/new-issue`→`/start-task`→`/handoff`=`make ship`→`/submit`)·reviewer(채점 기준) |
+| 제출 문서 | `README.md` + `docs/` 7개, `scripts/check-docs.py`, `docs/submission-guide.md` (`templates/submission/`) |
+| PR 점수 | PR Review 워크플로(자동 40점 + AI 리뷰 블록 60점, 비차단) — #80 |
+| CI | frontend·backend·docs·e2e, gitleaks (팀 레포에서 Actions가 돌 때) |
 
 ## 쓰는 법 (10/14)
 ```sh
@@ -58,6 +58,23 @@ git switch -c chore/starter-kit && git add -A && git commit -m "chore: 시작 �
 - 실제 실행: `/api/health` → `db: ok, llm: mock` / 대화 생성 → 메시지 → mock이 계산 도구 호출 → 다른 X-Client-Id는 404 → **서버 재시작 후에도 대화 4개 메시지 유지**
 - 이미 있는 파일 건너뜀, `--force`, 주최 측 파일 보호, 재실행 시 변경 0개
 
+## 리허설 (2026-10-08, 비공개 레포 + 가짜 주제 "회의실 예약", A·B 두 명)
+| 단계 | 걸린 시간 | 결과 |
+|---|---|---|
+| 키트 설치 (`export` → `make setup·verify`) | 약 30초 | 주최 측 README는 `README.md.kit`로 남겨 합침 |
+| 기획 `/plan-topic` | 5분 19초 | REQ 6 · AC 21 · TC 26 · SEC 4, 가정 11개, 3명 분할안 — 문서 검사 오류 0 |
+| 공용 기반 PR (계약·마이그레이션·client-id) | 약 3분 + ship 3분 | 자동 머지 |
+| REQ 하나 (Claude 구현 → `make ship`) | 구현 3~6분, ship 3~4분 | 4개 모두 자동 머지, Issue 4개 CLOSED COMPLETED, AI 리뷰 52~54/60 |
+| `make record` | 2분 24초 | TC 18개 전부 PASS, REQ-01~04 `검증됨` |
+| `make submit-check` | — | 남은 것: 문서 자리표시(README·experience·development), 제외한 REQ의 TC — **문서 마무리 시간(20:00~22:00)이 필요** |
+
+리허설에서 막힌 것과 키트에 반영한 것:
+- **순환 의존**: 등록 REQ의 E2E가 아직 없는 목록 API로 저장을 확인, 목록 REQ의 E2E는 등록 API를 써서 둘 다 머지 불가 → `/plan-topic`에 머지 순서·"앞선 REQ API만" 규칙, `/start-task`에 의존 확인
+- **같은 줄 충돌**: 메뉴 import 줄·arch 표 인접 행 → `menu-items.ts` merge=union, arch REQ별 블록 (기획 때 미리)
+- **api-client**가 서버 오류 문구·204를 못 다룸 → ApiError
+- **격리 E2E 포트 충돌**(한 PC에서 두 ship) → 빈 포트 자동 선택
+- 제외한 REQ의 TC는 `SKIP(REQ-11 제외)`로 적어야 strict 검사를 통과한다
+
 ## 관리
-- 공용 코드(UI·에이전트·스킬)는 이 레포에서 고치면 다음 내보내기에 반영된다. 로컬 실행용으로 **바꿔야 하는 파일만** `overlay/`에 있다.
-- `export.py`의 `PATCHES`는 원본 문자열을 찾아 바꾼다. 원본이 바뀌어 문자열이 없으면 내보내기가 **실패**한다 → CI `starter-kit` 잡이 PR마다 내보내기 + backend 시험을 돌려 잡는다.
+- 공용 코드·스크립트·스킬은 **이 레포에서 고치면 그대로 키트가 된다**. 팀 레포용으로 달라야 하는 파일만 `overlay/`에, 이 레포 전용 파일은 `export.py`의 `EXCLUDE`에.
+- CI `starter-kit` 잡이 PR마다 키트를 내보내 `make setup·verify·e2e`를 돌린다. `PATCHES`(README 실행 구역)의 원본 문자열이 바뀌면 내보내기가 실패해서 알 수 있다.
