@@ -1,5 +1,6 @@
 import logging
 import subprocess
+import time
 from datetime import UTC, datetime
 from functools import lru_cache
 from typing import Literal
@@ -10,6 +11,8 @@ from app.core.db import get_db
 from app.schemas.health import Health
 
 log = logging.getLogger(__name__)
+
+_STARTED_AT = time.monotonic()  # 모듈 import 시각 = 서버 프로세스 시작 기준 (단조 시계)
 
 
 def check_db() -> Literal["ok", "error"]:
@@ -50,4 +53,5 @@ def get_health() -> Health:
         version=settings.app_version or _git_sha(),
         db=check_db(),
         llm=_llm_name(),
+        uptime_seconds=max(0, int(time.monotonic() - _STARTED_AT)),
     )
