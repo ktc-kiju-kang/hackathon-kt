@@ -1,28 +1,22 @@
 ---
 name: add-endpoint
-description: 기능에 API 엔드포인트를 계약부터 프론트 연동까지 추가 — docs/contracts, (필요 시) DB 마이그레이션, FastAPI router·service·schema·테스트, frontend features api.ts 타입·mock. 새 API나 백엔드-프론트 연결이 필요할 때 사용.
+description: 기능에 API 엔드포인트를 계약부터 프론트 연동까지 추가 — docs/contracts, (필요 시) SQLite 마이그레이션, FastAPI router·service·schema·테스트(TC ID), frontend features api.ts 타입·mock. 새 API나 백엔드-프론트 연결이 필요할 때 사용.
 argument-hint: <feature> <METHOD> <path> <설명>
 ---
 엔드포인트를 추가한다: $ARGUMENTS
 
-1. **계약** — `docs/contracts/<feature>.md` (없으면 `docs/contracts/README.md` 템플릿으로 생성하고 목록에 추가)에 메서드·경로(`/api/<feature>/...`)·Request/Response JSON·에러·변경 이력을 적는다. 사용자에게 보여주고 확인받는다.
-   - 다른 기능 담당자가 이 API를 쓰거나 남의 계약을 바꾸는 경우, 계약만 먼저 작은 PR로 올리자고 제안한다.
-2. **데이터 저장 위치** — 공개된 읽기 전용 데이터(공개 통계·고정 목록)면 DB 대신 `backend/data/` 파일 + 메모리 로드 (`.claude/rules/backend.md`, 출처·라이선스 README). 사용자가 만드는 데이터면 DB:
-   **DB (필요 시)** — `database/migrations/NNNN_<설명>.sql` 새 파일 (규칙: `database/README.md` — RLS 켜기, 기본 컬럼, 번호는 머지 직전 확정). 계약 문서의 "DB" 항목에도 적는다. **공유 DB에는 직접 적용하지 않는다** — main 머지 시 배포 파이프라인이 자동 적용. 이전 버전 backend와 호환되게 쓰고, Docker Postgres로 로컬 검증 (`database/README.md`).
-3. **backend** (`backend/app/`) — 아래는 **현재 구조**다. 목표 구조(`app/features/<feature>/{router,service,schemas}.py`, ADR 0007)로 이동하기 전까지 새 기능도 이 구조로 만든다 (라우터 자동 등록이 `routers/`만 스캔). 이동 PR이 이 문서의 경로도 같이 고친다. 기능 이름은 backend·frontend `features/`·계약·테스트·API 경로에서 모두 같게 쓴다.
-   - `schemas/<feature>.py`: Pydantic 모델 (계약과 필드명·타입 일치)
-   - `services/<feature>.py`: 로직·DB 접근 (`get_supabase().table("<table>")...execute().data`). service_role이라 RLS를 우회하므로 **행 접근 권한 체크를 service에서** 한다
+1. **계약** — `docs/contracts/<feature>.md` (없으면 `docs/contracts/README.md` 템플릿으로 생성하고 목록에 추가)에 메서드·경로(`/api/<feature>/...`)·Request/Response JSON·에러·관련 REQ ID를 적는다. 사용자에게 보여주고 확인받는다. `docs/arch.md` "API" 표에도 한 줄.
+2. **데이터 저장 위치** — 공개된 읽기 전용 데이터면 `backend/data/` 파일 + 메모리 로드. 사용자가 만드는 데이터면 DB:
+   **DB** — `database/migrations/$(date +%Y%m%d%H%M)_<설명>.sql` 새 파일 (만든 시각 이름 — 번호 경쟁 없음) (SQLite 문법, 규칙: `database/README.md`). 소유자 컬럼을 두고, 서버를 다시 켜면 자동 적용된다. 계약 문서와 `docs/arch.md` "데이터 모델"에도 적는다.
+3. **backend** (`backend/app/`) — 기능 이름은 backend·frontend `features/`·계약·테스트·API 경로에서 모두 같게 쓴다.
+   - `schemas/<feature>.py`: Pydantic 모델 (계약과 필드명·타입 일치, 문자열 길이 상한 `Field(max_length=...)`)
+   - `services/<feature>.py`: 로직·DB 접근 (`with get_db() as db: db.execute("... where owner_id = ?", (...))`). **행 접근 권한 체크를 service에서** 한다 (남의 것이면 404)
    - `routers/<feature>.py`: `router = APIRouter(prefix="/<feature>", tags=["<feature>"])`, 핸들러는 service 호출만, `response_model` 지정. `main.py`는 자동 등록이라 고치지 않는다.
-   - `tests/test_<feature>.py`: 정상 + 주요 에러 케이스. DB 쓰는 service는 `monkeypatch`로 대체해 DB 없이 통과하게 한다 (로컬 `.env`에 실제 키가 있어도 실제 DB에 붙지 않게).
+   - `tests/test_<feature>.py`: AC마다 테스트 — **정상 + 오류(422 등) + 권한 경계(남의 자료 404, 저장값 불변)**. 테스트 이름에 TC ID (`test_tc_01_1_...`). conftest가 테스트마다 새 SQLite를 준다.
 4. **frontend** — `frontend/src/features/<feature>/api.ts`
    - 계약과 같은 TS 타입, `@/lib/api-client`의 `request`로 호출하는 함수
    - `isMock`이면 계약 형태의 mock 반환 (`features/health/api.ts` 패턴)
-5. **LLM이 결과를 만드는 API면** (단발 생성, 대화 아님) — `app/agent/stages.py`의 `StageRunner.run`(단계 선언) + `stream_stages`(진입)를 쓴다 — 내부는 `structured.py`의 `call_structured`·`CallBudget`·`sse_stream` (`services/radar.py`·`product.py` 패턴, 계약은 radar.md "스트림 형식"을 참조):
-   - 단계마다 결과 제출 도구 하나, 요청당 LLM 호출 상한을 계약에 적는다. 404·422·429(`check_quota`)는 스트림 전에.
-   - 단계마다 `mock=` 결과를 준다 (키 없이 UI 개발, mock 분기는 `StageRunner` 안쪽). 숫자·근거는 LLM이 만들지 않게 서버가 채운다.
-   - 클라이언트 입력은 프롬프트에서 태그로 감싸고 꺾쇠를 치환하며, 크기 상한을 둔다.
-   - 테스트: `tests/test_radar.py`의 `FakeProvider`처럼 도구 이름별 출력을 정해 두고, `conftest.py`의 `use_provider(fake)` fixture로 고정 (라우터가 `Depends(llm_provider)`로 provider를 받으므로 모듈을 패치하지 않는다). 순서·`bad_output`·`limit`·입력 제한을 확인한다.
-   - 실제 LLM 확인용 eval 스크립트를 둔다 (`evals/run_radar_eval.py` 패턴). 실행은 비용이 들므로 사용자 확인 후.
-6. **검증** — backend: ruff + pytest, frontend: lint + build 모두 통과.
-   - 로컬 `backend/.env`에 Supabase 키가 있으면 `fastapi dev`로 띄워 실제 DB로 한 번 호출해 본다. 단 공유 DB이므로 **쓰기 테스트 데이터는 지우고**, 새 테이블은 마이그레이션이 머지·적용된 뒤에야 존재한다 (그 전엔 mock/monkeypatch로).
-7. 결과로 계약 요약, 변경 파일, 컴포넌트에서 호출하는 예시 한 줄을 보여준다.
+5. **LLM이 결과를 만드는 API면** — `.claude/rules/agent.md`의 "LLM이 결과 객체를 만드는 API" (`StageRunner`·`stream_stages`, mock 결과, 호출 상한, 입력 태그·크기 상한).
+6. **검증** — backend: ruff + ty + pytest, frontend: lint + test + build 모두 통과. `fastapi dev`로 띄워 `/api/docs`에서 한 번 호출해 본다.
+7. **근거** — `docs/e2e-test.md`의 해당 TC에 실행 명령(예: `pytest tests/test_<feature>.py -k tc_01_3`)과 실제 결과를 채운다.
+8. 결과로 계약 요약, 변경 파일, 컴포넌트에서 호출하는 예시 한 줄을 보여준다.

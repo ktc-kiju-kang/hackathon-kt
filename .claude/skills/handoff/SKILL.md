@@ -1,16 +1,18 @@
 ---
 name: handoff
-description: 작업 마무리 — 검증, reviewer 셀프리뷰, sync, `Closes #이슈` PR 생성. 작업이 끝났거나 PR을 올리려 할 때 사용.
+description: 작업 마무리 — 완료 조건 대조, 테스트 이름의 TC ID 확인, 문서 갱신 후 make ship(검사·시험·PR·AI 리뷰·자동 머지)을 실행하고 결과를 처리한다. 작업이 끝났거나 PR을 올리려 할 때 사용.
 disable-model-invocation: true
 ---
-1. 브랜치명에서 이슈 번호를 확인하고(`feat/<번호>-...`) `gh issue view <번호>`의 완료 조건과 대조한다. 못 채운 항목이 있으면 알린다. 구현이 완료 조건과 달라졌으면(예: DB 대신 정적 파일) 이슈 본문을 고칠지 묻는다.
-2. `git diff --stat origin/main...HEAD`로 변경 범위를 확인한다. 다른 기능의 파일이나 공용 파일 변경, `database/migrations/` 추가가 있으면 표시한다. 마이그레이션이 있으면 머지 시 공유 DB에 자동 적용된다고 알리고, 이전 버전 backend와 호환되는지(drop/rename 없음) 확인한다.
-3. 변경한 쪽의 검증을 실행하고 모두 통과시킨다:
-   - `frontend/` 변경: `cd frontend && npm run lint && npm run build`
-   - `backend/` 변경: `cd backend && .venv/bin/ruff check . && .venv/bin/ruff format --check . && .venv/bin/pytest`
-4. `reviewer` 서브에이전트로 셀프 리뷰하고 지적사항을 처리한다.
-5. 커밋 후 **`/pr-check`(충돌 검사)** → ❌가 있으면 해결. 이어서 `scripts/sync.sh`로 main 반영하고 검증을 다시 돌린 뒤 `scripts/check-conflicts.sh`를 한 번 더 실행해 ❌ 0개를 확인한다.
-6. `.github/pull_request_template.md` 형식으로 PR 본문 초안을 보여준다. 첫 줄 `Closes #<번호>`. 계약 변경·남의 기능/공용 파일 변경이 있으면 관련 담당자(이슈 assignee)를 리뷰어로 제안한다.
-7. 사용자 확인 후 `git push -u origin <branch>` → `gh pr create` (리뷰어는 `--reviewer`). PR 본문에 공용 파일 변경, 실제 LLM 확인 여부(미확인이면 이유)를 적는다.
-   - main 보호는 PR + CI 통과뿐이다 (승인 불필요). CI가 통과하면 작성자가 머지한다. 공용 파일·남의 기능·계약·마이그레이션 변경이면 리뷰 답을 받고 머지하자고 안내한다. Claude는 머지하지 않는다.
-8. 칸반은 자동으로 움직인다: PR 연결 → In Review, 머지 → Done. PR 본문에 `Closes #<번호>`가 없으면 연결되지 않으니 꼭 확인한다.
+작업을 main까지 보낸다 (파이프라인 3단계 끝, `docs/pipeline.md`).
+
+1. **완료 조건 대조** — 브랜치명의 Issue 번호(`feat/<번호>-...`)로 `gh issue view <번호>`의 AC와 구현을 대조한다. 못 채운 AC가 있으면 사용자에게 알리고, 이번 PR에서 뺄지(Issue를 나눌지) 묻는다.
+2. **시험 연결** — 다른 사람의 기능에 의존하는 E2E(예: 남이 만드는 등록 API를 불러야 하는 목록 시험)는 **그 기능이 main에 머지된 뒤**에 넣는다. 그 전에는 backend 테스트에서 DB에 직접 넣어 시험한다 — 아니면 ship이 e2e에서 멈춘다. 이 REQ의 AC마다 테스트가 있고 **이름에 TC ID**가 들어갔는지 확인한다 (`backend/tests/test_<feature>.py`의 `test_tc_01_3_...`, 사용자 흐름은 `e2e/test_<feature>.py`). `docs/e2e-test.md` 시험 목록에 그 TC 행이 있는지도. 수동 시험 TC만 명령·결과를 직접 적는다.
+3. **문서** — `docs/arch.md` "REQ별 코드 위치", 계약(`docs/contracts/`), 보안 해당 시 `docs/security-compliance.md`, AI가 틀려 고친 일이 있었으면 `docs/development.md` "AI 활용 기록"에 한 줄. **`docs/e2e-test.md` 상태·`docs/prd.md` 상태·`docs/evidence/`는 고치지 않는다** (`make record`만 쓴다).
+4. 커밋 (`<type>(<feature>): <요약> (REQ-01)`) → **`make ship`** 실행. 순서: main 반영 → `make verify` → 충돌 검사 → `make e2e`(확인만) → push·PR(`Closes #`) → AI 리뷰(PR 본문 블록, `reviewer` 헤드리스) → Issue 근거 댓글 → 머지 잠금 → CI → squash 머지 → main 확인.
+5. **멈췄을 때** — 단계별로 원인을 읽고 고친 뒤 커밋하고 `make ship`을 다시 한다.
+   - verify·e2e 실패: `.run/ship-*.log`. 테스트를 지우거나 skip으로 숨기지 않는다.
+   - 충돌 검사 ❌ / sync 충돌: `/pr-check`. 남의 기능·공용 파일이면 사용자와 담당자에게 확인.
+   - AI 리뷰 "수정 필요"(차단·높음·점수 미달): PR 본문 "AI 리뷰"의 지적을 고친다. 지적이 틀렸다고 판단되면 사용자에게 근거와 함께 보여 주고, 사용자가 정하면 `SHIP_NO_MERGE=1 make ship`으로 PR만 두고 팀원이 확인 후 `gh pr merge --squash`.
+   - 머지 잠금 대기: 다른 사람이 머지 중 (`make lock-status`). 기다리면 된다.
+   - 머지 후 main 검사 실패: 출력된 되돌리기 명령으로 revert 브랜치를 만들어 `make ship`.
+6. 머지되면 Issue가 completed로 닫혔는지, 근거 댓글이 달렸는지 확인한다 (ship 마지막 줄). 다음 작업은 `/start-task`.

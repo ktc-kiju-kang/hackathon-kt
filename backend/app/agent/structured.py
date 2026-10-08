@@ -1,4 +1,4 @@
-"""구조화 출력 + 단계형 SSE 헬퍼 (radar·product 공통). 계약: docs/contracts/radar.md
+"""구조화 출력 + 단계형 SSE 헬퍼. 계약: docs/contracts/stages.md
 
 LLMProvider에는 structured output API가 없으므로, 결과 제출용 도구 하나만 넘겨 호출하게 하고
 그 도구 입력(pydantic)을 결과로 쓴다. 대화 기록을 남기지 않는 단발 호출이다.

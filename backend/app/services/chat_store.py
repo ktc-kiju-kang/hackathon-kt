@@ -1,15 +1,13 @@
-"""대화 저장소. Supabase 설정이 있으면 DB(database/migrations/0002_chat.sql), 없으면 메모리.
+"""대화 저장소. 기본은 SQLite(database/migrations/0001_chat.sql), 테스트는 메모리."""
 
-메모리 저장소는 로컬·CI용이다 (서버 재시작 시 사라짐).
-"""
-
+import json
 import uuid
 from datetime import UTC, datetime
 from functools import lru_cache
-from typing import Any, Protocol, cast
+from typing import Any, Protocol
 
 from app.agent.types import Message
-from app.core.config import settings
+from app.core.db import get_db
 
 
 class ChatStore(Protocol):
@@ -21,7 +19,17 @@ class ChatStore(Protocol):
     def set_title(self, conversation_id: str, title: str) -> None: ...
 
 
+def _now() -> str:
+    return datetime.now(UTC).isoformat()
+
+
+def _dump(m: Message) -> str:
+    return json.dumps(m.model_dump(mode="json"), ensure_ascii=False)
+
+
 class MemoryChatStore:
+    """테스트용 (tests/conftest.py). 서버 재시작 시 사라진다."""
+
     def __init__(self) -> None:
         self.conversations: dict[str, dict[str, Any]] = {}
         self.messages: dict[str, list[dict[str, Any]]] = {}
@@ -57,64 +65,62 @@ class MemoryChatStore:
         self.conversations[conversation_id]["title"] = title
 
 
-class SupabaseChatStore:
-    def __init__(self) -> None:
-        from app.core.db import get_supabase
-
-        self.db = get_supabase()
-
+class SqliteChatStore:
     def create_conversation(self, client_id: str, title: str | None) -> dict[str, Any]:
-        res = (
-            self.db.table("conversations")
-            .insert({"client_id": client_id, "title": title})
-            .execute()
-        )
-        return cast(dict[str, Any], res.data[0])
+        row = {
+            "id": str(uuid.uuid4()),
+            "client_id": client_id,
+            "title": title,
+            "created_at": _now(),
+        }
+        with get_db() as db:
+            db.execute(
+                "insert into conversations (id, client_id, title, created_at)"
+                " values (:id, :client_id, :title, :created_at)",
+                row,
+            )
+        return row
 
     def list_conversations(self, client_id: str) -> list[dict[str, Any]]:
-        rows = (
-            self.db.table("conversations")
-            .select("id, client_id, title, created_at")
-            .eq("client_id", client_id)
-            .order("created_at", desc=True)
-            .limit(50)
-            .execute()
-            .data
-        )
-        return cast(list[dict[str, Any]], rows)
+        with get_db() as db:
+            rows = db.execute(
+                "select id, client_id, title, created_at from conversations"
+                " where client_id = ? order by created_at desc limit 50",
+                (client_id,),
+            ).fetchall()
+        return [dict(r) for r in rows]
 
     def get_conversation(self, conversation_id: str) -> dict[str, Any] | None:
-        rows = (
-            self.db.table("conversations").select("*").eq("id", conversation_id).limit(1).execute()
-        ).data
-        return cast(dict[str, Any], rows[0]) if rows else None
+        with get_db() as db:
+            row = db.execute(
+                "select id, client_id, title, created_at from conversations where id = ?",
+                (conversation_id,),
+            ).fetchone()
+        return dict(row) if row else None
 
     def list_messages(self, conversation_id: str) -> list[dict[str, Any]]:
-        rows = (
-            self.db.table("messages")
-            .select("data, created_at")
-            .eq("conversation_id", conversation_id)
-            .order("id")
-            .execute()
-            .data
-        )
-        return cast(list[dict[str, Any]], rows)
+        with get_db() as db:
+            rows = db.execute(
+                "select data, created_at from messages where conversation_id = ? order by id",
+                (conversation_id,),
+            ).fetchall()
+        return [{"data": json.loads(r["data"]), "created_at": r["created_at"]} for r in rows]
 
     def append_messages(self, conversation_id: str, messages: list[Message]) -> None:
-        if messages:
-            self.db.table("messages").insert(
-                [
-                    {"conversation_id": conversation_id, "data": m.model_dump(mode="json")}
-                    for m in messages
-                ]
-            ).execute()
+        if not messages:
+            return
+        now = _now()
+        with get_db() as db:
+            db.executemany(
+                "insert into messages (conversation_id, data, created_at) values (?, ?, ?)",
+                [(conversation_id, _dump(m), now) for m in messages],
+            )
 
     def set_title(self, conversation_id: str, title: str) -> None:
-        self.db.table("conversations").update({"title": title}).eq("id", conversation_id).execute()
+        with get_db() as db:
+            db.execute("update conversations set title = ? where id = ?", (title, conversation_id))
 
 
 @lru_cache
 def get_chat_store() -> ChatStore:
-    if settings.supabase_url and settings.supabase_service_role_key:
-        return SupabaseChatStore()
-    return MemoryChatStore()
+    return SqliteChatStore()

@@ -39,4 +39,4 @@ say "3/3 결과 기록"
 E2E_LLM_PROVIDER="${E2E_LLM_PROVIDER:-mock}" "$PY" "$ROOT/scripts/e2e-report.py" --version "$VERSION" \
   --results "$OUT" --exit-codes "backend=$be" "frontend=$fe" "e2e=$ee"; rep=$?
 [ $be = 0 ] && [ $fe = 0 ] && [ $ee = 0 ] && [ $rep = 0 ] || die "실패한 시험이 있습니다 — 위 요약과 .run/e2e/*.log 확인"
-ok "시험 전부 통과 — docs/e2e-test.md·docs/evidence/ 변경을 커밋하세요"
+if [ -f "$ROOT/docs/e2e-test.md" ]; then ok "시험 전부 통과 — docs/e2e-test.md·docs/evidence/ 변경을 커밋하세요 (main에서는 make record)"; else ok "시험 전부 통과"; fi

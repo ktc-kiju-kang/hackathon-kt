@@ -8,8 +8,8 @@ import './globals.css'
 const geistMono = Geist_Mono({ variable: '--font-geist-mono', subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'KT Group AI Opportunity Radar',
-  description: 'AI 활용 트렌드로 KT 그룹사의 AI 사업 기회와 PoC를 설계하는 에이전트',
+  title: '서비스 이름',
+  description: '한 줄 소개',
 }
 
 export default function RootLayout({ children }: LayoutProps<'/'>) {

@@ -1,39 +1,25 @@
-# database (Supabase Postgres)
+# database (SQLite)
 
-DB는 **백엔드(FastAPI)만** 접근한다. 프론트는 Supabase에 직접 붙지 않는다.
+DB는 **백엔드(FastAPI)만** 접근한다. 외부 DB 서비스 없이 파일 하나(`backend/data/app.db`, gitignore)로 동작한다.
 
-- 프로젝트: `atirjbxwroqkbopnqybz` (ap-southeast-1) — 대시보드에서 데이터 조회는 자유, **스키마 변경은 마이그레이션 파일로만**
-- 연결 확인: 운영 `curl https://hackathon-kt-api.onrender.com/api/health` → `"db":"ok"`, 로컬은 `localhost:8000/api/health`
-- `public.schema_migrations`는 적용 기록용(파이프라인 전용). 지우거나 고치지 않는다.
+- 연결·마이그레이션 코드: `backend/app/core/db.py` (`get_db()`)
+- 연결 확인: `curl localhost:8000/api/health` → `"db":"ok"`
+- 처음부터 다시: 서버를 끄고 `rm backend/data/app.db` → 다시 켜면 마이그레이션이 처음부터 적용된다.
+- `schema_migrations`는 적용 기록용이다. 기능에서 읽거나 쓰지 않는다.
 
 ## 구성
 ```
-migrations/NNNN_<설명>.sql   스키마 변경 (순서대로 적용, 적용된 파일은 수정 금지 → 새 파일 추가)
-seed.sql                     데모/개발용 샘플 데이터
+migrations/YYYYMMDDHHMM_<설명>.sql   스키마 변경 (이름순으로 한 번씩 적용, 적용된 파일은 수정 금지 → 새 파일 추가)
 ```
 
 ## 규칙
-- 테이블 변경 = 새 마이그레이션 파일 1개. 번호 충돌을 피하려고 **PR 머지 직전에 번호를 확정**한다 (`ls migrations`로 마지막 번호 +1).
-- 모든 테이블에 RLS를 켠다 (`alter table ... enable row level security;`). 백엔드는 `service_role` 키로 RLS를 우회하므로 정책 없이도 동작하고, anon 키로는 데이터가 열리지 않는다.
-- 이름은 snake_case. 기본 컬럼: `id uuid primary key default gen_random_uuid()`, `created_at timestamptz not null default now()`.
-- 기능별 테이블 스키마는 해당 기능 계약(`docs/contracts/<feature>.md`)에도 적는다.
-
-- **이전 버전 backend와 호환되게 쓴다.** 마이그레이션이 backend 배포보다 먼저 적용된다.
-  - OK: 테이블·nullable 컬럼·인덱스 추가
-  - 2단계로: 컬럼 drop/rename → (1) 코드에서 사용 중단 배포 → (2) 다음 PR에서 drop
-- 한 파일은 한 트랜잭션으로 적용된다. 파일 안에 `begin;`/`commit;`을 쓰지 않고, `create index concurrently`처럼 트랜잭션 밖에서만 되는 문도 쓰지 않는다.
-- 파일명은 `NNNN_snake_case.sql` (예: `0002_add_items.sql`). 형식이 다르면 적용이 중단된다.
-
-## 적용 방법 (자동)
-팀이 하나의 Supabase 클라우드 프로젝트를 공유한다. **main에 머지되면 Deploy 워크플로가 자동 적용**한다 (`scripts/migrate.sh`).
-- 적용 기록: `public.schema_migrations(version, applied_at)`. 이미 기록된 파일은 건너뛴다.
-- 실패하면 그 파일은 롤백되고 배포가 중단된다. 고친 내용은 **새 파일**로 올린다 (실패한 파일은 기록되지 않았으므로 같은 파일을 고쳐도 된다).
-- 공유 DB에 SQL Editor로 직접 스키마를 바꾸지 않는다 (기록이 어긋난다).
-
-### 로컬에서 미리 확인
-```bash
-docker run -d --rm --name pg -e POSTGRES_PASSWORD=pw -p 55432:5432 postgres:16-alpine
-DATABASE_URL=postgres://postgres:pw@localhost:55432/postgres scripts/migrate.sh
-docker stop pg
-```
-적용 예정 목록만 보기: `DATABASE_URL=<공유 DB> scripts/migrate.sh --dry-run`
+- 테이블 변경 = 새 마이그레이션 파일 1개. 이름은 **만든 시각** `YYYYMMDDHHMM_<설명>.sql` (예: `202610141530_add_todos.sql`, `date +%Y%m%d%H%M`) — 세 사람이 동시에 만들어도 겹치지 않아 번호를 맞출 필요가 없다. `0001_chat.sql`은 키트 기본.
+- **SQLite 문법**으로 쓴다: `text`·`integer`·`real`, 날짜는 ISO 8601 문자열(`text`), JSON은 `text`. `uuid`·`jsonb`·`timestamptz`·RLS는 없다.
+- 이름은 snake_case. 기본 컬럼: `id text primary key`(uuid 문자열) 또는 `id integer primary key autoincrement`, `created_at text not null`.
+- **행 접근 권한(누가 어떤 행을 볼 수 있는지)은 service 코드에서** 검사한다. DB에는 권한 기능이 없다. 소유자 컬럼(예: `owner_id`, `client_id`)을 두고 모든 조회·수정에 조건을 건다 → `docs/security-compliance.md`에 코드 위치와 거부 시험을 남긴다.
+- SQL에 값을 문자열로 이어 붙이지 않는다. 항상 `?` 또는 `:name` 자리표시자 (SQL 주입 방지).
+- 한 파일은 한 트랜잭션으로 적용된다. 파일 안에 `begin;`/`commit;`을 쓰지 않는다.
+- 형식이 다르거나 SQL이 틀리면 서버가 시작하지 않는다 (`main.py` lifespan에서 적용).
+- 각자 PC의 DB는 따로다. main에서 다른 사람의 마이그레이션이 들어오면 서버를 다시 켤 때 자동 적용된다 (`make sync`가 알려 준다).
+- 기능별 테이블 스키마는 해당 기능 계약(`docs/contracts/<feature>.md`)과 `docs/arch.md` "데이터 모델"에도 적는다.
+- 시험 데이터는 **합성 데이터**만 쓴다. 실제 개인정보를 넣지 않는다.

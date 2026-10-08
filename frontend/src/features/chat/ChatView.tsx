@@ -13,12 +13,8 @@ import { Markdown } from './Markdown'
 import { ToolStep } from './ToolStep'
 import { useChat } from './useChat'
 
-// 서비스 주제(AI 활용 트렌드 → KT 그룹 사업 기회)에 맞춘 예시. 에이전트 도구 get_ai_usage_trends로 답할 수 있는 질문
-const EXAMPLES = [
-  '한국에서 업무용 AI 활용은 1년 동안 어떻게 바뀌었어?',
-  '한국과 미국의 AI 활용 주제를 비교해 줘',
-  'KT Cloud가 주목할 만한 AI 활용 트렌드는?',
-]
+// 주제에 맞춘 예시 질문으로 바꾼다 (에이전트 도구로 답할 수 있는 질문)
+const EXAMPLES = ['지금 몇 시야?', '1234 곱하기 5678은?']
 
 function copy(text: string) {
   if (!navigator.clipboard) {

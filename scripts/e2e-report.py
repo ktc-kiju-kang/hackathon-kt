@@ -236,7 +236,9 @@ def main() -> int:
     sha = args.version
     dirty = "-dirty" if sha.endswith("-dirty") else ""
     run_id = f"{now.astimezone(KST):%Y%m%d-%H%M%S}-{sha[:7]}{dirty}"
-    ev_dir = ROOT / "docs" / "evidence" / run_id
+    # 제출 문서가 없는 레포(키트 원본)에서는 근거를 커밋 대상이 아닌 .run/에 둔다
+    ev_base = ROOT / "docs" / "evidence" if DOC.exists() else ROOT / ".run" / "evidence"
+    ev_dir = ev_base / run_id
     if ev_dir.exists():
         shutil.rmtree(ev_dir)
     ev_dir.mkdir(parents=True)
@@ -305,7 +307,8 @@ def main() -> int:
 
     n_pass = sum(r["status"] == "PASS" for r in results.values())
     n_fail = sum(r["status"] == "FAIL" for r in results.values())
-    print(f"  전체 {overall} · TC {len(results)}개 (PASS {n_pass} · FAIL {n_fail}) → docs/{rel}")
+    where = (ev_dir / "summary.md").relative_to(ROOT)
+    print(f"  전체 {overall} · TC {len(results)}개 (PASS {n_pass} · FAIL {n_fail}) → {where}")
     if missing:
         print(f"  ⚠️ e2e-test.md에 없는 TC: {', '.join(missing)} — 시험 목록에 행을 추가하세요")
     if dirty:

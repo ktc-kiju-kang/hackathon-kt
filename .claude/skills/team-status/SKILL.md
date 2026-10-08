@@ -1,16 +1,19 @@
 ---
 name: team-status
-description: 팀 전체 현황 요약 — 담당자별 이슈, 열린 PR·CI·리뷰 대기, 같은 파일을 건드리는 충돌 위험. 팀 현황이나 누가 뭘 하는지 물을 때 사용.
+description: 팀 전체 현황 요약 — REQ별 진행·검증 상태, 담당자별 Issue, 열린 PR·CI, 같은 파일을 건드리는 충돌 위험, 제출 문서 검사. 팀 현황이나 누가 뭘 하는지 물을 때 사용.
 ---
 다음을 조회한다:
-- `gh project item-list 1 --owner ktc-kiju-kang --format json --limit 100` (카드별 Status·assignee; `project` 권한 없으면 아래 이슈 목록으로 대체)
-- `gh issue list --state open --limit 50 --json number,title,assignees,labels`
-- `gh pr list --state open --json number,title,author,headRefName,reviewDecision,statusCheckRollup`
+- `gh issue list --state all --limit 100 --json number,title,state,stateReason,assignees`
+- `gh pr list --state open --json number,title,author,headRefName,statusCheckRollup`
 - `git fetch -q origin && git log --oneline -10 origin/main`
+- `scripts/claim.sh list` (Issue 선점: 누가·마지막 활동·오래 멈춤 ⚠️)
+- `docs/prd.md` 요구사항 표(REQ·Issue·상태), `python3 scripts/check-docs.py --draft`의 요약 줄
 
 표로 요약한다:
-- 칸반 컬럼별(Todo / In Progress / In Review / Done) 카드 수와 목록, 담당자별 진행 중 카드
-- 이상 신호: assign됐는데 Todo에 있음, In Progress인데 assignee 없음, In Review인데 연결 PR 없음
-- 열린 PR: 작성자, 연결 이슈, CI 상태, 리뷰 대기 여부 → 리뷰가 필요한 사람에게 알림
-- 충돌 위험: 열린 PR들의 변경 파일(`gh pr diff <n> --name-only`) 교집합, 특히 공용 파일(`layout.tsx`, `src/app/page.tsx`, `api-client.ts`, `app/core/`, `package.json`, `requirements*.txt`)과 `database/migrations/` 번호 중복
-- 의존 이슈가 열려 있어 막힌 작업
+- REQ별: Issue 번호·담당자·Issue 상태(open / completed / not planned)·prd 상태(계획~검증됨)·TC PASS 수
+- 이상 신호: Issue가 닫혔는데 prd 상태가 `검증됨`이 아님, `검증됨`인데 TC가 PASS가 아님, Issue 없는 REQ, REQ 없는 Issue, completed가 아닌 사유로 닫힌 완료 작업
+- 완료 진행률: completed Issue ÷ (전체 − not planned)
+- 열린 PR: 작성자, 연결 Issue, CI 상태
+- 선점 이상: 선점자와 assignee가 다름, assignee가 둘 이상, 24시간 넘게 멈춘 선점, 닫힌 Issue에 남은 선점
+- 충돌 위험: 열린 PR들의 변경 파일(`gh pr diff <n> --name-only`) 교집합, 공용 파일과 `database/migrations/` 번호 중복
+- 마감(2026-10-15 00:00)까지 남은 시간과 미검증 REQ 목록

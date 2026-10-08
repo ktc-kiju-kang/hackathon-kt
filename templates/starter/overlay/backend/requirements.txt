@@ -1,4 +1,0 @@
-fastapi[standard]>=0.115
-pydantic-settings>=2.15.0
-anthropic>=1.11,<2
-openai>=3.24.0,<4
