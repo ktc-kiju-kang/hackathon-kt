@@ -26,6 +26,7 @@
 | 제출 문서 8개·채점 근거 | `templates/submission/GUIDE.md` | 링크 |
 | PR 자동 점검 점수 (#80) | `docs/superpowers/specs/2026-10-03-pr-review-scoring-design.md`, `scripts/pr_review_score.py` | 링크 |
 | API 계약 | `docs/contracts/` | 링크 |
+| 결정 기록 (왜 docker compose·PostgreSQL인가 등) | `docs/decisions/` (ADR) | 링크 |
 
 ## 충돌 방지 규칙 (세 사람이 같은 것을 동시에 고치지 않게)
 | 충돌 원인 | 규칙 | 장치 |

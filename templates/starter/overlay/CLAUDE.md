@@ -49,6 +49,7 @@
 | **파이프라인 (단계·게이트·시간표·장애 대응)** | `docs/pipeline.md` | 링크 |
 | 제출 문서 8개 | `README.md`, `docs/{project-brief,prd,arch,experience,development,security-compliance,e2e-test}.md`, 사용법 `docs/submission-guide.md` | 링크 |
 | API 계약 | `docs/contracts/` | 링크 |
+| 결정 기록 (왜 docker compose·PostgreSQL인가 등) | `docs/decisions/` (ADR) | 링크 |
 
 ## 구조
 - `frontend/` Next.js(App Router)+TS+Tailwind v4+shadcn/ui (KDS 2.0 토큰): `src/app/<route>/`(화면) · `src/features/<feature>/`(기능, `api.ts`) · `src/components/`·`src/lib/`(공용)
