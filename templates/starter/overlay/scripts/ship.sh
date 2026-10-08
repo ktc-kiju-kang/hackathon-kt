@@ -55,7 +55,12 @@ if [ "$KIND" != record ] && [ "${SHIP_SKIP_E2E:-}" != 1 ]; then
   summary=$(ls -1d docs/evidence/*/ 2>/dev/null | sort | tail -n 1)
   tc_lines=$( { grep -E '^- 전체:' "$summary/summary.md"; grep -E '^\| TC-' "$summary/summary.md" | cut -d'|' -f2,3 | sed 's/^/- /'; } 2>/dev/null)
   git checkout -q -- docs/e2e-test.md docs/prd.md 2>/dev/null; git clean -qfd docs/evidence 2>/dev/null
-  [ "$e2e_rc" = 0 ] || { echo "$tc_lines"; die "make e2e 실패 → .run/ship-e2e.log"; }
+  if [ "$e2e_rc" != 0 ]; then
+    echo "$tc_lines"
+    grep -hE "^(FAILED|ERROR) " "$RUN_DIR"/e2e/*.log 2>/dev/null | sed 's/^/    /' | head -10
+    grep -q "포트 .* 사용 중\|로컬 배포 실패" "$RUN_DIR/ship-e2e.log" && warn "격리 배포가 뜨지 않았습니다 (.run/e2e/serve.log) — 코드 문제가 아닐 수 있음"
+    die "make e2e 실패 → .run/ship-e2e.log"
+  fi
   ok "$(echo "$tc_lines" | head -1 | sed 's/^- //')"
 fi
 

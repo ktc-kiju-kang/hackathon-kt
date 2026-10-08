@@ -12,6 +12,7 @@ Issue 작업을 시작한다: $ARGUMENTS
 4. 브랜치 `feat/<번호>-<설명>`(버그면 `fix/`)을 최신 main 기준으로 만든다:
    - 현재 main이고 미커밋 변경이 없으면: `git fetch origin main && git checkout -b <branch> origin/main`
    - 이미 다른 작업 중이면: `scripts/new-worktree.sh <번호> <설명> [type]` 후 경로 안내
-5. **시험부터**: 이 REQ의 TC가 `docs/e2e-test.md`에 없으면 AC마다 GIVEN/WHEN/THEN 시나리오를 상태 `미실행`으로 먼저 적는다 (정상·오류·권한 경계).
-6. 작업 범위를 안내한다: `frontend/src/app/<route>/`, `frontend/src/features/<feature>/`, `backend/app/{routers,services,schemas}/<feature>.py`, `backend/tests/test_<feature>.py`, `docs/contracts/<feature>.md`, (DB) `database/migrations/`. 같은 파일을 다른 열린 PR이 건드리면(`gh pr list`) 알린다.
-7. 새 API가 필요하면 `/add-endpoint`로 계약부터 정하자고 제안한다. 보안 기준(`docs/security-policy.md`) 중 이 REQ에 해당하는 SEC가 있으면 짚어 준다.
+5. **의존 확인**: 이 REQ가 아직 main에 없는 다른 REQ의 API를 쓰면, 그 전까지는 backend 테스트에서 DB에 직접 넣어 시험하고 그 E2E는 의존 기능이 머지된 뒤에 추가한다고 안내한다.
+6. **시험부터**: 이 REQ의 TC가 `docs/e2e-test.md`에 없으면 AC마다 GIVEN/WHEN/THEN 시나리오를 상태 `미실행`으로 먼저 적는다 (정상·오류·권한 경계).
+7. 작업 범위를 안내한다: `frontend/src/app/<route>/`, `frontend/src/features/<feature>/`, `backend/app/{routers,services,schemas}/<feature>.py`, `backend/tests/test_<feature>.py`, `docs/contracts/<feature>.md`, (DB) `database/migrations/`. 같은 파일을 다른 열린 PR이 건드리면(`gh pr list`) 알린다.
+8. 새 API가 필요하면 `/add-endpoint`로 계약부터 정하자고 제안한다. 보안 기준(`docs/security-policy.md`) 중 이 REQ에 해당하는 SEC가 있으면 짚어 준다.
