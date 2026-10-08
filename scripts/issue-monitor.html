@@ -160,10 +160,10 @@
     '.....TTTTTT.....', '...TTTTTTTTTT...', '..TTTTTTTTTTTT..', '..TtTTTTTTTTtT..', '..TtTTTTTTTTtT..', '..TtTTTTTTTTtT..',
     '..ss.TTTTTT.ss..', '..ss.tttttt.ss..',
   ]);
-  const BOX_OVL = ['bbbbttbbbb', 'bbbbttbbbb', 'tttttttttt', 'bbbbttbbbb', 'bbbbttbbbb', 'BBBBttBBBB', 'BBBBBBBBBB'];
-  const LEGS_A = fit(['....PPPPPPPP....', '....PPPppPPP....', '....PPP..PPP....', '....PPP..PPP....', '....oooo.oooo...', '....oooo.oooo...']);
-  const LEGS_B = fit(['....PPPPPPPP....', '....PPPppPPP....', '...PPP...PPP....', '...PPP....PPP...', '...oooo...oooo..', '...oooo...oooo..']);
-  const SKIRT = fit(['...PPPPPPPPPP...', '..PPPPPPPPPPPP..', '..PPpPPPPpPPPP..']);
+  const BOX_OVL = ['LLLLttLLLL', 'bbbbttbbbb', 'bwwbttbbbb', 'bwkbttbbbb', 'bbbbttbbbb', 'bbbbttbbbb', 'BBBBttBBBB', 'BBBBBBBBBB'];
+  const LEGS_A = fit(['....PPPPPPPP....', '....PPPqqPPP....', '....PPP..PPP....', '....PPP..PPP....', '....oooo.oooo...', '....oooo.oooo...']);
+  const LEGS_B = fit(['....PPPPPPPP....', '....PPPqqPPP....', '...PPP...PPP....', '...PPP....PPP...', '...oooo...oooo..', '...oooo...oooo..']);
+  const SKIRT = fit(['...PPPPPPPPPP...', '..PPPPPPPPPPPP..', '..PPqPPPPqPPPP..']);
   const SKINS = [['#f6d2b0', '#e0b08a'], ['#e8b98a', '#c98f5f'], ['#b9774c', '#8f5632'], ['#7a4a2b', '#5a3319']];
   const HAIRS = [['#8a5a2b', '#5f3b1a'], ['#d9a85a', '#b8863a'], ['#2a2420', '#16110e'], ['#2a2420', '#16110e'], ['#e6e3df', '#bdb8b2'], ['#7a3f1e', '#552a12'], ['#17141a', '#0a080c']];
   const OUTFITS = [
@@ -204,7 +204,7 @@
       o = { T: top, t: shade(top), P: pants, p: shade(pants), jacket: av.jacket || null };
     } else if (cap) Object.assign(o, { T: cap, t: shade(cap), tie: false, stripe: null, skirt: false, P: '#2b2f45', p: '#1d2033' });
     hair = (av && av.hair) || HAIRS[style];
-    return { style, o, glasses: av ? av.glasses : null, stubble: !!(av && av.stubble), pal: { s: skin[0], S: skin[1], e: '#2b1c0e', m: '#b05a4a', p: '#e8998d', H: hair[0], h: hair[1], T: o.T, t: o.t, P: o.P, p: o.p, o: '#2b1c0e', c: cap || '#000', C: cap ? shade(cap) : '#000', g: av && av.glasses === 'thick' ? '#15151a' : '#8a6a3a', d: '#6b5646', J: o.jacket || '#000' } };
+    return { style, o, glasses: av ? av.glasses : null, stubble: !!(av && av.stubble), pal: { s: skin[0], S: skin[1], e: '#2b1c0e', m: '#b05a4a', p: '#e8998d', H: hair[0], h: hair[1], T: o.T, t: o.t, P: o.P, q: o.p, o: '#2b1c0e', c: cap || '#000', C: cap ? shade(cap) : '#000', g: av && av.glasses === 'thick' ? '#15151a' : '#8a6a3a', d: '#6b5646', J: o.jacket || '#000', b: '#d9a05b', B: '#b37d3a' } };
   }
   function person(grid, lk, legs, mode, cap) {
     const pal = Object.assign({}, lk.pal, { t: lk.o.t }), tape = Object.assign({}, pal, { t: '#f1dca0' });
@@ -223,7 +223,12 @@
     if (lk.glasses === 'round') [['....ggg..ggg....', 4], ['....geggggeg....', 5], ['....ggg..ggg....', 6]].forEach(([row, r]) => stamp(grid, [row], 0, r, pal));
     if (lk.glasses === 'thick') [['...gggg..gggg...', 4], ['...gseggggesg...', 5], ['...gggg..gggg...', 6]].forEach(([row, r]) => stamp(grid, [row], 0, r, pal));
     if (cap && !lk.known) stamp(grid, CAP, 0, 0, pal);
-    if (mode === 'carry') { stamp(grid, BOX_OVL, 3, 12, tape); [15, 16].forEach((r) => { stamp(grid, ['s'], 2, r, pal); stamp(grid, ['s'], 13, r, pal); }); }
+    if (mode === 'carry') { // 소포를 가슴 앞에 두 팔로 받쳐 든다: 소매가 상자 옆을 감싸고 손이 아래를 받친다
+      const sl = lk.o.jacket ? 'J' : 'T';
+      stamp(grid, BOX_OVL, 3, 11, Object.assign({}, tape, { L: '#f0c27a', w: '#ffffff', k: OUT }));
+      [12, 13, 14, 15].forEach((r) => { stamp(grid, [sl], 2, r, pal); stamp(grid, [sl], 13, r, pal); });
+      [16, 17].forEach((r) => { stamp(grid, ['s'], 2, r, pal); stamp(grid, ['s'], 13, r, pal); });
+    }
   }
   const BUBBLE = ['.kkkkkkkkkk.', 'kwwwwwwwwwwk', 'kwwwwwwwwGwk', 'kwwwwwwwGwwk', 'kwGwwwwGwwwk', 'kwwGwwGwwwwk', 'kwwwGGwwwwwk', '.kwwwwwwwwk.', '..kkkkkkkk..', '..kwk.......', '..kk........'];
   const shade = (hex) => '#' + [1, 3, 5].map((i) => Math.round(parseInt(hex.substr(i, 2), 16) * 0.78).toString(16).padStart(2, '0')).join('');
@@ -540,7 +545,19 @@
   $('logo').append(truckSprite(1));
   drawRoad(); let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(drawRoad, 200); });
   if (DEMO) { const d = el('div', 'demo', '데모 모드: 가짜 티켓'); document.body.append(d); }
-  tick(); setInterval(tick, DEMO ? 3000 : 5000);
+  // ?sprites=1 : 캐릭터 시트 (헤어 7종 · 소포를 든 모습과 서 있는 모습 · 설정된 팀원)
+  async function showSheet() {
+    try { AV = (await (await fetch('/api/state')).json()).avatars || {}; } catch (e) { AV = {}; }
+    const wrap = el('div'); wrap.style.cssText = 'display:flex;flex-wrap:wrap;gap:22px;padding:24px;background:var(--panel);margin:16px';
+    const add = (label, node) => { const c = el('div'); c.style.cssText = 'text-align:center;font-size:12px'; c.append(node, el('div', null, label)); wrap.append(c); };
+    for (let i = 0; i < 7; i++) {
+      AV['_s' + i] = { style: i, skin: SKINS[i % 4], hair: HAIRS[i], top: OUTFITS[i % 6].T, pants: '#2b2b33' };
+      add('헤어 ' + i + ' (들고 감)', worker(6, true, 'x', '_s' + i)); add('헤어 ' + i + ' (서 있음)', customer(6, 'x', '_s' + i));
+    }
+    Object.keys(AV).filter((k) => k[0] !== '_').forEach((k) => { add(nm(k) + ' (들고 감)', worker(6, true, 'x', k)); add(nm(k) + ' (서 있음)', customer(6, 'x', k)); });
+    document.body.replaceChildren(wrap);
+  }
+  if (new URLSearchParams(location.search).has('sprites')) showSheet(); else { tick(); setInterval(tick, DEMO ? 3000 : 5000); }
 </script>
 </body>
 </html>
