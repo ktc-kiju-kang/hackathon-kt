@@ -22,6 +22,10 @@ running() { [ -n "$(dc ps -q api web 2>/dev/null)" ]; }  # db만 떠 있는 것(
 check_ports() {
   running && die "이미 docker로 떠 있습니다 → make stop"
   for p in "$API_PORT" "$WEB_PORT"; do port_busy "$p" && die "포트 $p 사용 중 → make stop (또는 API_PORT/WEB_PORT 지정)"; done
+  # db 포트: 이 폴더의 db가 이미 떠 있으면 괜찮다 (make db·verify). 다른 worktree·프로그램이면 막는다
+  if [ -z "$(dc ps -q db 2>/dev/null)" ] && port_busy "${DB_PORT:-55432}"; then
+    die "포트 ${DB_PORT:-55432}(db) 사용 중 — 다른 worktree면 DB_PORT=55433 + backend/.env의 DATABASE_URL도 같은 포트로"
+  fi
   return 0
 }
 prepare() {  # dev·up 전용 — stop·status는 파일을 만들지 않는다
@@ -78,7 +82,9 @@ case "${1:-}" in
     ;;
   db)
     need_docker
-    dc up -d --wait --quiet-pull db >/dev/null 2>&1 && ok "PostgreSQL 127.0.0.1:${DB_PORT:-55432} (app/app, db app)"
+    dc up -d --wait --quiet-pull db >"$RUN_DIR/db-up.log" 2>&1 \
+      || { tail -n 5 "$RUN_DIR/db-up.log"; die "db 기동 실패 (포트 ${DB_PORT:-55432} 사용 중이면 DB_PORT·DATABASE_URL 지정)"; }
+    ok "PostgreSQL 127.0.0.1:${DB_PORT:-55432} (app/app, db app)"
     ;;
   reset)
     need_docker

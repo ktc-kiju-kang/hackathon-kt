@@ -20,6 +20,7 @@ migrations/YYYYMMDDHHMM_<설명>.sql   스키마 변경 (이름순으로 한 번
 - 이름은 snake_case. 기본 컬럼: `id text primary key`(uuid 문자열) 또는 `id bigint generated always as identity primary key`, `created_at timestamptz not null`.
 - **행 접근 권한(누가 어떤 행을 볼 수 있는지)은 service 코드에서** 검사한다. RLS는 쓰지 않는다(앱이 한 계정으로 접속). 소유자 컬럼(예: `owner_id`, `client_id`)을 두고 모든 조회·수정에 조건을 건다 → `docs/security-compliance.md`에 코드 위치와 거부 시험을 남긴다.
 - SQL에 값을 문자열로 이어 붙이지 않는다. 항상 `%s` 또는 `%(name)s` 자리표시자 (SQL 주입 방지).
+- 확장(`create extension`)은 쓰지 않는다 — 테스트가 테스트마다 schema를 만들고 지우므로 확장이 한 schema에 묶여 사라진다. 꼭 필요하면 `create extension if not exists <이름> schema public` + `public.` 붙여 호출.
 - 한 파일은 한 트랜잭션으로 적용된다. 파일 안에 `begin;`/`commit;`을 쓰지 않는다.
 - 형식이 다르거나 SQL이 틀리면 서버가 시작하지 않는다 (`main.py` lifespan에서 적용).
 - 각자 PC의 DB는 따로다 (docker volume `pgdata`). main에서 다른 사람의 마이그레이션이 들어오면 서버를 다시 켤 때 자동 적용된다 (`make sync`가 알려 준다).

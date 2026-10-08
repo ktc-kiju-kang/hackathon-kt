@@ -63,6 +63,7 @@
 | 머지 후 main이 깨짐 | 고치는 데 10분 이상이면 `git revert <머지 커밋>` → PR → 머지. 제출 마감 직전에는 되돌리기가 기본 |
 | LLM 한도·장애 | mock으로도 화면·흐름이 동작한다. 발표에서는 녹화·캡처로 |
 | DB가 꼬임 (로컬) | `make db-reset && make serve` (데이터 삭제 → 마이그레이션이 처음부터 다시 적용) |
+| worktree 두 곳에서 `make dev`·`serve` "포트 55432(db) 사용 중" | 각 worktree가 자기 db를 띄운다. 두 번째는 `DB_PORT=55433` + 그 worktree `backend/.env`의 `DATABASE_URL`을 55433으로 (`make verify`·`e2e`는 첫 db를 같이 써도 schema로 격리돼 괜찮다) |
 | "PostgreSQL에 접속할 수 없습니다" | Docker Desktop 실행 → `make db`. 포트 55432를 다른 프로그램이 쓰면 `DB_PORT=55433` + `backend/.env`의 `DATABASE_URL`도 같은 포트로 |
 | CI가 안 돎 (사내 GHE) | ship이 "CI 없음"으로 보고 로컬 verify 결과로 진행한다 (PR 본문에 기록) |
 | ship "머지 대기 중" | 다른 사람이 머지 중 — 기다린다. 15분 넘은 잠금은 자동으로 가져온다. 확인: `make lock-status` |

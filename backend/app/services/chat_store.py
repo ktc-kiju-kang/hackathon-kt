@@ -58,6 +58,17 @@ class MemoryChatStore:
         self.conversations[conversation_id]["title"] = title
 
 
+def _no_nul(v: Any) -> Any:
+    """PostgreSQL text·jsonb는 NUL(\\x00)을 저장하지 못한다 → 지운다 (사용자 입력·LLM 출력)."""
+    if isinstance(v, str):
+        return v.replace("\x00", "")
+    if isinstance(v, dict):
+        return {_no_nul(k): _no_nul(x) for k, x in v.items()}
+    if isinstance(v, list):
+        return [_no_nul(x) for x in v]
+    return v
+
+
 class DbChatStore:
     """PostgreSQL (database/migrations/0001_chat.sql)."""
 
@@ -65,7 +76,7 @@ class DbChatStore:
         row = {
             "id": str(uuid.uuid4()),
             "client_id": client_id,
-            "title": title,
+            "title": _no_nul(title),
             "created_at": datetime.now(UTC),
         }
         with get_db() as db:
@@ -105,13 +116,17 @@ class DbChatStore:
         with get_db() as db, db.cursor() as cur:
             cur.executemany(
                 "insert into messages (conversation_id, data, created_at) values (%s, %s, %s)",
-                [(conversation_id, Jsonb(m.model_dump(mode="json")), now) for m in messages],
+                [
+                    (conversation_id, Jsonb(_no_nul(m.model_dump(mode="json"))), now)
+                    for m in messages
+                ],
             )
 
     def set_title(self, conversation_id: str, title: str) -> None:
         with get_db() as db:
             db.execute(
-                "update conversations set title = %s where id = %s", (title, conversation_id)
+                "update conversations set title = %s where id = %s",
+                (_no_nul(title), conversation_id),
             )
 
 
