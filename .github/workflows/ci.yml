@@ -45,16 +45,15 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.13'
-      - run: python3 templates/starter/export.py "$RUNNER_TEMP/kit"
-      - working-directory: ${{ runner.temp }}/kit/backend
-        run: |
-          python -m venv .venv && .venv/bin/pip install -q -r requirements-dev.txt
-          .venv/bin/ruff check . && .venv/bin/ruff format --check .
-          .venv/bin/ty check app tests
-          .venv/bin/pytest -q
-      - run: python3 "$RUNNER_TEMP/kit/scripts/check-docs.py" --draft "$RUNNER_TEMP/kit"
       - uses: actions/setup-node@v7
         with:
           node-version: 20
-      - working-directory: ${{ runner.temp }}/kit/frontend
-        run: npm ci && npm run lint && npm test && npm run build
+      - run: python3 templates/starter/export.py "$RUNNER_TEMP/kit"
+      # 배정 레포처럼 git 저장소로 만든 뒤 파이프라인을 그대로 돌린다 (설치 → 검사 → 격리 배포 E2E)
+      - working-directory: ${{ runner.temp }}/kit
+        run: |
+          git init -q -b main && git add -A
+          git -c user.name=ci -c user.email=ci@example.com commit -qm kit
+          make setup
+          make verify
+          make e2e

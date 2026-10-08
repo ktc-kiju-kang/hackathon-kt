@@ -22,6 +22,7 @@ paths:
   - 값은 항상 `?`·`:name` 자리표시자로. f-string으로 SQL을 만들지 않는다.
 - 기능마다 `tests/test_<feature>.py`에 **정상 + 오류 + 권한 경계** 테스트. 테스트 이름 또는 docstring에 TC ID를 적는다 (예: `def test_tc_01_3_other_users_item_is_hidden`). `docs/e2e-test.md`가 이 테스트를 근거로 가리킨다.
   - `conftest.py`가 테스트마다 새 SQLite 파일(`tmp_path`)을 주고 LLM 키를 비운다 → 로컬 `.env`와 무관하게 통과한다.
+  - 저장 → 재조회처럼 **배포된 상태의 사용자 흐름**은 루트 `e2e/test_<feature>.py`에 HTTP로 쓴다 (`e2e/conftest.py`의 `api`·`user`·`other_user` fixture). `make e2e`가 격리 배포에 돌리고 결과를 기록한다.
 - `schema_migrations` 테이블은 마이그레이션 전용. 기능에서 읽거나 쓰지 않는다.
 - 공개된 읽기 전용 정적 데이터는 DB 대신 `backend/data/<이름>/`에 두고 처음 호출 때 메모리에 읽는다 (`lru_cache`). 출처·라이선스를 README에 적는다.
 - ruff `target-version`이 py311이다 → 3.12 문법(`def f[T](...)`, `type X = ...`)을 쓰지 않는다. 제네릭은 `TypeVar`.

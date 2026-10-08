@@ -36,8 +36,8 @@
 4. `e2e-test.md`에 TC 시나리오(GIVEN/WHEN/THEN)를 **구현 전에** 적는다. 상태는 `미실행`.
 5. `security-compliance.md`에 SEC 행을 정책 그대로 만들고 적용/해당 없음을 먼저 정한다.
 6. 구현하면서 `arch.md`의 "REQ별 코드 위치", `development.md`의 AI 활용 기록을 채운다.
-7. 시험을 **직접 실행**하고 TC에 명령·SHA·PASS/FAIL·근거 경로를 채운다. Issue 본문에 커밋 주소·테스트 결과를 붙이고 **Close as completed**.
-8. `python3 scripts/check-docs.py` 통과 → push → 40자 SHA로 포털 제출.
+7. 시험을 **직접 실행**하고 TC에 명령·SHA·PASS/FAIL·근거 경로를 채운다 — 시작 키트에서는 테스트 이름에 TC ID를 넣고 `make e2e`가 자동으로 채운다. Issue 본문에 커밋 주소·테스트 결과를 붙이고 **Close as completed**.
+8. `python3 scripts/check-docs.py` 통과 → push → 40자 SHA로 포털 제출 — 시작 키트에서는 `make submit-check`가 전부 확인하고 SHA를 출력한다 (`docs/pipeline.md`).
 
 ## ID 규칙
 | ID | 뜻 | 정의하는 곳 | 참조하는 곳 |
