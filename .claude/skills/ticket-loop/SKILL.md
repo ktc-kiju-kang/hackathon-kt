@@ -31,10 +31,12 @@ GitHub Issue = 티켓. **한 번 실행 = 한 틱**이다. 반복은 `/loop 5m /
    - 사람이 답하고 라벨(`needs-info`·`needs-human`·`blocked`)을 **떼면 다시 후보가 된다.**
 4. **구현**
    - 계약(`docs/contracts/`)과 `.claude/rules/`를 읽는다. 새 API면 계약부터 (`/add-endpoint` 절차).
-   - `scripts/new-worktree.sh <번호> <설명> [type]`로 worktree를 만든다 (**origin/main 기준**, 폴더는 `<저장소>-wt-<번호>`). 그 안에서 `make setup` 후 **그 안에서만** 작업한다. 메인 작업 폴더를 건드리지 않는다. 칸반을 In Progress로 옮긴다 (`/start-task` 7단계의 명령).
+   - `scripts/new-worktree.sh <번호> <설명> [type]`로 worktree를 만든다 (**origin/main 기준**). 폴더 이름은 스크립트를 실행한 체크아웃 이름에 `-wt-<번호>`가 붙은 것이니 **출력된 경로**를 쓴다. 그 안에서 `make setup`(Python 3.11+ 필요 — 기본 `python3`가 낮으면 `PYTHON=python3.12 make setup`) 후 **그 안에서만** 작업한다. 메인 작업 폴더를 건드리지 않는다.
+   - 이 레포에 `docs/prd.md`·`docs/e2e-test.md`가 있으면 `/start-task`의 REQ·AC·"시험부터(TC 먼저)" 절차를 따른다. 없으면 Issue의 완료 조건이 곧 AC다.
    - TDD로 완료 조건마다 테스트를 먼저. 다른 기능 파일은 고치지 않는다.
 5. **검증·전달** (worktree 안에서)
-   - `make verify`(CI와 같은 검사), `reviewer` 서브에이전트 셀프 리뷰.
+   - `make verify`(CI와 같은 검사. 테스트 개수는 출력하지 않으니 보고에 필요하면 변경한 쪽의 pytest·vitest를 따로 돌려 센다), `reviewer` 서브에이전트 셀프 리뷰.
+   - 작업 트리가 깨끗해야 ship이 돈다. `logs/` 같은 추적 안 되는 폴더가 걸리면 지우지 말고 원인을 보고한다.
    - `SHIP_NO_MERGE=1 make ship` (사용자가 `TICKET_LOOP_MERGE=1`로 시작했으면 `make ship`). ship이 sync·충돌 검사·e2e·push·PR·AI 리뷰·Issue 근거 댓글까지 한다. 멈추면 원인을 읽고 고쳐서 다시 실행하고, 3번 실패하면 `blocked`.
    - 이슈에 내 요약 댓글 한 개(마커 포함): PR 링크와 요약.
    - PR 본문에는 `Closes #<번호>`가 들어가야 한다 (ship이 만든 본문에 없으면 추가).
