@@ -1,0 +1,2 @@
+# 여러 사람이 동시에 "줄 추가"만 하는 목록 파일 — git이 양쪽 추가를 모두 살린다 (충돌 없음)
+frontend/src/components/menu-items.ts merge=union

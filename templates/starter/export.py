@@ -287,6 +287,15 @@ PATCHES = [
         'TEST_RE = re.compile(r"^(backend/tests/.+|e2e/.+|.+\\.test\\.(ts|tsx))$")  # e2e/: 키트',
     ),
     (
+        ".claude/skills/add-page/SKILL.md",
+        "5. **메뉴** — `frontend/src/components/app-sidebar.tsx`의 `MENU_GROUPS`에"
+        " `{ title, href, icon }` 한 줄 (lucide 아이콘). 공용 파일이므로 **이 한 줄 외에는"
+        " 고치지 않는다.** 새 그룹이 필요하면 사용자에게 확인.",
+        "5. **메뉴** — `frontend/src/components/menu-items.ts`에 **import 한 줄 + 항목 한 줄**만"
+        " 추가한다 (`{ title, href, icon, order }`, 아이콘 import는 따로 한 줄)."
+        " 이 파일은 merge=union이라 동시에 추가해도 충돌하지 않는다. 기존 줄은 고치지 않는다.",
+    ),
+    (
         ".gitignore",
         "# 일반\n",
         "# 로컬 DB (SQLite)\nbackend/data/*.db\nbackend/data/*.db-*\n\n"
