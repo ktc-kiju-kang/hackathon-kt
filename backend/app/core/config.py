@@ -19,6 +19,12 @@ class Settings(BaseSettings):
     database_url: str = "postgresql://app:app@localhost:55432/app"  # 로컬 전용 계정 (비밀값 아님)
     database_schema: str = "public"
 
+    # 현황판 GitHub 칸 (/api/dashboard/github, docs/contracts/dashboard.md)
+    github_repo: str = ""  # owner/name. 비우면 git origin 주소에서 찾는다
+    github_token: str = ""  # 비밀값. 읽기 전용 토큰, backend/.env 에만 (공개 레포는 없어도 됨)
+    github_api_url: str = ""  # 비우면 github.com, 사내 GHE는 origin 호스트의 /api/v3
+    git_remote_url: str = ""  # docker 실행 때 docker.sh가 넘기는 origin 주소 (컨테이너엔 git 없음)
+
     # /api/health의 version. 비우면 실행 중인 git 커밋 SHA (e2e-test.md 근거용)
     app_version: str = ""
 

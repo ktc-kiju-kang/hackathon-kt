@@ -28,5 +28,6 @@ Errors: 404 { "detail": "..." }
 
 ## 목록
 - [health](health.md) — 서버 상태 확인
+- [dashboard](dashboard.md) — 개발/배포 현황판 (서버·DB·시험·REQ·GitHub, #99)
 - [chat](chat.md) — AI 에이전트 대화 (SSE 스트리밍)
 - [stages](stages.md) — LLM 단계형 생성 공통 스트림 형식
