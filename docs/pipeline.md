@@ -24,9 +24,9 @@
 | 명령 | 내용 |
 |---|---|
 | `make setup` | Node 20+·Python 3.11+ 확인 → backend `.venv` + 의존성 → `npm ci` → `.env` 없으면 생성 (여러 번 실행해도 됨) |
-| `make dev` | 개발 서버 (핫 리로드) api :8000 + web :3000, Ctrl+C로 둘 다 종료 |
+| `make dev` | 개발 서버 (핫 리로드) api :8000 + web :3000 — **docker compose**(`compose.yaml` + `compose.dev.yaml`, 소스 마운트), Ctrl+C로 컨테이너까지 종료. docker 없이 `NATIVE=1 make dev` |
 | `make verify` | ruff·ty·pytest·e2e lint·eslint·vitest·next build(격리 폴더)·문서 검사·(있으면) gitleaks 커밋 이력. 하나가 실패해도 끝까지 돌고 요약, 로그 `.run/verify/`. `make serve` 중에 돌려도 된다 |
-| `make serve` | **로컬 배포**: 프로덕션 빌드 → backend `fastapi run` + frontend `next start` 백그라운드(이 PC에서만, 127.0.0.1) → health·화면 스모크. 실패하면 스스로 내린다. 로그 `.run/` |
+| `make serve` | **로컬 배포**: docker compose로 프로덕션 빌드 → api(`fastapi run`) + web(`next start`) 백그라운드(이 PC에서만, 127.0.0.1) → health·화면 스모크. 실패하면 스스로 내린다. 로그 `docker compose logs`. SQLite는 `backend/data/app.db`(호스트 파일), LLM 키는 `backend/.env`를 앱이 직접 읽는다. docker 없이 `NATIVE=1 make serve`(로그 `.run/`) |
 | `make e2e` | ① backend pytest·frontend vitest ② **격리 로컬 배포**(포트 18000/13000·새 DB·mock LLM)에 `e2e/` 시험 ③ TC별 결과를 `e2e-test.md`·`prd.md`에 기록, 근거(JUnit XML·로그·요약)를 `docs/evidence/`에 저장. `make serve`로 떠 있는 서버와 DB·빌드를 건드리지 않는다 |
 | `make ship` | 작업 브랜치 → main. ① main merge ② verify ③ 충돌 검사 ④ e2e(확인만, 기록 되돌림) ⑤ push·PR(`Closes #`, 확인 결과 자동 기록) ⑥ AI 리뷰(`claude -p` + reviewer 지침 → PR 본문 "AI 리뷰" 블록, PR 점수 60점 형식) ⑦ Issue 근거 댓글 ⑧ 머지 잠금 → main이 바뀌었으면 다시 반영·verify → CI 대기 → squash 머지 ⑨ main에서 verify. 어느 단계든 기준 미달이면 멈춘다 |
 | `make claims` | Issue 선점 목록: 번호·선점자·마지막 활동(작업 브랜치 커밋)·24시간 넘게 멈춘 것 ⚠️. 선점 = GitHub `claim/<번호>` 브랜치(원자적 생성). `/start-task`가 잡고, ship이 시작 전에 확인(없으면 잡음)·머지 후 지운다 |
@@ -55,6 +55,9 @@
 ## 문제가 생기면
 | 증상 | 할 일 |
 |---|---|
+| "docker가 없습니다"·"Docker가 꺼져 있습니다" | Docker Desktop 설치·실행. 급하면 `NATIVE=1 make dev` / `NATIVE=1 make serve` |
+| Linux에서 docker 실행 후 `NATIVE=1`·`make e2e`가 DB에 못 씀 | 컨테이너가 root로 `backend/data/app.db`를 만든 것. `sudo chown -R $USER backend/data` (macOS Docker Desktop은 해당 없음) |
+| docker 빌드가 의존성 변경을 못 따라감 | `make stop && make serve` (항상 `--build`). 그래도 이상하면 `docker compose build --no-cache` |
 | `make serve` "포트 사용 중" | `make stop`. 다른 프로그램이면 `API_PORT=8100 WEB_PORT=3100 make serve` |
 | 스모크 `version != HEAD` | 서버가 예전 코드. `make stop && make serve` |
 | `make e2e` 배포 실패 | `.run/e2e/serve.log`, `.run/e2e-serve/*.log` |

@@ -5,10 +5,11 @@
 
 ## 바로 쓰기
 ```sh
-make setup    # 설치 (Node 20+, Python 3.11+)
-make dev      # 개발 서버 http://localhost:3000 · API http://localhost:8000/api/docs
+make setup    # 설치 (Node 20+, Python 3.11+, Docker Desktop)
+make dev      # 개발 서버 (docker compose, 핫 리로드) http://localhost:3000 · API http://localhost:8000/api/docs
 make verify   # 검사 전부 (lint·type·test·build)
-make serve    # 로컬 배포 (프로덕션 빌드 + 스모크) / make stop
+make serve    # 로컬 배포 (docker compose, 프로덕션 빌드 + 스모크) / make stop
+# docker 없이: NATIVE=1 make dev / NATIVE=1 make serve
 make e2e      # 시험 + 격리 배포 E2E
 make help     # 명령 전부
 ```

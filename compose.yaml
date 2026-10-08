@@ -1,0 +1,38 @@
+# 로컬 실행 (각자 PC, 외부 서비스 없음): make serve → 이 파일, make dev → + compose.dev.yaml
+#   api :8000 (FastAPI + SQLite), web :3000 (Next.js). 이 PC에서만 열린다(127.0.0.1).
+#   SQLite 파일은 backend/data/app.db — 네이티브 실행(NATIVE=1)과 같은 파일을 쓴다. 팀원끼리 공유하지 않는다.
+services:
+  api:
+    build:
+      context: .                      # database/migrations를 이미지에 넣으려고 루트가 context
+      dockerfile: backend/Dockerfile
+    environment:
+      DATABASE_PATH: /app/backend/data/app.db
+      CORS_ORIGINS: http://localhost:${WEB_PORT:-3000}
+      APP_VERSION: ${APP_VERSION:-}   # 컨테이너엔 git이 없어 scripts/docker.sh가 넘긴다
+    ports:
+      - 127.0.0.1:${API_PORT:-8000}:8000
+    volumes:
+      - ./backend/data:/app/backend/data
+      # LLM 키 등은 앱이 backend/.env를 직접 읽는다 (네이티브와 같은 해석). env_file은 쓰지 않는다 —
+      # docker는 `LLM_PROVIDER=   # 주석`의 주석까지 값으로 읽는다. 위 environment가 .env보다 우선한다.
+      - type: bind
+        source: ./backend/.env
+        target: /app/backend/.env
+        read_only: true
+        bind: {create_host_path: false}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 3s
+      retries: 20
+  web:
+    build:
+      context: frontend
+      target: prod
+      args:
+        NEXT_PUBLIC_API_BASE_URL: http://localhost:${API_PORT:-8000}  # 브라우저가 붙는 주소 (빌드에 박힌다)
+    ports:
+      - 127.0.0.1:${WEB_PORT:-3000}:3000
+    depends_on:
+      api:
+        condition: service_healthy

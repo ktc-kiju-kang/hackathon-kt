@@ -1,0 +1,19 @@
+# make dev: compose.yaml 위에 겹친다 — 소스를 마운트하고 핫 리로드
+services:
+  api:
+    command: ["fastapi", "dev", "app/main.py", "--host", "0.0.0.0", "--port", "8000"]
+    volumes:
+      - ./backend/app:/app/backend/app
+      - ./database:/app/database
+    environment:
+      WATCHFILES_FORCE_POLLING: "true"   # macOS 바인드 마운트에서 변경 감지가 빠지지 않게
+  web:
+    build:
+      target: dev
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:${API_PORT:-8000}
+      WATCHPACK_POLLING: "true"
+    volumes:
+      # src만 마운트한다. frontend/ 전체를 올리면 Tailwind가 .next-e2e 같은 빌드 산출물까지 클래스 후보로 읽어
+      # 깨진 CSS를 만든다(컨테이너엔 .gitignore가 없음). 설정 파일(next.config.ts 등)을 바꾸면 make dev 재시작.
+      - ./frontend/src:/app/frontend/src
