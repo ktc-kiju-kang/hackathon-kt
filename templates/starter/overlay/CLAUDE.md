@@ -30,7 +30,9 @@
 |---|---|---|
 | 같은 Issue | 세 사람이 같은 Issue를 동시에 잡지 않는다 — 선점은 GitHub의 `claim/<번호>` 브랜치를 **없을 때만** 만드는 것으로 판정(assignee는 여러 명이 될 수 있어 판정에 안 씀). 손 떼면 `make release ISSUE=<번호>` | `/start-task`(`scripts/claim.sh take`), `make ship`(남이 잡은 Issue면 멈춤, 머지 후 해제), `make claims` |
 | 같은 파일 | 기능별 폴더(`features/<f>/`, `{routers,services,schemas}/<f>.py`, `tests/test_<f>.py`, `e2e/test_<f>.py`). 남의 기능 파일은 고치지 않고 담당자에게 요청 | `make ship`의 충돌 검사(열린 PR과 같은 파일·기능이면 경고) |
-| 공용 파일 | `layout.tsx`, `src/app/page.tsx`, `app-shell.tsx`, `app-sidebar.tsx`(메뉴 한 줄은 OK), `api-client.ts`, `components/`, `app/core/`, `app/agent/`(`tools/<name>.py` 제외), `prompts.py`, 루트 설정 — **작은 단독 PR**(`chore/shared-<설명>`)로 먼저 ship | reviewer가 "설계·구조"에서 감점 |
+| 공용 파일 | `layout.tsx`, `src/app/page.tsx`, `app-shell.tsx`, `app-sidebar.tsx`, `api-client.ts`, `components/`, `app/core/`, `app/agent/`(`tools/<name>.py` 제외), `prompts.py`, 루트 설정 — **작은 단독 PR**(`chore/shared-<설명>`)로 먼저 ship | reviewer가 "설계·구조"에서 감점 |
+| 메뉴·코드 위치 | 메뉴는 `frontend/src/components/menu-items.ts`에 import 한 줄 + 항목 한 줄만 추가 (기존 줄 수정 금지). `docs/arch.md` "REQ별 코드 위치"는 **자기 REQ 블록만** 고친다 | `.gitattributes` `merge=union`(메뉴), 블록 사이 빈 줄(arch) — 동시에 추가해도 충돌 없음 |
+| 머지 순서 | 기획 때 REQ 머지 순서를 정하고, E2E는 자기 REQ와 **앞선 REQ의 API만** 쓴다 (순환 의존이면 둘 다 머지 못 함) | `/plan-topic`, `/start-task` 의존 확인 |
 | 의존성 | `package.json`·`package-lock.json`·`requirements*.txt` 변경은 **단독 PR**(`chore/deps-<이름>`). 모두 Node 20/npm 10(`.nvmrc`) | `make setup`이 버전 경고, `make sync`가 "make setup 필요" 안내 |
 | DB 마이그레이션 | 파일 이름 = 만든 시각 `YYYYMMDDHHMM_<설명>.sql` → 번호 경쟁 없음. 적용된 파일은 고치지 않는다 | `core/db.py`가 이름 형식 검사 |
 | 시험 기록 문서 | `docs/e2e-test.md` 상태·`docs/prd.md` 상태·`docs/evidence/`는 **기능 PR에 넣지 않는다**. 기록 담당 1명이 main에서 `make record` | `make ship`이 시험 후 기록을 되돌림, record PR은 기록 파일만 허용 |

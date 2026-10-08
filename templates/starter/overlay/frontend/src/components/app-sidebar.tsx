@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Bot, Home, Sparkles } from 'lucide-react'
+import { Sparkles } from 'lucide-react'
 import {
   Sidebar,
   SidebarContent,
@@ -15,18 +15,10 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from '@/components/ui/sidebar'
+import { MENU_ITEMS } from './menu-items'
 
-// 메뉴 추가: 해당 그룹의 items 배열에 항목만 추가하면 된다 (/add-page).
-// 사용자 흐름 순서대로 둔다. UI 샘플(/samples/*)은 주소로만 들어간다.
-const MENU_GROUPS = [
-  {
-    label: '메뉴',
-    items: [
-      { title: '홈', href: '/', icon: Home },
-      { title: 'AI 에이전트', href: '/agent', icon: Bot },
-    ],
-  },
-]
+// 메뉴 추가는 ./menu-items.ts에 한 줄 (/add-page). UI 샘플(/samples/*)은 주소로만 들어간다.
+const MENU_GROUPS = [{ label: '메뉴', items: [...MENU_ITEMS].sort((a, b) => a.order - b.order) }]
 
 export function AppSidebar() {
   const pathname = usePathname()
