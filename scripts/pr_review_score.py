@@ -38,7 +38,7 @@ EXEMPT_TYPES = ("docs", "chore", "ci")
 
 UI_PREFIX = "frontend/src/components/ui/"
 CODE_RE = re.compile(r"^(backend/app/.+\.py|frontend/src/.+\.(ts|tsx))$")
-TEST_RE = re.compile(r"^(backend/tests/.+|.+\.test\.(ts|tsx))$")
+TEST_RE = re.compile(r"^(backend/tests/.+|e2e/.+|.+\.test\.(ts|tsx))$")  # e2e/: 키트
 CONTRACT_RE = re.compile(
     r"^(backend/app/(routers|schemas)/.+\.py|frontend/src/features/[^/]+/api\.ts)$"
 )

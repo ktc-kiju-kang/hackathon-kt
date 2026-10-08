@@ -9,6 +9,6 @@ Closes #
 ## 확인
 - [ ] main sync 완료
 - [ ] 충돌 검사 (`scripts/check-conflicts.sh`): ❌ 0개 / ⚠️ 
-- [ ] 변경한 쪽 검증 통과 (frontend: lint+build / backend: ruff+pytest)
+- [ ] 변경한 쪽 검증 통과 (frontend: lint+test+build / backend: ruff+ty+pytest)
 - [ ] DB 마이그레이션: 없음 / 있음 (공유 DB 적용: )
 - [ ] reviewer 셀프 리뷰 완료

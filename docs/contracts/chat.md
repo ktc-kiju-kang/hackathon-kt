@@ -1,7 +1,7 @@
 # chat (AI 에이전트 대화)
 - 담당: @ktc-kiju-kang
 - 사용처: frontend `/agent` (`features/chat`)
-- DB: `conversations`, `messages` — `database/migrations/0002_chat.sql`
+- DB: `conversations`, `messages` — `database/migrations/0001_chat.sql`
 
 ## 인증 (해커톤용)
 로그인 없음. 브라우저가 만든 임의 UUID를 **모든 요청 헤더 `X-Client-Id`**로 보낸다 (8~64자, 없으면 422).

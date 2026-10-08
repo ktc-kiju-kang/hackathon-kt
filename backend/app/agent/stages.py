@@ -1,6 +1,6 @@
-"""단계형 LLM 생성 파이프라인 실행 (radar·product 공통).
+"""단계형 LLM 생성 파이프라인 실행.
 
-계약: docs/contracts/radar.md "스트림 형식"
+계약: docs/contracts/stages.md
 
 서비스는 단계를 선언만 한다 (이름·제출 도구·출력 모델·프롬프트·mock 결과·요약).
 단계 시작/끝 이벤트, mock 폴백, 구조화 호출(`call_structured`), 요청당 호출 예산은 여기서 처리한다.
@@ -51,7 +51,7 @@ class StageRunner:
         """단계 하나를 실행한다: start → (mock | LLM) → summary → done.
 
         - provider가 mock이면 LLM을 부르지 않고 `mock()` 결과를 쓴다 (`prompt`는 만들지도 않는다).
-        - `summary`는 done 직전에 실행된다. 이 단계의 결과 이벤트(예: opportunity)를 보내거나
+        - `summary`는 done 직전에 실행된다. 이 단계의 결과 이벤트를 보내거나
           결과가 비면 StructuredError를 던지는 후처리를 둘 수 있다. 던지면 done은 안 나간다.
         - 실패하면 StructuredError(code=bad_output | limit | rate_limit | ...)를 던진다.
         """

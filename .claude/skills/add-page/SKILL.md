@@ -16,8 +16,8 @@ argument-hint: <경로> <메뉴 이름> <설명>
    - 일반 페이지: `mx-auto w-full max-w-<n> px-4 py-6`
    - 화면 높이를 꽉 쓰는 페이지: 루트 `h-[calc(100svh-3rem)] flex flex-col`, 스크롤은 내부 목록(`min-h-0 flex-1 overflow-y-auto`)
    - shadcn 컴포넌트·테마 토큰만 사용 (`.claude/rules/frontend.md`)
-   - 차트: `npx shadcn@latest add chart`(recharts)가 이미 있다. 계열 색·범례·키 규칙은 `.claude/rules/frontend.md`의 "차트 계열 색", 예시는 `features/trends/TrendCharts.tsx`
-   - 다른 화면으로 값을 넘길 때는 그 기능의 `api.ts`에 저장·읽기 함수를 두고 계약에 적는다 (예: radar → product, `sessionStorage`)
-5. **메뉴** — `frontend/src/components/app-sidebar.tsx`의 `MENU_GROUPS`에 `{ title, href, icon }` 한 줄 (lucide 아이콘). 공용 파일이므로 **이 한 줄 외에는 고치지 않는다.** 새 그룹이 필요하면 사용자에게 확인.
+   - 차트: `npx shadcn@latest add chart`(recharts)가 이미 있다. 계열 색·범례·키 규칙은 `.claude/rules/frontend.md`의 "차트 계열 색", 예시는 `features/samples/DashboardSample.tsx`
+   - 다른 화면으로 값을 넘길 때는 그 기능의 `api.ts`에 저장·읽기 함수를 두고 계약에 적는다 (`sessionStorage`)
+5. **메뉴** — `frontend/src/components/menu-items.ts`에 **import 한 줄 + 항목 한 줄**만 추가한다 (`{ title, href, icon, order }`, 아이콘 import는 따로 한 줄). 이 파일은 merge=union이라 동시에 추가해도 충돌하지 않는다. 기존 줄은 고치지 않는다.
 6. **검증** — `cd frontend && npm run lint && npm run build` (빌드 출력에 새 라우트가 보이는지), 가능하면 `npm run dev`로 화면 확인 (개발 서버는 첫 로드가 느려 클릭이 무시될 수 있다 — 잠시 기다린 뒤 확인).
 7. README의 "화면" 표에 한 줄 추가.
