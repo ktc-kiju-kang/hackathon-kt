@@ -96,3 +96,32 @@ def test_chat_limit_title_max():
     url = "/api/chat/conversations"
     assert client.post(url, json={"title": "t" * 100}, headers=H).status_code == 201
     assert client.post(url, json={"title": "t" * 101}, headers=H).status_code == 422
+
+
+def test_search_and_export_tc_chat_search():  # TC-CHAT-SEARCH
+    conv = client.post("/api/chat/conversations", json={"title": "검색용 대화"}, headers=H).json()
+    client.post(
+        f"/api/chat/conversations/{conv['id']}/messages",
+        json={"content": "유니크키워드xyz"},
+        headers=H,
+    )
+    ids = [
+        c["id"]
+        for c in client.get("/api/chat/search", params={"q": "유니크키워드XYZ"}, headers=H).json()
+    ]
+    assert conv["id"] in ids
+    other = {"X-Client-Id": "someone-else"}
+    assert (
+        client.get("/api/chat/search", params={"q": "유니크키워드xyz"}, headers=other).json() == []
+    )
+    for q in ("", "x" * 101):
+        assert client.get("/api/chat/search", params={"q": q}, headers=H).status_code == 422
+    assert client.get("/api/chat/search", headers=H).status_code == 422
+
+    res = client.get(f"/api/chat/conversations/{conv['id']}/export", headers=H)
+    assert res.status_code == 200 and res.headers["content-type"].startswith("text/markdown")
+    assert "# 검색용 대화" in res.text and "유니크키워드xyz" in res.text
+    assert (
+        client.get(f"/api/chat/conversations/{conv['id']}/export", headers=other).status_code
+        == 404
+    )

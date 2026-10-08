@@ -14,6 +14,7 @@ from app.core.db import get_db
 class ChatStore(Protocol):
     def create_conversation(self, client_id: str, title: str | None) -> dict[str, Any]: ...
     def list_conversations(self, client_id: str) -> list[dict[str, Any]]: ...
+    def search_conversations(self, client_id: str, q: str) -> list[dict[str, Any]]: ...
     def get_conversation(self, conversation_id: str) -> dict[str, Any] | None: ...
     def list_messages(self, conversation_id: str) -> list[dict[str, Any]]: ...
     def append_messages(self, conversation_id: str, messages: list[Message]) -> None: ...
@@ -41,6 +42,17 @@ class MemoryChatStore:
     def list_conversations(self, client_id: str) -> list[dict[str, Any]]:
         rows = [c for c in self.conversations.values() if c["client_id"] == client_id]
         return sorted(rows, key=lambda c: c["created_at"], reverse=True)
+
+    def search_conversations(self, client_id: str, q: str) -> list[dict[str, Any]]:
+        needle = q.lower()
+        return [
+            c
+            for c in self.list_conversations(client_id)
+            if needle in (c["title"] or "").lower()
+            or any(
+                needle in str(m["data"].get("content", "")).lower() for m in self.messages[c["id"]]
+            )
+        ][:50]
 
     def get_conversation(self, conversation_id: str) -> dict[str, Any] | None:
         return self.conversations.get(conversation_id)
@@ -93,6 +105,18 @@ class DbChatStore:
                 "select id, client_id, title, created_at from conversations"
                 " where client_id = %s order by created_at desc limit 50",
                 (client_id,),
+            ).fetchall()
+
+    def search_conversations(self, client_id: str, q: str) -> list[dict[str, Any]]:
+        like = "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+        with get_db() as db:
+            return db.execute(
+                "select id, client_id, title, created_at from conversations c"
+                " where client_id = %(cid)s and (title ilike %(like)s or exists ("
+                "  select 1 from messages m where m.conversation_id = c.id"
+                "  and m.data->>'content' ilike %(like)s))"
+                " order by created_at desc limit 50",
+                {"cid": client_id, "like": like},
             ).fetchall()
 
     def get_conversation(self, conversation_id: str) -> dict[str, Any] | None:

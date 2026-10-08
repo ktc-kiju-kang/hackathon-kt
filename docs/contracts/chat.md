@@ -16,6 +16,13 @@ Request: `{ "title"?: string(≤100) }` → 201 `Conversation`
 ## GET /api/chat/conversations/{id}/messages — v1
 → 200 `ChatMessage[]` (오래된 순) · 404
 
+## GET /api/chat/search?q= — v1
+`q`: 1~100자 (없거나 빈 값·초과는 422). 제목·메시지 본문 부분 일치(대소문자 무시).
+→ 200 `Conversation[]` (내 것만, 최신순, 최대 50)
+
+## GET /api/chat/conversations/{id}/export — v1
+→ 200 `text/markdown` (`Content-Disposition: attachment`) · 404 (남의 대화 포함)
+
 ## POST /api/chat/conversations/{id}/messages — v1 (SSE)
 Request: `{ "content": string(1~8000) }` → 200 `text/event-stream` · 404 · 422
 · **429** 사용량 한도 (IP당 10분 `CHAT_RATE_PER_IP`, 서버 전체 하루 `CHAT_DAILY_LIMIT`)
@@ -50,3 +57,4 @@ ChatMessage  = { role: "user" | "assistant" | "tool", content: string,
 |---|---|---|
 | 2026-10-01 | 추가 | ktc-kiju-kang |
 | 2026-10-01 | `retry` 이벤트, `error.code` 추가 (v1 호환) | ktc-kiju-kang |
+| 2026-10-08 | `search`, `export` 추가 (v1 호환) | ktc-kiju-kang |
