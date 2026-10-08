@@ -99,9 +99,16 @@ say "6/9 AI 리뷰"
 if [ "$KIND" = record ]; then
   echo "  생성된 시험 기록만 담긴 PR — AI 리뷰 생략"
 else
-  command -v claude >/dev/null || die "claude CLI가 없어 AI 리뷰를 못 합니다 — 자동 머지 중단"
-  "$PY" "$ROOT/scripts/ai-review.py" --pr "$pr" --issue "$issue"; rc=$?
-  [ "$rc" = 0 ] || die "AI 리뷰 결과로 자동 머지를 멈춥니다 (PR #$pr 본문의 'AI 리뷰' 확인 → 고친 뒤 make ship)"
+  reviewed=$(gh pr view "$pr" --json body -q .body | sed -n 's/^- 리뷰한 커밋: `\([0-9a-f]*\)`.*/\1/p' | tail -1)
+  verdict=$(gh pr view "$pr" --json body -q .body | sed -n 's/^- 판정: //p' | tail -1)
+  if [ -n "$reviewed" ] && [ "${head:0:12}" = "$reviewed" ] && [ -f "$RUN_DIR/ai-review.ok" ] && [ "$(cat "$RUN_DIR/ai-review.ok")" = "$head" ]; then
+    echo "  같은 커밋(${reviewed})을 이미 리뷰해 통과함 — 다시 돌리지 않음 ($verdict)"
+  else
+    command -v claude >/dev/null || die "claude CLI가 없어 AI 리뷰를 못 합니다 — 자동 머지 중단"
+    "$PY" "$ROOT/scripts/ai-review.py" --pr "$pr" --issue "$issue"; rc=$?
+    [ "$rc" = 0 ] || die "AI 리뷰 결과로 자동 머지를 멈춥니다 (PR #$pr 본문의 'AI 리뷰' 확인 → 고친 뒤 make ship)"
+    echo "$head" >"$RUN_DIR/ai-review.ok"
+  fi
 fi
 
 if [ -n "$issue" ]; then
@@ -128,7 +135,8 @@ if [ "${checks:-0}" -gt 0 ]; then
   echo "  CI 대기 (최대 20분)…"
   for _ in $(seq 1 120); do
     states=$(gh pr checks "$pr" --json bucket -q '[.[].bucket] | unique | join(",")' 2>/dev/null)
-    case "$states" in *fail*|*cancel*) gh pr checks "$pr" | grep -iE "fail|cancel"; die "CI 실패 — 고친 뒤 make ship";; esac
+    # cancel은 새 실행으로 대체된 것(PR 본문 수정 → PR Review 재실행)이라 실패로 보지 않는다
+    case "$states" in *fail*) gh pr checks "$pr" | grep -i "fail"; die "CI 실패 — 고친 뒤 make ship";; esac
     case "$states" in *pending*) sleep 10;; *) break;; esac
   done
   case "$states" in *pending*) die "CI가 20분 안에 끝나지 않음";; esac
