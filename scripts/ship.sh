@@ -96,6 +96,8 @@ else
   # 사람이 쓴 본문은 그대로 두고 <!-- ship:start/end --> 구역만 바꾼다
   gh pr view "$pr" --json body -q .body >"$RUN_DIR/pr-body.old"
   "$PY" scripts/pr_body.py "$RUN_DIR/pr-body.old" "$ship_block" "$issue" "$link" >"$RUN_DIR/pr-body.md"
+  [ "$link" = Refs ] && grep -qiE "^(closes|fixes|resolves) #$issue\b" "$RUN_DIR/pr-body.md" &&
+    warn "PR 본문에 사람이 쓴 'Closes #$issue'가 있음 — Issue가 이미 닫혀 칸반 카드가 In Review로 돌아갈 수 있으니 Refs로 고치세요"
   gh pr edit "$pr" --body-file "$RUN_DIR/pr-body.md" >/dev/null || die "PR 본문 갱신 실패"
   ok "PR #$pr 갱신"
 fi
