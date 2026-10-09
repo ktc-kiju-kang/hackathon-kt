@@ -135,6 +135,11 @@ if [ -n "$issue" ]; then
 fi
 
 merge_gate "$waiting" "$pr"
+# 계약에 테이블 SQL 초안을 넣거나 바꾼 PR은 사람이 머지한다 (G3) — BE 루프가 이 초안으로 마이그레이션을 만들기 때문
+if [ "$KIND" != record ] && git diff origin/main...HEAD -- 'docs/contracts/*.md' ':!docs/contracts/README.md' | grep -qiE '^[+-](.*CREATE[[:space:]]+(TABLE|INDEX)|## 테이블)'; then
+  [ "${SHIP_NO_MERGE:-}" = 1 ] || die "계약의 테이블 SQL 초안이 바뀐 PR은 사람이 머지합니다 (G3) — PR #$pr 확인 후 GitHub에서 머지"
+  warn "계약의 테이블 SQL 초안이 바뀜 — 스키마를 확인하고 머지하세요 (G3)"
+fi
 [ "${SHIP_NO_MERGE:-}" = 1 ] && { ok "PR #$pr 준비 완료 (SHIP_NO_MERGE=1 — 머지 안 함)"; exit 0; }
 
 say "8/9 머지 (잠금 → 최신 main 확인 → CI → squash)"

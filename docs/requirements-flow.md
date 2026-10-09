@@ -154,7 +154,7 @@ PM은 승인된 정의서만 읽고 분배표를 만든다. 분배표는 사람�
 |---|---|
 | PO | `po` 에이전트 (`.claude/agents/po.md`) — 1절. 사람 대신 질문을 정하지 않고 질문·가정 목록을 넘긴다 |
 | PM | `pm` 에이전트 (`.claude/agents/pm.md`) — 2절 분배표·AC 대조표·티켓 본문 초안. Issue 생성은 G2 승인 후 `/new-issue` |
-| 아키텍트 | `architect` 에이전트 (`.claude/agents/architect.md`) — 플랜 티켓: 계약·arch 블록·마이그레이션 초안·확장 지점 |
+| 아키텍트 | `architect` 에이전트 (`.claude/agents/architect.md`) — 플랜 티켓: 계약(테이블 SQL 초안)·arch 블록·확장 지점 |
 | 백엔드·프론트 | `/start-task` → `/add-endpoint`·`/add-page` → `/handoff`. 자동으로 돌리면 `/ticket-loop` |
 | 리뷰어 | `reviewer` 에이전트 (`make ship`) — Issue의 요구사항 근거와 변경 내용이 맞는지도 본다 |
 
