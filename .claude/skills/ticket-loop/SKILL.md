@@ -44,7 +44,7 @@ GitHub Issue = 티켓. **한 번 실행 = 한 틱**이다. 반복은 `/loop 5m /
    - `SHIP_NO_MERGE=1 make ship` (사용자가 `TICKET_LOOP_MERGE=1`로 시작했으면 `make ship`). ship이 sync·충돌 검사·e2e·push·PR·AI 리뷰·Issue 근거 댓글까지 한다. 멈추면 원인을 읽고 고쳐서 다시 실행하고, 3번 실패하면 `blocked`.
    - PR이 만들어지면 `scripts/ticket-claim.sh done <번호>` — **구현 완료**(`impl-done` 라벨). 선점·`in-progress`는 머지 때까지 유지된다.
    - 이슈에 내 요약 댓글 한 개(마커 포함): PR 링크와 요약.
-   - PR 본문에는 `Closes #<번호>`가 들어가야 한다 (ship이 만든 본문에 없으면 추가).
+   - PR 본문에는 `Closes #<번호>`가 들어가야 한다 (ship이 만든 본문에 없으면 추가). **이미 닫힌 Issue의 후속 PR이면 `Refs #<번호>`** — ship이 그렇게 쓴다. Closes로 이으면 칸반이 닫힌 카드를 In Review로 되돌린다.
 
 ## 보고 (틱마다 한두 줄)
 `대기 중(후보 없음)` / `#12 선점·구현 시작` / `#12 새 댓글 반영, PR #31 갱신` / `#12 needs-info: <질문 요약>` / `#12 blocked: <이유>` 중 하나로 끝낸다. 오류는 숨기지 말고 그대로 적는다.
