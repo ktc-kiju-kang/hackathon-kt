@@ -158,8 +158,10 @@ PM은 승인된 정의서만 읽고 분배표를 만든다. 분배표는 사람�
 | 백엔드·프론트 | `/start-task` → `/add-endpoint`·`/add-page` → `/handoff`. 자동으로 돌리면 `/ticket-loop` |
 | 리뷰어 | `reviewer` 에이전트 (`make ship`) — Issue의 요구사항 근거와 변경 내용이 맞는지도 본다 |
 
-자동으로 돌릴 때: 역할마다 다른 계정(또는 사람)이 `/loop 5m /ticket-loop architect`·`backend`·`frontend`를 돌리면 `role:` 라벨 티켓만 집는다 (`TICKET_ROLE`, `scripts/ticket-claim.sh`). 본문 "선행: #N"의 Issue가 열려 있으면 후보에서 빠지므로 plan → BE·FE 순서가 스크립트로 지켜진다 (선행 줄에 적은 Issue가 **모두** 닫혀야 시작). FE는 플랜만 닫히면 BE와 함께 시작하고, 머지는 `- 머지 조건:`의 BE가 완료로 닫힌 뒤다 (`make ship`). 선점은 GitHub 계정 단위라 **한 계정에 루프 하나**.
+자동으로 돌릴 때: 역할마다 다른 계정(또는 사람)이 `/loop 5m /ticket-loop architect`·`backend`·`frontend`를 돌리면 `role:` 라벨 티켓만 집는다 (`TICKET_ROLE`, `scripts/ticket-claim.sh`). 본문 "선행: #N"의 Issue가 열려 있으면 후보에서 빠지므로 plan → BE·FE 순서가 스크립트로 지켜진다 (선행 줄에 적은 Issue가 **모두** 닫혀야 시작). FE는 플랜만 닫히면 BE와 함께 시작하고, 머지는 `- 머지 조건:`의 BE가 완료로 닫힌 뒤다 (`make ship`). 선점은 GitHub 계정 단위라 **한 계정에 루프 하나** — 역할 루프는 역할마다 하나까지 (`mine`이 자기 역할 티켓만 이어가 서로 막지 않는다).
 
 검증: 2026-10-09 리허설 — 임의 요구 6문장(회의실 예약)을 범용 에이전트가 이 문서만 읽고 PO·PM을 수행 → REQ 6·AC 19·TC 19, 티켓 16개(근거·링크·AC 대조 이상 없음). 그때 에이전트가 스스로 판단해야 했던 곳(섞인 AC, 머지 순서 칸, 비기능 출처, 희망 표현, 같은 화면 확장, 티켓 수)을 이 문서와 양식에 규칙으로 넣었다.
 3차(2026-10-09, 내보낸 키트에서 `po`·`pm` 에이전트, 사내 비품 대여 8문장): REQ 6·AC 32·TC 35, 티켓 16개(근거·AC 대조 이상 없음). 판단한 곳 중 기반 기능의 AC, 만들 수 없는 시험 데이터, 오류 AC 기준, 플랜 직렬화, 선행과 머지 조건 구분, 임시 번호, 선택 REQ의 Issue 시점을 규칙으로 넣었다.
 4차(같은 주제, 고친 키트): REQ 7·AC 44·TC 49, 티켓 19개(plan 6·BE 6·FE 7, 대조 이상 없음). 직원 식별이 AC 5개의 REQ로 생겼고, FE는 플랜만 선행·같은 REQ BE는 머지 조건으로 나뉘어 BE와 병렬. 새로 나온 판단(기반 기능이 클 때, 식별 방식, 플랜 없는 REQ의 결정, 여러 REQ에 걸친 TC, 직접 의존, Issue 양식 없음, NN 변환 범위)을 규칙으로 넣었다.
+
+역할별 `/ticket-loop` 실주행(2026-10-09, 내보낸 키트·임시 비공개 레포, 한 계정에서 architect·backend·frontend 루프, `TICKET_LOOP_MERGE=1`): 메모판 REQ 1개 → plan·BE·FE Issue 3개가 모두 루프로 머지됐다 (plan → BE·FE 병렬, FE는 BE보다 먼저 PR을 올리고 머지 조건으로 대기 → BE 머지 뒤 다시 ship해 머지). 고친 것: 역할 루프의 `mine`, 선점 확인의 SIGPIPE(해제가 성공으로 보이던 것), 새 레포의 `in-progress` 라벨, 시험에 섞이던 `TICKET_ROLE`, 머지 조건 대기 중 AI 리뷰가 "BE 없음"을 높음으로 막던 것, worktree에서 ship 9단계가 엉뚱한 커밋을 검사하던 것, 화면 TC 경로(`*.test.ts`), arch 블록의 BE·FE 줄 충돌. 남은 결정: 새 테이블 마이그레이션 — 스킬은 사람 확인(`needs-human`)인데 역할 분담에서는 BE 티켓의 일이라, BE 루프가 매번 멈춘다 (이번엔 사람 댓글로 승인).

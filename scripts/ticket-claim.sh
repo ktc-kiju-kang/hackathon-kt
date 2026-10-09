@@ -4,7 +4,7 @@
 #     TICKET_ROLE=architect|backend|frontend 이면 그 role:<역할> 라벨 Issue만 (역할 분담 방식, docs/requirements-flow.md)
 #     본문 '- 선행: #N …' 줄(글머리 -·*, 공백 무관)의 Issue가 아직 열려 있으면 후보가 아니다 (list·claim 공통)
 #   scripts/ticket-claim.sh claim <번호> [--dry-run]   선점. 종료코드 0=내가 선점, 1=대상 아님·남이 선점, 2=오류
-#   scripts/ticket-claim.sh mine                      내가 선점한 열린 Issue 번호
+#   scripts/ticket-claim.sh mine                      내가 선점한 열린 Issue 번호 (TICKET_ROLE 이면 그 역할 Issue만)
 #   scripts/ticket-claim.sh cleanup                   내 선점 중 이슈가 닫힌 것의 선점 ref 를 정리 (머지 후 남은 claim/<번호>)
 #   scripts/ticket-claim.sh comments <번호> [ISO시각]   신뢰 작성자의 Issue 댓글만 JSON 한 줄씩 (시각 생략 시 내 마지막 에이전트 댓글 이후)
 #   scripts/ticket-claim.sh pr-comments <PR번호>       신뢰 작성자의 PR 댓글·리뷰 코멘트만 JSON 한 줄씩
@@ -61,6 +61,13 @@ claims() {
   done <<<"$rows"
 }
 
+# 선점 주인 (없으면 빈 값). `claims | grep -q`는 pipefail에서 grep이 먼저 끝나면 SIGPIPE로 거짓이 되므로 쓰지 않는다
+claim_owner() {
+  local all
+  all=$(claims) || return 1
+  echo "$all" | awk -v n="$1" '$1 == n { print $2; exit }'
+}
+
 pr_covers() { # $PRS 에 열린 PR이 있는지: 브랜치명 `<type>/<번호>-…` 또는 본문 Closes #번호
   # (Refs #번호는 이미 닫힌 Issue의 후속 PR에만 쓰므로 후보 판정에 넣지 않는다 — 닫힌 Issue는 후보가 아니다)
   echo "$PRS" | jq -e --arg n "$1" 'map(select((.headRefName|test("/"+$n+"-")) or ((.body // "")|test("(?i)(closes|fixes|resolves)\\s+#"+$n+"\\b")))) | length > 0' >/dev/null
@@ -107,7 +114,7 @@ cmd_list() {
 }
 
 cmd_claim() {
-  local n=$1 dry=${2:-} issues issue out rc
+  local n=$1 dry=${2:-} issues issue out rc owner
   num_or_die "$n"
   issues=$(open_issues) || die "이슈 조회 실패"
   issue=$(echo "$issues" | jq --argjson n "$n" '.[] | select(.number==$n)')
@@ -139,13 +146,19 @@ cmd_claim() {
   done
   PRS=$(open_prs) || die "PR 목록을 읽지 못함"
   pr_covers "$n" && { echo "SKIP #$n: 이미 열린 PR이 있음"; return 1; }
-  claims | grep -q "^$n " && { echo "SKIP #$n: 이미 선점됨 ($(claims | grep "^$n " | cut -d' ' -f2))"; return 1; }
+  owner=$(claim_owner "$n") || { echo "❌ 선점 목록 조회 실패" >&2; return 2; }
+  [ -z "$owner" ] || { echo "SKIP #$n: 이미 선점됨 ($owner)"; return 1; }
   if [ "$dry" = "--dry-run" ]; then echo "DRY-RUN #$n: 선점 가능 (쓰기 없음)"; return 0; fi
 
   out=$("$CLAIM" take "$n" 2>&1); rc=$?
-  if [ $rc -ne 0 ]; then echo "LOST #$n: $(echo "$out" | tail -1)"; return 1; fi
+  if [ $rc -ne 0 ]; then
+    # 남이 먼저 잡은 것만 LOST(1). push 실패 같은 오류는 2 — 스킬이 조용히 넘기지 않게
+    case "$out" in *"push 실패"*) echo "❌ #$n 선점 오류: $(echo "$out" | tail -1)" >&2; return 2 ;; esac
+    echo "LOST #$n: $(echo "$out" | tail -1)"; return 1
+  fi
   # 확인: 선점 주인이 나인가 (claim.sh 는 같은 계정이면 통과시키므로 주인이 나인지만 본다)
-  [ "$(claims | grep "^$n " | cut -d' ' -f2)" = "$me" ] || { echo "LOST #$n: 선점 주인이 내가 아님"; return 1; }
+  [ "$(claim_owner "$n")" = "$me" ] || { echo "LOST #$n: 선점 주인이 내가 아님"; return 1; }
+  gh label create in-progress --color FBCA04 --description "루프가 작업 중" >/dev/null 2>&1 || true  # 새 레포에는 라벨이 없다
   gh issue edit "$n" --add-label in-progress >/dev/null 2>&1 || echo "⚠️ #$n in-progress 라벨 실패" >&2
   gh issue comment "$n" --body "<!-- ticket-agent session=$SID -->
 작업 시작 (세션 \`$SID\`)" >/dev/null 2>&1 || echo "⚠️ #$n 세션 표식 댓글 실패" >&2
@@ -169,7 +182,7 @@ cmd_merge_wait() {
     [ "$d" = bare ] && { echo "머지 조건 줄에 '#' 없는 번호(티켓 초안 NN?) — 사람이 #번호로 고친다"; ok=0; continue; }
     if ! st=$(dep_state "$d"); then echo "#$d 조회 실패 — 다시 make ship"; ok=0; continue; fi
     case "$st" in
-      completed) ;;
+      completed) echo "#$d 완료로 닫힘 ✅" >&2 ;;  # 풀린 것도 남긴다 (make ship 출력)
       open) echo "#$d 아직 열림 — 먼저 머지된 뒤"; ok=0 ;;
       *) echo "#$d 이 완료로 닫히지 않음 ($st) — 사람이 머지 조건 줄을 고친다"; ok=0 ;;
     esac
@@ -181,7 +194,11 @@ cmd_mine() {
   local n owner
   claims | while read -r n owner; do
     [ "$owner" = "$me" ] || continue
-    gh issue view "$n" --json state --jq '.state' 2>/dev/null | grep -q OPEN && echo "$n"
+    # 역할 루프(TICKET_ROLE)는 자기 역할 티켓만 이어간다 — 다른 역할의 선점을 "진행 중"으로 보고 멈추지 않게
+    # (TICKET_ROLE은 맨 아래에서 architect|backend|frontend로 검사한 값이라 식에 그대로 넣는다 — gh --jq는 --arg가 없다)
+    gh issue view "$n" --json state,labels \
+      --jq 'select(.state == "OPEN" and ("'"${TICKET_ROLE:-}"'" == "" or ([.labels[].name] | index("role:'"${TICKET_ROLE:-}"'")))) | "y"' 2>/dev/null |
+      grep -q y && echo "$n"
   done
 }
 
@@ -242,11 +259,11 @@ cmd_pr_comments() {
 }
 
 cmd_release() {
-  local n=$1 state=${2:-}
+  local n=$1 state=${2:-} owner
   num_or_die "$n"
   case "$state" in needs-info|needs-human|blocked|"") ;; *) die "알 수 없는 라벨: $state" ;; esac
   # 내 선점일 때만 푼다 (claim.sh 가 남의 선점은 거부한다). 선점이 이미 없으면 라벨만 처리한다
-  if claims | grep -q "^$n "; then
+  if [ -n "$(claim_owner "$n")" ]; then
     "$CLAIM" release "$n" >/dev/null 2>&1 || die "#$n 선점 해제 실패 (남의 선점이거나 권한 문제)"
   fi
   if [ -n "$state" ]; then
@@ -254,7 +271,8 @@ cmd_release() {
     gh issue edit "$n" --add-label "$state" >/dev/null || die "#$n 에 $state 라벨을 붙이지 못함 (큐에 남을 수 있음)"
   fi
   gh issue edit "$n" --remove-label in-progress >/dev/null 2>&1 || true
-  claims | grep -q "^$n " && die "#$n 선점이 남아 있음"
+  owner=$(claim_owner "$n") || die "선점 목록 조회 실패 — 해제됐는지 make claims로 확인"
+  [ -z "$owner" ] || die "#$n 선점이 남아 있음"
   echo "RELEASED #$n${state:+ → $state}"
 }
 

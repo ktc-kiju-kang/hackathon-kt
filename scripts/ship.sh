@@ -111,6 +111,9 @@ fi
 say "6/9 AI 리뷰"
 if [ "$KIND" = record ]; then
   echo "  생성된 시험 기록만 담긴 PR — AI 리뷰 생략"
+elif [ -n "$waiting" ] && [ "${SHIP_NO_MERGE:-}" != 1 ]; then
+  # 머지까지 맡긴 실행은 어차피 머지 조건에서 멈춘다 — 리뷰는 풀린 뒤 다시 ship할 때(그때 main이 바뀌어 새로 돈다)
+  echo "  머지 조건 대기 중 — AI 리뷰는 머지 조건이 풀린 뒤 make ship에서"
 else
   reviewed=$(gh pr view "$pr" --json body -q .body | sed -n 's/^- 리뷰한 커밋: `\([0-9a-f]*\)`.*/\1/p' | tail -1)
   verdict=$(gh pr view "$pr" --json body -q .body | sed -n 's/^- 판정: //p' | tail -1)
@@ -118,7 +121,7 @@ else
     echo "  같은 커밋(${reviewed})을 이미 리뷰해 통과함 — 다시 돌리지 않음 ($verdict)"
   else
     command -v claude >/dev/null || die "claude CLI가 없어 AI 리뷰를 못 합니다 — 자동 머지 중단"
-    "$PY" "$ROOT/scripts/ai-review.py" --pr "$pr" --issue "$issue"; rc=$?
+    "$PY" "$ROOT/scripts/ai-review.py" --pr "$pr" --issue "$issue" --merge-wait "$waiting"; rc=$?
     [ "$rc" = 0 ] || die "AI 리뷰 결과로 자동 머지를 멈춥니다 (PR #$pr 본문의 'AI 리뷰' 확인 → 고친 뒤 make ship)"
     echo "$head" >"$RUN_DIR/ai-review.ok"
   fi
@@ -165,7 +168,10 @@ ok "PR #$pr 머지"
 [ -n "$issue" ] && { "$ROOT/scripts/claim.sh" done "$issue" >/dev/null 2>&1 || warn "Issue #$issue 선점 해제 실패 — scripts/claim.sh done $issue"; }
 
 say "9/9 머지 후 main 확인"
-git switch -q main && git pull -q --ff-only
+# worktree에서는 main이 다른 체크아웃에 있어 switch가 안 된다 → 머지된 origin/main을 detached로 본다
+git fetch -q origin main || die "origin/main fetch 실패 — 머지 후 main을 확인하지 못함"
+if git switch -q main 2>/dev/null; then git pull -q --ff-only
+else git switch -q --detach origin/main || die "머지된 main으로 바꾸지 못함"; echo "  (worktree는 이제 detached — 끝났으면 git worktree remove)"; fi
 if "$ROOT/scripts/verify.sh" >"$RUN_DIR/ship-main-verify.log" 2>&1; then
   ok "main 정상 ($(git rev-parse --short HEAD))"
 else

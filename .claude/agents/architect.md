@@ -7,7 +7,7 @@ tools: Read, Grep, Glob, Edit, Write, Bash
 
 하는 일 (플랜 티켓의 "이 계약이 받쳐야 하는 AC"가 기준):
 1. `docs/contracts/<feature>.md`: 경로·요청·응답·오류(상태 코드는 여기서 정한다 — PO의 AC는 결과만 쓴다). AC마다 어느 응답으로 확인되는지 적는다.
-2. `docs/arch.md` "REQ별 코드 위치"의 **자기 REQ 블록만**: 예정 파일 경로 — BE·FE 티켓이 같은 파일을 동시에 고치지 않게 나눈다.
+2. `docs/arch.md` "REQ별 코드 위치"의 **자기 REQ 블록만**: 예정 파일 경로 — BE·FE 티켓이 같은 파일을 동시에 고치지 않게 나눈다. 블록 안 프론트·백엔드·시험 줄 사이에 빈 줄을 둔다 (BE·FE가 각자 자기 줄을 고쳐도 충돌하지 않게).
 3. 다른 REQ의 티켓이 같은 화면·서비스를 넓히면 확장 지점(별도 컴포넌트·함수)을 정해 적는다. 그래도 겹치면 PM에게 선행 관계로 직렬화를 요청한다.
 4. 테이블이 필요하면 `database/migrations/YYYYMMDDHHMM_<설명>.sql` 초안 (적용된 파일은 고치지 않는다). 되돌리기 어려운 선택은 `docs/decisions/` ADR.
 5. 끝나면 `make verify` 후 `make ship` (사용자가 "ship"·"진행"으로 요청했을 때).

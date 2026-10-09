@@ -6,7 +6,7 @@ description: GitHub Issue(티켓) 큐를 한 번 점검한다 — 열린 Issue�
 GitHub Issue = 티켓. **한 번 실행 = 한 틱**이다. 반복은 `/loop 5m /ticket-loop`가 맡고, 이 스킬은 스스로 예약하지 않는다.
 상태는 전부 GitHub(선점 ref `claim/<번호>`·담당자·PR)에 둔다. 세션이 바뀌어도 이어진다.
 **역할:** 인자로 역할(`architect`·`backend`·`frontend`)이 오면 이번 틱의 모든 `scripts/ticket-claim.sh list`·`claim` 앞에 `TICKET_ROLE=<역할>`을 붙인다 — `role:<역할>` 라벨 Issue만 후보가 된다 (`docs/requirements-flow.md` 2절). 인자가 없으면 모든 Issue. 어느 쪽이든 본문 `- 선행: #N` 줄의 Issue가 열려 있으면 스크립트가 후보에서 뺀다.
-큐 조작은 `scripts/ticket-claim.sh`로 한다 (`list` · `claim` · `mine` · `owns` · `done` · `comments` · `pr-comments` · `release`). 선점은 `scripts/claim.sh`가 기준이라 사람(`make claims`)과 같은 기준을 본다. **GitHub 계정당 루프 하나**만 돌린다.
+큐 조작은 `scripts/ticket-claim.sh`로 한다 (`list` · `claim` · `mine` · `owns` · `done` · `comments` · `pr-comments` · `release`). 선점은 `scripts/claim.sh`가 기준이라 사람(`make claims`)과 같은 기준을 본다. **GitHub 계정당 루프 하나**만 돌린다 — 역할을 준 루프는 역할마다 하나 (`mine`도 그 역할 티켓만 보므로 한 계정에서 architect·backend·frontend 루프를 함께 돌릴 수 있다).
 
 ## 사전 승인과 금지
 - 이 루프를 시작한 것이 **"ship" 요청**이다 (CLAUDE.md 예외). **기본은 `SHIP_NO_MERGE=1`** — PR·AI 리뷰까지 하고 머지는 사람이 한다. 사용자가 `TICKET_LOOP_MERGE=1`을 주고 시작했을 때만 `make ship`을 머지까지 맡긴다.
@@ -34,7 +34,7 @@ GitHub Issue = 티켓. **한 번 실행 = 한 틱**이다. 반복은 `/loop 5m /
    - 사람이 답하고 라벨(`needs-info`·`needs-human`·`blocked`)을 **떼면 다시 후보가 된다.**
 4. **구현**
    - 계약(`docs/contracts/`)과 `.claude/rules/`를 읽는다. 새 API면 계약부터 (`/add-endpoint` 절차).
-   - `scripts/new-worktree.sh <번호> <설명> [type]`로 worktree를 만든다 (**origin/main 기준**). 폴더 이름은 스크립트를 실행한 체크아웃 이름에 `-wt-<번호>`가 붙은 것이니 **출력된 경로**를 쓴다. 그 안에서 `make setup`(Python 3.11+ 필요 — 기본 `python3`가 낮으면 `PYTHON=python3.12 make setup`) 후 **그 안에서만** 작업한다. 메인 작업 폴더를 건드리지 않는다.
+   - `scripts/new-worktree.sh <번호> <설명> [type]`로 worktree를 만든다 (**origin/main 기준**). 폴더 이름은 스크립트를 실행한 체크아웃 이름에 `-wt-<번호>`가 붙은 것이니 **출력된 경로**를 쓴다. 그 안에서 `make setup`(Python 3.11+ 필요 — 기본 `python3`가 3.11 미만일 때만 설치된 버전으로 `PYTHON=python3.1x make setup`) 후 **그 안에서만** 작업한다. 메인 작업 폴더를 건드리지 않는다.
    - **구현 스킬을 쓴다:** 코딩 전에 `ponytail`을 불러 가장 단순한 해법으로 간다. 새 API는 `/add-endpoint`, 새 화면은 `/add-page`, 에이전트 도구는 `/add-agent-tool`로 진행한다 (해당 없으면 TDD로 직접).
    - 이 레포에 `docs/prd.md`·`docs/e2e-test.md`가 있으면 `/start-task`의 REQ·AC·"시험부터(TC 먼저)" 절차를 따른다. 없으면 Issue의 완료 조건이 곧 AC다.
    - TDD로 완료 조건마다 테스트를 먼저. 다른 기능 파일은 고치지 않는다.
@@ -43,7 +43,7 @@ GitHub Issue = 티켓. **한 번 실행 = 한 틱**이다. 반복은 `/loop 5m /
    - `make verify`(CI와 같은 검사. 테스트 개수는 출력하지 않으니 보고에 필요하면 변경한 쪽의 pytest·vitest를 따로 돌려 센다), `reviewer` 서브에이전트 셀프 리뷰.
    - 작업 트리가 깨끗해야 ship이 돈다. `logs/` 같은 추적 안 되는 폴더가 걸리면 지우지 말고 원인을 보고한다.
    - `SHIP_NO_MERGE=1 make ship` (사용자가 `TICKET_LOOP_MERGE=1`로 시작했으면 `make ship`). ship이 sync·충돌 검사·e2e·push·PR·AI 리뷰·Issue 근거 댓글까지 한다. 멈추면 원인을 읽고 고쳐서 다시 실행하고, 3번 실패하면 `blocked`. 머지 조건(`- 머지 조건: #N`)이 안 풀렸으면 `SHIP_NO_MERGE=1`에서는 PR 본문에 ⚠️로 적고 정상 종료한다. `TICKET_LOOP_MERGE=1`이면 "머지 조건이 풀리지 않아"로 멈추는데 이것은 실패가 아니다 — PR은 이미 있으니 PR 생성 뒤와 똑같이 `done`을 표기하고, 코드를 고치지 않고 그 Issue가 닫힌 뒤 틱에서 `make ship`만 다시 (머지 조건이 "완료로 닫히지 않음"이면 사람에게 `needs-human`).
-   - PR이 만들어지면 `scripts/ticket-claim.sh done <번호>` — **구현 완료**(`impl-done` 라벨). 선점·`in-progress`는 머지 때까지 유지된다.
+   - PR이 만들어지고 아직 머지 전이면 `scripts/ticket-claim.sh done <번호>` — **구현 완료**(`impl-done` 라벨). 선점·`in-progress`는 머지 때까지 유지된다. `TICKET_LOOP_MERGE=1`로 ship이 머지까지 했으면 Issue가 닫혔으니 `done`은 건너뛴다.
    - 이슈에 내 요약 댓글 한 개(마커 포함): PR 링크와 요약.
    - PR 본문에는 `Closes #<번호>`가 들어가야 한다 (ship이 만든 본문에 없으면 추가). **이미 닫힌 Issue의 후속 PR이면 `Refs #<번호>`** — ship이 그렇게 쓴다. Closes로 이으면 칸반이 닫힌 카드를 In Review로 되돌린다.
 
