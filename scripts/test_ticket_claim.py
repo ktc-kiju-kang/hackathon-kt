@@ -23,7 +23,9 @@ case "$1 $2" in
   "repo view") f=repo ;; "api user") f=user ;; "pr list") f=prs ;; "issue list") f=agent_pause ;;
   *) case "$*" in
        *pulls/*/comments*) f=pr_comments ;; *pulls/*/reviews*) f=pr_reviews ;;
-       *issues/*/comments*) f=issue_comments ;; *issues\?*) f=issues ;; *) exit 1 ;;
+       *issues/*/comments*) f=issue_comments ;; *issues\?*) f=issues ;;
+       *issues/[0-9]*) n=$(printf '%s' "$*" | sed -E 's|.*/issues/([0-9]+).*|\1|'); f=issue_$n ;;
+       *) exit 1 ;;
      esac ;;
 esac
 jq -r "($expr) | if type==\"string\" or type==\"number\" then tostring else tojson end" "$FIX/$f.json"
@@ -190,6 +192,17 @@ class TicketScriptTest(unittest.TestCase):
         r = self.sh("ticket-claim.sh", "claim", "126", "--dry-run")
         self.assertEqual(r.returncode, 1)
         self.assertIn("열린 선행 Issue", r.stdout)
+
+    def test_claim_requires_closed_predecessor_completed(self):
+        """선행이 not planned로 닫혔으면(목록엔 없어도) 선점하지 않는다. 완료로 닫혔으면 선점 가능."""
+        self.put("issues", [issue(126, body="- 선행: #125 머지 후 시작")])
+        self.put("issue_125", {"number": 125, "state": "closed", "state_reason": "not_planned"})
+        r = self.sh("ticket-claim.sh", "claim", "126", "--dry-run")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("선행 #125 이 완료로 닫히지 않음 (not_planned)", r.stdout)
+        self.put("issue_125", {"number": 125, "state": "closed", "state_reason": "completed"})
+        r = self.sh("ticket-claim.sh", "claim", "126", "--dry-run")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
 
     def test_list_filters_by_role(self):
         self.put(

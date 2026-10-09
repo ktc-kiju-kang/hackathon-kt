@@ -61,14 +61,16 @@ pr_covers() { # $PRS 에 열린 PR이 있는지: 브랜치명 `<type>/<번호>-�
   echo "$PRS" | jq -e --arg n "$1" 'map(select((.headRefName|test("/"+$n+"-")) or ((.body // "")|test("(?i)(closes|fixes|resolves)\\s+#"+$n+"\\b")))) | length > 0' >/dev/null
 }
 
+# 본문 '- 선행: #N …' 줄의 Issue 번호들 (jq 식, 입력 = 본문 문자열)
+DEPS_JQ='(. // "") | scan("(?m)^\\s*[-*]\\s*선행\\s*:[^\n]*") | scan("#([0-9]+)") | .[0] | tonumber'
+
 eligible_json() { # stdin: 이슈 목록, $1: 열린 Issue 번호 JSON 배열 → 후보(오래된 순)
   jq --argjson blocking "$BLOCKING" --argjson trusted "$TRUSTED" --argjson open "${1:-[]}" --arg role "${TICKET_ROLE:-}" '
     map(select((.assignees|length)==0
       and ((.labels|map(select(. as $l | $blocking|index($l)))|length)==0)
       and (.assoc as $a | $trusted|index($a))
       and ($role == "" or (.labels|index("role:" + $role)))
-      and ([(.body // "") | scan("(?m)^\\s*[-*]\\s*선행\\s*:[^\n]*") | scan("#([0-9]+)") | .[0] | tonumber]
-           | all(. as $d | $open|index($d)|not))))
+      and ([.body | '"$DEPS_JQ"'] | all(. as $d | $open|index($d)|not))))
     | sort_by(.created_at)'
 }
 
@@ -91,6 +93,13 @@ cmd_claim() {
   [ -n "$issue" ] || { echo "SKIP #$n: 열린 이슈가 아님"; return 1; }
   echo "$issue" | jq -s '.' | eligible_json "$(echo "$issues" | jq -c 'map(.number)')" | jq -e 'length==1' >/dev/null ||
     { echo "SKIP #$n: 담당자·차단 라벨·신뢰할 수 없는 작성자·다른 역할(TICKET_ROLE)·열린 선행 Issue 중 하나로 대상이 아님"; return 1; }
+  # 닫힌 선행은 '완료'로 닫혔어야 한다 — not planned·중복이면 계약 없이 시작하게 되므로 사람에게 넘긴다
+  local d reason
+  for d in $(echo "$issue" | jq -r ".body | $DEPS_JQ"); do
+    reason=$(api "repos/$repo/issues/$d" --jq '.state_reason // "open"' 2>/dev/null) || reason="조회 실패"
+    [ "$reason" = completed ] ||
+      { echo "SKIP #$n: 선행 #$d 이 완료로 닫히지 않음 ($reason) — 사람이 본문 선행 줄을 고쳐야 함 (needs-human)"; return 1; }
+  done
   PRS=$(open_prs) || die "PR 목록을 읽지 못함"
   pr_covers "$n" && { echo "SKIP #$n: 이미 열린 PR이 있음"; return 1; }
   claims | grep -q "^$n " && { echo "SKIP #$n: 이미 선점됨 ($(claims | grep "^$n " | cut -d' ' -f2))"; return 1; }
