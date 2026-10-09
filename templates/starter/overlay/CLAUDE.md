@@ -86,6 +86,7 @@
 7. AI 리뷰가 "수정 필요"면 지적을 고친다. 리뷰를 다시 돌려 점수를 올리려고 코드를 바꾸지 않고 내용을 고친다. 테스트를 지우거나 skip으로 통과시키지 않는다.
 
 ## Claude 작업 방식
-- 스킬 흐름: `/plan-topic`(기획) → `/new-issue` → `/start-task` → (`/add-endpoint`·`/add-page`·`/add-agent-tool`) → `/handoff`(= `make ship`) → … → `/submit`(제출). 보조: `/sync`·`/pr-check`·`/team-status`.
+- 스킬 흐름: `/plan-topic`(기획) → `/new-issue` → `/start-task` → (`/add-endpoint`·`/add-page`·`/add-agent-tool`) → `/handoff`(= `make ship`) → … → `/submit`(제출). 보조: `/sync`·`/pr-check`·`/team-status`. 이슈 현황: `/issue-monitor`(Slack 알림 + 로컬 대시보드).
 - Issue 생성은 사용자 확인 후. **`make ship`(push·PR·머지 포함)은 사용자가 "ship"·"진행"으로 요청했을 때 실행한다.** ship이 멈추면 원인을 설명하고 고칠 방법을 제안한다.
+- **자동 큐 `/ticket-loop`**(`/loop 5m /ticket-loop`): 루프를 시작한 것을 "ship" 요청으로 본다. 열린 Issue를 `scripts/claim.sh`로 선점하고 명세·댓글대로 구현해 `make ship`까지 한다. **기본은 `SHIP_NO_MERGE=1`(PR·AI 리뷰까지, 머지는 사람)** 이고, 머지까지 맡기려면 사용자가 `TICKET_LOOP_MERGE=1`로 시작한다. main 직접 push·force push·남의 브랜치·Issue 생성은 제외. GitHub 계정당 루프 하나.
 - 사내 GitHub Enterprise면 `gh`가 그 호스트를 보게 한다: `gh auth login --hostname <호스트>` 후 레포 안에서 실행 (또는 `GH_HOST=<호스트>`).
