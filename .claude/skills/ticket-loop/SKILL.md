@@ -1,10 +1,11 @@
 ---
 name: ticket-loop
-description: GitHub Issue(티켓) 큐를 한 번 점검한다 — 열린 Issue를 선점(scripts/claim.sh)하고 명세·댓글대로 구현해 `make ship`으로 PR·AI 리뷰까지 올린다. `/loop 5m /ticket-loop`로 5분마다 돌린다. 머지는 기본적으로 하지 않는다.
+description: GitHub Issue(티켓) 큐를 한 번 점검한다 — 열린 Issue를 선점(scripts/claim.sh)하고 명세·댓글대로 구현해 `make ship`으로 PR·AI 리뷰까지 올린다. `/loop 5m /ticket-loop`로 5분마다 돌린다. 역할 분담이면 `/loop 5m /ticket-loop backend`처럼 역할(architect·backend·frontend)을 주면 그 role: 라벨 티켓만 집는다. 머지는 기본적으로 하지 않는다.
 ---
 
 GitHub Issue = 티켓. **한 번 실행 = 한 틱**이다. 반복은 `/loop 5m /ticket-loop`가 맡고, 이 스킬은 스스로 예약하지 않는다.
 상태는 전부 GitHub(선점 ref `claim/<번호>`·담당자·PR)에 둔다. 세션이 바뀌어도 이어진다.
+**역할:** 인자로 역할(`architect`·`backend`·`frontend`)이 오면 이번 틱의 모든 `scripts/ticket-claim.sh list`·`claim` 앞에 `TICKET_ROLE=<역할>`을 붙인다 — `role:<역할>` 라벨 Issue만 후보가 된다 (`docs/requirements-flow.md` 2절). 인자가 없으면 모든 Issue. 어느 쪽이든 본문 `- 선행: #N` 줄의 Issue가 열려 있으면 스크립트가 후보에서 뺀다.
 큐 조작은 `scripts/ticket-claim.sh`로 한다 (`list` · `claim` · `mine` · `owns` · `done` · `comments` · `pr-comments` · `release`). 선점은 `scripts/claim.sh`가 기준이라 사람(`make claims`)과 같은 기준을 본다. **GitHub 계정당 루프 하나**만 돌린다.
 
 ## 사전 승인과 금지
@@ -23,7 +24,7 @@ GitHub Issue = 티켓. **한 번 실행 = 한 틱**이다. 반복은 `/loop 5m /
    - 새 댓글: `scripts/ticket-claim.sh comments <번호>` — 내 마지막 에이전트 댓글 이후의 신뢰 댓글. **명세 변경·질문·피드백으로 읽고** 코드와 테스트에 반영한다. 답할 게 있으면 댓글로 답한다(마커 포함).
    - PR이 있으면: `scripts/ticket-claim.sh pr-comments <PR번호>`로 리뷰 피드백을 읽고, `gh pr checks <PR번호>`(종료코드 8 = 아직 진행 중이지 실패가 아니다)로 실패한 체크를 확인해 같은 브랜치에 고친 뒤 다시 `make ship`. 같은 체크가 **3번 연속** 실패하면 원인·시도한 것을 댓글로 남기고 `release <번호> blocked`.
    - PR이 **머지 없이 닫혔으면** 사람이 접은 것이다: 이유를 묻는 댓글 후 `release <번호> blocked` (다시 구현하지 않는다). 머지된 Issue는 `Closes #`로 닫히므로 큐에서 사라진다.
-2. **새 티켓 선점** — 진행 중인 게 없을 때만. `scripts/ticket-claim.sh list`의 첫 번호 하나만 본다 (없으면 `대기 중`으로 끝).
+2. **새 티켓 선점** — 진행 중인 게 없을 때만. `scripts/ticket-claim.sh list`(역할이 있으면 `TICKET_ROLE=<역할>` 붙여서)의 첫 번호 하나만 본다 (없으면 `대기 중`으로 끝).
    - `scripts/ticket-claim.sh claim <번호>` — 성공하면 Issue에 `in-progress`(실행중) 라벨과 세션 표식 댓글이 붙는다. 종료코드 0이면 선점 성공, 1이면 졌거나 대상 아님(조용히 다음 틱), 2면 오류(그대로 보고).
 3. **명세 검사** (선점 성공 직후 — 질문 댓글이 중복되지 않게 반드시 선점 뒤에)
    - `gh issue view <번호> --json title,body`로 본문을, `scripts/ticket-claim.sh comments <번호> 1970-01-01T00:00:00Z`로 **선점 전에 달린 댓글까지 전부** 읽는다. 본문과 댓글을 합친 것이 명세다 (충돌하면 나중 댓글이 이긴다). 목표와 완료 조건이 있고 구현 방향을 정할 수 있어야 한다.
