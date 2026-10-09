@@ -69,6 +69,8 @@
 | ship "머지 대기 중" | 다른 사람이 머지 중 — 기다린다. 15분 넘은 잠금은 자동으로 가져온다. 확인: `make lock-status` |
 | start-task·ship "○○ 님이 이미 잡았습니다" | 그 Issue는 다른 사람 담당 — 다른 Issue를 고른다. 주인이 손을 뗐으면 본인이 `make release ISSUE=<번호>`, 연락이 안 되면 합의 후 `scripts/claim.sh release <번호> --force` |
 | ship "머지 조건이 풀리지 않아" | 역할 분담의 FE 티켓이 같은 REQ의 BE보다 먼저 끝났다 — PR은 그대로 두고, PR 본문 ⚠️의 Issue가 머지된 뒤 `make ship`을 다시. "완료로 닫히지 않음"·"'#' 없는 번호"면 Issue의 머지 조건 줄을 사람이 고친다. "판정 실패"·"조회 실패"면 네트워크·`gh auth status`를 확인하고 `make ship`을 다시 |
+| ship "테이블 SQL 초안이 있는 계약이 바뀜" | 루프 자동 머지(`TICKET_LOOP_MERGE=1`)의 G3 — 사람이 계약의 스키마를 보고 GitHub에서 머지한다 (PR은 그대로) |
+| ship "마이그레이션이 계약의 테이블 SQL 초안과 다름" | 출력된 문장을 계약 초안(main)과 맞추거나, 계약부터 바꾸는 PR을 먼저. 의도한 차이면 사람이 확인하고 GitHub에서 머지 |
 | ship "AI 리뷰 수정 필요" | PR 본문 "AI 리뷰"의 차단·높음 지적을 고치고 커밋 → `make ship` |
 | ship "머지 실패 — 보호 규칙" | 배정 레포에 승인 필수 규칙이 있으면 팀원이 `gh pr review <번호> --approve` 후 다시 `make ship` |
 | `make sync` 충돌 | `/pr-check`. 남의 기능·공용 파일이면 담당자와 상의 |

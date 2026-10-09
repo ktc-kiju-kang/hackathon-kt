@@ -34,7 +34,7 @@
 | 메뉴·코드 위치 | 메뉴는 `frontend/src/components/menu-items.ts`에 import 한 줄 + 항목 한 줄만 추가 (기존 줄 수정 금지). `docs/arch.md` "REQ별 코드 위치"는 **자기 REQ 블록만** 고친다 | `.gitattributes` `merge=union`(메뉴), 블록 사이 빈 줄(arch) — 동시에 추가해도 충돌 없음 |
 | 머지 순서 | 기획 때 REQ 머지 순서를 정하고, E2E는 자기 REQ와 **앞선 REQ의 API만** 쓴다 (순환 의존이면 둘 다 머지 못 함) | `/plan-topic`, `/start-task` 의존 확인 |
 | 의존성 | `package.json`·`package-lock.json`·`requirements*.txt` 변경은 **단독 PR**(`chore/deps-<이름>`). 모두 Node 20/npm 10(`.nvmrc`) | `make setup`이 버전 경고, `make sync`가 "make setup 필요" 안내 |
-| DB 마이그레이션 | 파일 이름 = 만든 시각 `YYYYMMDDHHMM_<설명>.sql` → 번호 경쟁 없음. 적용된 파일은 고치지 않는다 | `core/db.py`가 이름 형식 검사 |
+| DB 마이그레이션 | 파일 이름 = 만든 시각 `YYYYMMDDHHMM_<설명>.sql` → 번호 경쟁 없음. 적용된 파일은 고치지 않는다. 역할 분담이면 아키텍트가 계약 `## 테이블 (SQL 초안)`을 쓰고 BE가 그대로 새 파일로 | `core/db.py`가 이름 형식 검사, `scripts/migration_draft.py`(루프 자동 머지) |
 | 시험 기록 문서 | `docs/e2e-test.md` 상태·`docs/prd.md` 상태·`docs/evidence/`는 **기능 PR에 넣지 않는다**. 기록 담당 1명이 main에서 `make record` | `make ship`이 시험 후 기록을 되돌림, record PR은 기록 파일만 허용 |
 | 동시 머지 | 한 번에 한 명만 머지 — GitHub의 `merge-lock` 브랜치로 잠금, 그사이 main이 바뀌면 다시 반영·검사 후 머지 | `make ship` 8단계, `make lock-status` |
 | 오래 열린 브랜치 | 반나절 넘기지 않는다. 시작 전·중간에 `make sync`(merge, force push 불필요) | `make ship` 1단계가 항상 main을 먼저 반영 |
@@ -89,5 +89,5 @@
 ## Claude 작업 방식
 - 스킬 흐름: `/plan-topic`(기획) → `/new-issue` → `/start-task` → (`/add-endpoint`·`/add-page`·`/add-agent-tool`) → `/handoff`(= `make ship`) → … → `/submit`(제출). 보조: `/sync`·`/pr-check`·`/team-status`. 이슈 현황: `/issue-monitor`(Slack 알림 + 로컬 대시보드).
 - Issue 생성은 사용자 확인 후. **`make ship`(push·PR·머지 포함)은 사용자가 "ship"·"진행"으로 요청했을 때 실행한다.** ship이 멈추면 원인을 설명하고 고칠 방법을 제안한다.
-- **자동 큐 `/ticket-loop`**(`/loop 5m /ticket-loop`): 루프를 시작한 것을 "ship" 요청으로 본다. 열린 Issue를 `scripts/claim.sh`로 선점하고 명세·댓글대로 구현해 `make ship`까지 한다. **기본은 `SHIP_NO_MERGE=1`(PR·AI 리뷰까지, 머지는 사람)** 이고, 머지까지 맡기려면 사용자가 `TICKET_LOOP_MERGE=1`로 시작한다. main 직접 push·force push·남의 브랜치·Issue 생성은 제외. GitHub 계정당 루프 하나.
+- **자동 큐 `/ticket-loop`**(`/loop 5m /ticket-loop`): 루프를 시작한 것을 "ship" 요청으로 본다. 열린 Issue를 `scripts/claim.sh`로 선점하고 명세·댓글대로 구현해 `make ship`까지 한다. **기본은 `SHIP_NO_MERGE=1`(PR·AI 리뷰까지, 머지는 사람)** 이고, 머지까지 맡기려면 사용자가 `TICKET_LOOP_MERGE=1`로 시작한다 — 그래도 테이블 SQL 초안이 든 계약을 바꾼 PR과 계약 초안과 다른 마이그레이션은 사람이 머지한다(G3, `make ship`이 멈춤). 역할 루프(`/ticket-loop backend` 등)는 계정당 역할마다 하나. main 직접 push·force push·남의 브랜치·Issue 생성은 제외. (역할 없는 루프는 GitHub 계정당 하나).
 - 사내 GitHub Enterprise면 `gh`가 그 호스트를 보게 한다: `gh auth login --hostname <호스트>` 후 레포 안에서 실행 (또는 `GH_HOST=<호스트>`).
