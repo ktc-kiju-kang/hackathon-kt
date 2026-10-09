@@ -15,7 +15,7 @@ PO ── 분석·질문 ──▶ docs/prd.md (인덱스: 원문 SRC·REQ 표·
    ▼
 PM ── 분해·배분 ──▶ 티켓 분배표 (REQ마다 플랜 1 + 개발 N)    ◀ G2 사람이 분배표 승인 → Issue 생성
    │
-   ├─▶ 아키텍트: 플랜 티켓  [REQ-01][plan]  계약·arch·마이그레이션   ◀ G3 계약 PR 머지
+   ├─▶ 아키텍트: 플랜 티켓  [REQ-01][plan]  계약(테이블 SQL 초안)·arch   ◀ G3 계약 PR 머지
    ├─▶ 백엔드:   개발 티켓  [REQ-01][BE]    API·서비스·테스트·E2E
    └─▶ 프론트:   개발 티켓  [REQ-01][FE]    화면·api.ts·화면 확인
                     │
@@ -29,8 +29,8 @@ PM ── 분해·배분 ──▶ 티켓 분배표 (REQ마다 플랜 1 + 개발
 |---|---|---|---|---|
 | **PO** | 요구사항 원문, `docs/security-policy.md`, 마감 | 원문을 문장 단위로 나눠 SRC ID를 붙이고, REQ·AC·TC로 바꾼다. 애매한 것은 추측하지 않고 질문으로 남긴다. 범위 안/밖·우선순위를 정한다 | `docs/prd.md`(인덱스), `docs/prd/REQ-xx-….md`(REQ별), `docs/e2e-test.md` 시험 목록(상태 `미실행`), 질문 목록 | 티켓 생성, 담당 배정, 구현 방법 결정 |
 | **PM** | 승인된 `docs/prd.md`(커밋 SHA) | REQ마다 플랜·개발 티켓으로 쪼개고 역할에 배분한다. 머지 순서·의존을 정한다. AC가 빠짐·중복 없이 티켓에 하나씩 배정됐는지 확인한다 | 티켓 분배표, GitHub Issue | REQ·AC 추가·수정(→ PO에게 요청), 코드 작성 |
-| **아키텍트** | 플랜 티켓 | API 계약, 화면·API·테이블 구성, 마이그레이션 초안, 필요하면 ADR | `docs/contracts/<feature>.md`, `docs/arch.md` REQ 블록, `docs/decisions/` | 기능 구현 |
-| **백엔드** | 개발 티켓 `[BE]` + 머지된 계약 | `/start-task` → `/add-endpoint`(2단계부터) → `make ship` | `backend/app/{routers,services,schemas}/<feature>.py`, `tests/test_<feature>.py`, `e2e/test_<feature>.py`, 마이그레이션 | 계약 변경(→ 아키텍트), 화면 |
+| **아키텍트** | 플랜 티켓 | API 계약, 화면·API·테이블 구성(계약의 테이블 SQL 초안), 필요하면 ADR | `docs/contracts/<feature>.md`, `docs/arch.md` REQ 블록, `docs/decisions/` | 기능 구현 |
+| **백엔드** | 개발 티켓 `[BE]` + 머지된 계약 | `/start-task` → `/add-endpoint`(2단계부터) → `make ship` | `backend/app/{routers,services,schemas}/<feature>.py`, `tests/test_<feature>.py`, `e2e/test_<feature>.py`, 마이그레이션(계약 초안 그대로) | 계약 변경(→ 아키텍트), 화면 |
 | **프론트** | 개발 티켓 `[FE]` + 머지된 계약 | `/start-task` → `/add-page` → `make ship` | `frontend/src/app/<route>/`, `frontend/src/features/<feature>/`, 메뉴 한 줄 | 계약 변경(→ 아키텍트), API |
 | (리뷰어) | PR | 이미 있는 `reviewer` 에이전트가 `make ship` 안에서 리뷰한다 | PR 본문 "AI 리뷰" | 코드 수정 |
 
@@ -154,7 +154,7 @@ PM은 승인된 정의서만 읽고 분배표를 만든다. 분배표는 사람�
 |---|---|
 | PO | `po` 에이전트 (`.claude/agents/po.md`) — 1절. 사람 대신 질문을 정하지 않고 질문·가정 목록을 넘긴다 |
 | PM | `pm` 에이전트 (`.claude/agents/pm.md`) — 2절 분배표·AC 대조표·티켓 본문 초안. Issue 생성은 G2 승인 후 `/new-issue` |
-| 아키텍트 | `architect` 에이전트 (`.claude/agents/architect.md`) — 플랜 티켓: 계약·arch 블록·마이그레이션 초안·확장 지점 |
+| 아키텍트 | `architect` 에이전트 (`.claude/agents/architect.md`) — 플랜 티켓: 계약(테이블 SQL 초안)·arch 블록·확장 지점 |
 | 백엔드·프론트 | `/start-task` → `/add-endpoint`·`/add-page` → `/handoff`. 자동으로 돌리면 `/ticket-loop` |
 | 리뷰어 | `reviewer` 에이전트 (`make ship`) — Issue의 요구사항 근거와 변경 내용이 맞는지도 본다 |
 
@@ -164,4 +164,4 @@ PM은 승인된 정의서만 읽고 분배표를 만든다. 분배표는 사람�
 3차(2026-10-09, 내보낸 키트에서 `po`·`pm` 에이전트, 사내 비품 대여 8문장): REQ 6·AC 32·TC 35, 티켓 16개(근거·AC 대조 이상 없음). 판단한 곳 중 기반 기능의 AC, 만들 수 없는 시험 데이터, 오류 AC 기준, 플랜 직렬화, 선행과 머지 조건 구분, 임시 번호, 선택 REQ의 Issue 시점을 규칙으로 넣었다.
 4차(같은 주제, 고친 키트): REQ 7·AC 44·TC 49, 티켓 19개(plan 6·BE 6·FE 7, 대조 이상 없음). 직원 식별이 AC 5개의 REQ로 생겼고, FE는 플랜만 선행·같은 REQ BE는 머지 조건으로 나뉘어 BE와 병렬. 새로 나온 판단(기반 기능이 클 때, 식별 방식, 플랜 없는 REQ의 결정, 여러 REQ에 걸친 TC, 직접 의존, Issue 양식 없음, NN 변환 범위)을 규칙으로 넣었다.
 
-역할별 `/ticket-loop` 실주행(2026-10-09, 내보낸 키트·임시 비공개 레포, 한 계정에서 architect·backend·frontend 루프, `TICKET_LOOP_MERGE=1`): 메모판 REQ 1개 → plan·BE·FE Issue 3개가 모두 루프로 머지됐다 (plan → BE·FE 병렬, FE는 BE보다 먼저 PR을 올리고 머지 조건으로 대기 → BE 머지 뒤 다시 ship해 머지). 고친 것: 역할 루프의 `mine`, 선점 확인의 SIGPIPE(해제가 성공으로 보이던 것), 새 레포의 `in-progress` 라벨, 시험에 섞이던 `TICKET_ROLE`, 머지 조건 대기 중 AI 리뷰가 "BE 없음"을 높음으로 막던 것, worktree에서 ship 9단계가 엉뚱한 커밋을 검사하던 것, 화면 TC 경로(`*.test.ts`), arch 블록의 BE·FE 줄 충돌. 남은 결정: 새 테이블 마이그레이션 — 스킬은 사람 확인(`needs-human`)인데 역할 분담에서는 BE 티켓의 일이라, BE 루프가 매번 멈춘다 (이번엔 사람 댓글로 승인).
+역할별 `/ticket-loop` 실주행(2026-10-09, 내보낸 키트·임시 비공개 레포, 한 계정에서 architect·backend·frontend 루프, `TICKET_LOOP_MERGE=1`): 메모판 REQ 1개 → plan·BE·FE Issue 3개가 모두 루프로 머지됐다 (plan → BE·FE 병렬, FE는 BE보다 먼저 PR을 올리고 머지 조건으로 대기 → BE 머지 뒤 다시 ship해 머지). 고친 것: 역할 루프의 `mine`, 선점 확인의 SIGPIPE(해제가 성공으로 보이던 것), 새 레포의 `in-progress` 라벨, 시험에 섞이던 `TICKET_ROLE`, 머지 조건 대기 중 AI 리뷰가 "BE 없음"을 높음으로 막던 것, worktree에서 ship 9단계가 엉뚱한 커밋을 검사하던 것, 화면 TC 경로(`*.test.ts`), arch 블록의 BE·FE 줄 충돌. 새 테이블 마이그레이션은 BE 루프가 매번 `needs-human`으로 멈춰서(이번엔 사람 댓글로 승인), 머지된 플랜 계약의 테이블 초안 그대로 새 파일 1개를 만드는 것은 BE 루프가 진행하도록 정했다 (`/ticket-loop` 3단계).

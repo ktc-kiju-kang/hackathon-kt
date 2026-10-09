@@ -9,7 +9,7 @@ argument-hint: <feature> <METHOD> <path> <설명>
 
 1. **계약** — `docs/contracts/<feature>.md` (없으면 `docs/contracts/README.md` 템플릿으로 생성하고 목록에 추가)에 메서드·경로(`/api/<feature>/...`)·Request/Response JSON·에러·관련 REQ ID를 적는다. 사용자에게 보여주고 확인받는다. `docs/arch.md` "API" 표에도 한 줄.
 2. **데이터 저장 위치** — 공개된 읽기 전용 데이터면 `backend/data/` 파일 + 메모리 로드. 사용자가 만드는 데이터면 DB:
-   **DB** — `database/migrations/$(date +%Y%m%d%H%M)_<설명>.sql` 새 파일 (만든 시각 이름 — 번호 경쟁 없음) (PostgreSQL 문법, 규칙: `database/README.md`). 소유자 컬럼을 두고, 서버를 다시 켜면 자동 적용된다. 계약 문서와 `docs/arch.md` "데이터 모델"에도 적는다.
+   **DB** — `database/migrations/$(date +%Y%m%d%H%M)_<설명>.sql` 새 파일 (만든 시각 이름 — 번호 경쟁 없음) (PostgreSQL 문법, 규칙: `database/README.md`). 계약에 `## 테이블 (SQL 초안)`이 있으면 그 SQL 그대로 쓴다 (다르게 해야 하면 계약부터 바꾼다). 소유자 컬럼을 두고, 서버를 다시 켜면 자동 적용된다. 계약 문서와 `docs/arch.md` "데이터 모델"에도 적는다.
 3. **backend** (`backend/app/`) — 기능 이름은 backend·frontend `features/`·계약·테스트·API 경로에서 모두 같게 쓴다.
    - `schemas/<feature>.py`: Pydantic 모델 (계약과 필드명·타입 일치, 문자열 길이 상한 `Field(max_length=...)`)
    - `services/<feature>.py`: 로직·DB 접근 (`with get_db() as db: db.execute("... where owner_id = ?", (...))`). **행 접근 권한 체크를 service에서** 한다 (남의 것이면 404)

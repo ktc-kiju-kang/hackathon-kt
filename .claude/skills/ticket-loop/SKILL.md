@@ -30,7 +30,7 @@ GitHub Issue = 티켓. **한 번 실행 = 한 틱**이다. 반복은 `/loop 5m /
    - `gh issue view <번호> --json title,body`로 본문을, `scripts/ticket-claim.sh comments <번호> 1970-01-01T00:00:00Z`로 **선점 전에 달린 댓글까지 전부** 읽는다. 본문과 댓글을 합친 것이 명세다 (충돌하면 나중 댓글이 이긴다). 목표와 완료 조건이 있고 구현 방향을 정할 수 있어야 한다.
    - **대상 코드가 `origin/main`에 있는지** 확인한다: 명세가 가리키는 파일·함수가 `git ls-tree`·`git grep <심볼> origin/main`에 없으면 (Issue가 낡았거나 기능이 제거됨) 구현하지 말고 근거를 댓글로 남긴다.
    - 모호하거나 낡았으면 **구체적인 질문을 댓글로** 남기고 `release <번호> needs-info`. 추측으로 구현하지 않는다.
-   - **사람이 봐야 하는 변경**이면 이유를 댓글로 남기고 `release <번호> needs-human`: DB 마이그레이션, `.github/workflows/`, 의존성(`package.json`·`requirements*.txt`), `.claude/`·CLAUDE.md 규칙, 시크릿·배포 설정, 다른 기능의 계약 변경, **CLAUDE.md의 공용 파일**. 구현하다 이런 변경이 필요해지면 중단하고 같은 방식으로 `blocked` 또는 `needs-human`.
+   - **사람이 봐야 하는 변경**이면 이유를 댓글로 남기고 `release <번호> needs-human`: DB 마이그레이션(예외: `role:backend` 라벨 티켓이고 `origin/main`의 `docs/contracts/<feature>.md` `## 테이블 (SQL 초안)` 절에 그 테이블이 있고 초안이 `CREATE TABLE`·`CREATE INDEX`뿐이면, 그 SQL 그대로 **새 파일 1개**를 만드는 것은 진행한다 (사람 확인은 그 초안이 든 플랜 PR 머지 = G3에서 한다) — PR 본문에 "마이그레이션 = 계약 초안 그대로"와 초안·파일 diff 결과를 적는다. 기존 마이그레이션 수정·초안과 다른 컬럼·제약·초안 없는 테이블은 사람), `.github/workflows/`, 의존성(`package.json`·`requirements*.txt`), `.claude/`·CLAUDE.md 규칙, 시크릿·배포 설정, 다른 기능의 계약 변경, **CLAUDE.md의 공용 파일**. 구현하다 이런 변경이 필요해지면 중단하고 같은 방식으로 `blocked` 또는 `needs-human`.
    - 사람이 답하고 라벨(`needs-info`·`needs-human`·`blocked`)을 **떼면 다시 후보가 된다.**
 4. **구현**
    - 계약(`docs/contracts/`)과 `.claude/rules/`를 읽는다. 새 API면 계약부터 (`/add-endpoint` 절차).
@@ -42,7 +42,7 @@ GitHub Issue = 티켓. **한 번 실행 = 한 틱**이다. 반복은 `/loop 5m /
    - **빌드·유닛 테스트·pre-commit 검사:** `make verify`가 lint·타입·pytest·vitest·`next build`를 CI와 같게 돌린다 (별도 pre-commit 훅은 없다). 통과하기 전에는 PR로 가지 않는다.
    - `make verify`(CI와 같은 검사. 테스트 개수는 출력하지 않으니 보고에 필요하면 변경한 쪽의 pytest·vitest를 따로 돌려 센다), `reviewer` 서브에이전트 셀프 리뷰.
    - 작업 트리가 깨끗해야 ship이 돈다. `logs/` 같은 추적 안 되는 폴더가 걸리면 지우지 말고 원인을 보고한다.
-   - `SHIP_NO_MERGE=1 make ship` (사용자가 `TICKET_LOOP_MERGE=1`로 시작했으면 `make ship`). ship이 sync·충돌 검사·e2e·push·PR·AI 리뷰·Issue 근거 댓글까지 한다. 멈추면 원인을 읽고 고쳐서 다시 실행하고, 3번 실패하면 `blocked`. 머지 조건(`- 머지 조건: #N`)이 안 풀렸으면 `SHIP_NO_MERGE=1`에서는 PR 본문에 ⚠️로 적고 정상 종료한다. `TICKET_LOOP_MERGE=1`이면 "머지 조건이 풀리지 않아"로 멈추는데 이것은 실패가 아니다 — PR은 이미 있으니 PR 생성 뒤와 똑같이 `done`을 표기하고, 코드를 고치지 않고 그 Issue가 닫힌 뒤 틱에서 `make ship`만 다시 (머지 조건이 "완료로 닫히지 않음"이면 사람에게 `needs-human`).
+   - `SHIP_NO_MERGE=1 make ship` (사용자가 `TICKET_LOOP_MERGE=1`로 시작했으면 `TICKET_LOOP_MERGE=1 make ship`. 단 `## 테이블` 절이 있는 계약을 바꾼 PR은 `make ship`이 머지하지 않고 멈춘다 — 스키마는 사람이 G3에서 보고 머지한다. 이것도 실패가 아니니 `done` 표기 후 사람의 머지를 기다린다). ship이 sync·충돌 검사·e2e·push·PR·AI 리뷰·Issue 근거 댓글까지 한다. 멈추면 원인을 읽고 고쳐서 다시 실행하고, 3번 실패하면 `blocked`. 머지 조건(`- 머지 조건: #N`)이 안 풀렸으면 `SHIP_NO_MERGE=1`에서는 PR 본문에 ⚠️로 적고 정상 종료한다. `TICKET_LOOP_MERGE=1`이면 "머지 조건이 풀리지 않아"로 멈추는데 이것은 실패가 아니다 — PR은 이미 있으니 PR 생성 뒤와 똑같이 `done`을 표기하고, 코드를 고치지 않고 그 Issue가 닫힌 뒤 틱에서 `make ship`만 다시 (머지 조건이 "완료로 닫히지 않음"이면 사람에게 `needs-human`).
    - PR이 만들어지고 아직 머지 전이면 `scripts/ticket-claim.sh done <번호>` — **구현 완료**(`impl-done` 라벨). 선점·`in-progress`는 머지 때까지 유지된다. `TICKET_LOOP_MERGE=1`로 ship이 머지까지 했으면 Issue가 닫혔으니 `done`은 건너뛴다.
    - 이슈에 내 요약 댓글 한 개(마커 포함): PR 링크와 요약.
    - PR 본문에는 `Closes #<번호>`가 들어가야 한다 (ship이 만든 본문에 없으면 추가). **이미 닫힌 Issue의 후속 PR이면 `Refs #<번호>`** — ship이 그렇게 쓴다. Closes로 이으면 칸반이 닫힌 카드를 In Review로 되돌린다.
