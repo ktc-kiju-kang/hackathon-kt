@@ -71,12 +71,17 @@ class DecideTest(unittest.TestCase):
         # 이전 높음이 미해결 → 막는다
         r = result(previous=[{"index": 1, "status": "미해결", "note": ""}, {"index": 2, "status": "해결", "note": ""}])
         self.assertEqual(ar.decide(r, prev), (True, ["이전 차단·높음 미해결 1건"]))
+        # 이전 높음을 previous에서 빠뜨리거나 '해당없음'으로 적어도 '해결'이 아니면 막는다 (우회 방지)
+        r = result(previous=[{"index": 2, "status": "해결", "note": ""}])
+        self.assertEqual(ar.decide(r, prev), (True, ["이전 차단·높음 미해결 1건"]))
+        r = result(previous=[{"index": 1, "status": "해당없음", "note": ""}, {"index": 2, "status": "해결", "note": ""}])
+        self.assertEqual(ar.decide(r, prev)[0], True)
         # 차단은 언제나
         r = result(blocking=["데이터 손실"], previous=resolved)
         self.assertEqual(ar.decide(r, prev)[1], ["차단 1건"])
-        # 범위 밖 index는 무시
+        # 범위 밖 index는 무시하되, 그러면 이전 높음(1번)의 판정이 없는 것이라 미해결로 본다
         r = result(previous=[{"index": 9, "status": "미해결", "note": ""}])
-        self.assertEqual(ar.decide(r, prev), (False, []))
+        self.assertEqual(ar.decide(r, prev), (True, ["이전 차단·높음 미해결 1건"]))
         # 지난 재리뷰에서 '기록만' 한 높음(이번 변경 -)은 미해결이어도 막지 않는다
         prev2 = [{"severity": "높음", "location": "a", "problem": "범위 밖 높음", "in_delta": False}]
         r = result(previous=[{"index": 1, "status": "미해결", "note": ""}])

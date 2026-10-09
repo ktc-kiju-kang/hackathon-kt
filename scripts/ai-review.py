@@ -133,9 +133,10 @@ def decide(r: dict, previous: list[dict]) -> tuple[bool, list[str]]:
         if highs:
             why.append(f"높음 {len(highs)}건")
     else:
-        unresolved = [p for p in r.get("previous", []) if p["status"] == "미해결"
-                      and 0 <= p["index"] - 1 < len(previous) and previous[p["index"] - 1]["severity"] in ("차단", "높음")
-                      and previous[p["index"] - 1].get("in_delta", True)]  # 그때 머지를 막았던 것만
+        # 그때 머지를 막았던 지적(차단·높음, 이번 변경 ✓)은 '해결'로 명시돼야 통과 — 빠뜨리거나 '해당없음'이면 미해결로 (수렴 규칙 우회 방지)
+        status = {p["index"]: p["status"] for p in r.get("previous", [])}
+        unresolved = [i for i, p in enumerate(previous, 1)
+                      if p["severity"] in ("차단", "높음") and p.get("in_delta", True) and status.get(i) != "해결"]
         if unresolved:
             why.append(f"이전 차단·높음 미해결 {len(unresolved)}건")
         new_high = [f for f in highs if f.get("in_delta")]
@@ -311,11 +312,11 @@ def main() -> int:
     ap.add_argument("--merge-wait", default="", help="Issue 머지 조건이 안 풀린 이유 (make ship이 따로 막는다)")
     args = ap.parse_args()
     head = sh("git", "rev-parse", "HEAD")
-    prev_commit, previous = previous_findings(sh("gh", "pr", "view", args.pr, "--json", "body", "-q", ".body"))
     try:
+        prev_commit, previous = previous_findings(sh("gh", "pr", "view", args.pr, "--json", "body", "-q", ".body"))
         result = run_review(args.base, head, args.issue, args.merge_wait, prev_commit, previous)
         block, total, blocking, verdict = render(result, head[:12], previous)
-    except (RuntimeError, KeyError, ValueError, TypeError, subprocess.TimeoutExpired) as e:
+    except (RuntimeError, KeyError, ValueError, TypeError, subprocess.TimeoutExpired, subprocess.CalledProcessError) as e:
         print(f"  ❌ AI 리뷰 실패: {e}")
         return 2
     put_block(args.pr, block)
