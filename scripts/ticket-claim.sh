@@ -11,7 +11,7 @@
 #   scripts/ticket-claim.sh release <번호> [라벨]       선점 해제 (+ needs-info|needs-human|blocked 라벨), in-progress 라벨 제거
 #   scripts/ticket-claim.sh owns <번호>                 이 세션이 잡은 티켓인가. 종료코드 0=내 세션(또는 세션 표식 없음), 1=같은 계정의 다른 세션
 #   scripts/ticket-claim.sh done <번호>                 구현 완료 표기: impl-done 라벨 (PR 생성 뒤)
-#   scripts/ticket-claim.sh merge-wait <번호>           본문 '- 머지 조건: #N' 중 아직 머지해선 안 되는 이유를 한 줄씩. 종료코드 0=없음, 1=있음 (make ship이 쓴다)
+#   scripts/ticket-claim.sh merge-wait <번호>           본문 '- 머지 조건: #N' 중 아직 머지해선 안 되는 이유를 한 줄씩. 종료코드 0=없음, 1=있음, 2=판정 실패 (make ship이 쓴다)
 # claim 은 성공하면 in-progress 라벨과 세션 표식 댓글(<!-- ticket-agent session=ID -->)을 남긴다. 세션 ID 는 TICKET_SESSION, 없으면 호스트·경로 해시.
 #
 # 동시성: claim.sh 가 refs/heads/claim/<번호> 를 "없을 때만" 만든다 → 사람(make claims)과 루프가 같은 기준을 본다.
@@ -27,9 +27,13 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 CLAIM="$HERE/claim.sh"
 
 die() { echo "❌ $*" >&2; exit 2; }
-[ -x "$CLAIM" ] || die "scripts/claim.sh 가 없다 (main 의 시작 키트가 필요)"
-repo=$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null) || die "gh 로그인·저장소 확인 실패"
-me=$(gh api user --jq .login 2>/dev/null) || die "gh api user 실패"
+# 선점 도구·저장소·계정은 필요할 때 확인한다 — merge-wait는 머지 조건 줄이 없으면 묻지 않는다 (make ship이 이 확인 실패로 막히지 않게)
+need_gh() {
+  [ -n "${repo:-}" ] && return 0
+  [ -x "$CLAIM" ] || die "scripts/claim.sh 가 없다 (main 의 시작 키트가 필요)"
+  repo=$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null) || die "gh 로그인·저장소 확인 실패"
+  me=$(gh api user --jq .login 2>/dev/null) || die "gh api user 실패"
+}
 ROOT=$(git -C "$HERE" rev-parse --show-toplevel)
 # 세션 ID: 같은 계정의 다른 세션과 구분한다 (호스트명은 공개 댓글에 쓰지 않고 해시만 쓴다)
 SID=${TICKET_SESSION:-$(printf '%s' "$(hostname)$(git -C "$ROOT" rev-parse --git-common-dir)" | shasum | cut -c1-8)}
@@ -150,9 +154,13 @@ cmd_claim() {
 
 # FE 티켓의 '- 머지 조건:'(같은 REQ의 BE)이 완료로 닫히기 전에는 머지하지 않는다 — 선행과 같은 기준
 cmd_merge_wait() {
-  local n=$1 body d st ok=1
+  local n=$1 has body d st ok=1
   num_or_die "$n"
-  body=$(api "repos/$repo/issues/$n" --jq .body) || die "Issue #$n 조회 실패"
+  # 머지 조건 줄 판정은 여기 한 곳 (make ship은 이 명령만 부른다). gh 내장 jq라 줄이 없으면 jq 설치도 묻지 않는다
+  has=$(gh issue view "$n" --json body --jq '.body // "" | test("(?m)^\\s*[-*]\\s*머지\\s*조건\\s*:")') || die "Issue #$n 조회 실패"
+  [ "$has" = true ] || return 0
+  need_gh
+  body=$(api "repos/$repo/issues/$n" --jq '.body // ""') || die "Issue #$n 조회 실패"
   jq -en --arg b "$body" "\$b | $(bare_jq '머지\\s*조건')" >/dev/null &&
     { echo "머지 조건 줄에 '#' 없는 번호(티켓 초안 NN?) — 사람이 #번호로 고친다"; ok=0; }
   for d in $(jq -rn --arg b "$body" "\$b | $(deps_jq '머지\\s*조건')"); do
@@ -247,8 +255,9 @@ cmd_release() {
   echo "RELEASED #$n${state:+ → $state}"
 }
 
-case "${TICKET_ROLE:-}" in ""|architect|backend|frontend) ;; *) die "TICKET_ROLE은 architect|backend|frontend 중 하나: $TICKET_ROLE" ;; esac
+[ "${1:-}" = merge-wait ] || case "${TICKET_ROLE:-}" in ""|architect|backend|frontend) ;; *) die "TICKET_ROLE은 architect|backend|frontend 중 하나: $TICKET_ROLE" ;; esac
 
+case "${1:-}" in merge-wait|"") ;; *) need_gh ;; esac
 case "${1:-}" in
   list)        cmd_list ;;
   claim)       [ -n "${2:-}" ] || die "사용법: claim <번호> [--dry-run]"; cmd_claim "$2" "${3:-}" ;;
