@@ -126,7 +126,7 @@ cmd_claim() {
   if echo "$issue" | jq -e ".body | $(bare_jq 선행)" >/dev/null; then
     [ "$dry" = "--dry-run" ] || {
       gh label create needs-human --color D93F0B >/dev/null 2>&1 || true
-      gh issue edit "$n" --add-label needs-human >/dev/null 2>&1 || echo "⚠️  #$n 에 needs-human을 붙이지 못함" >&2
+      gh issue edit "$n" --add-label needs-human >/dev/null 2>&1 || die "#$n 에 needs-human을 붙이지 못함 — 큐에 남는다 (라벨 권한·네트워크 확인)"
     }
     echo "SKIP #$n: 선행 줄에 '#' 없는 번호(티켓 초안 NN?) — needs-human, 사람이 #번호로 고친다"; return 1
   fi
@@ -139,7 +139,7 @@ cmd_claim() {
         # 기다려도 풀리지 않는다 — 스크립트가 직접 needs-human을 붙여 후보에서 빼고 큐가 멈추지 않게 한다
         [ "$dry" = "--dry-run" ] || {
           gh label create needs-human --color D93F0B >/dev/null 2>&1 || true
-          gh issue edit "$n" --add-label needs-human >/dev/null 2>&1 || echo "⚠️  #$n 에 needs-human을 붙이지 못함" >&2
+          gh issue edit "$n" --add-label needs-human >/dev/null 2>&1 || die "#$n 에 needs-human을 붙이지 못함 — 큐에 남는다 (라벨 권한·네트워크 확인)"
         }
         echo "SKIP #$n: 선행 #$d 이 완료로 닫히지 않음 ($reason) — needs-human, 사람이 본문 선행 줄을 고친다"; return 1 ;;
     esac
