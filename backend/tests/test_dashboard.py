@@ -78,6 +78,25 @@ def test_dashboard_local_sections_empty_repo(repo_root):
     assert body["reqs"] == {"status": "none", "items": []}
 
 
+def test_read_reqs_index_with_child_links(tmp_path):
+    """prd.md가 인덱스일 때: ID 칸이 하위 정의서 링크, 상태 앞에 '확인 조건' 칸."""
+    prd = tmp_path / "prd.md"
+    prd.write_text(
+        "| ID | 출처 | 요구사항 | 우선순위 | Issue | 확인 조건 | 상태 |\n"
+        "|---|---|---|---|---|---|---|\n"
+        "| **[REQ-01](prd/REQ-01-todo.md)** | 주최 (SRC-01) | 할 일을 등록한다"
+        " | 필수 | #3 | AC-01-1 | 구현됨-미검증 |\n",
+        encoding="utf-8",
+    )
+    [r] = dashboard.read_reqs(prd).items
+    assert (r.id, r.title, r.issue, r.state) == (
+        "REQ-01",
+        "할 일을 등록한다",
+        "#3",
+        "구현됨-미검증",
+    )
+
+
 def test_dashboard_reads_latest_evidence_and_prd(repo_root):
     old = repo_root / ".run" / "evidence" / "20261007-090000-aaaaaaa"
     new = repo_root / "docs" / "evidence" / "20261008-173723-b54b3d8"
@@ -325,6 +344,9 @@ def test_readiness_checks_team_repo(repo_root, monkeypatch):
     (repo_root / "docs").mkdir()
     (repo_root / "docs" / "prd.md").write_text(PRD, encoding="utf-8")  # REQ-02가 계획
     (repo_root / "README.md").write_text("# {{서비스 이름}}\n{{설명}}\n", encoding="utf-8")
+    (repo_root / "docs" / "prd").mkdir()
+    (repo_root / "docs" / "prd" / "REQ-01-a.md").write_text("{{AC}}", encoding="utf-8")
+    (repo_root / "docs" / "prd" / "_memo.md").write_text("{{메모}}", encoding="utf-8")  # 제외
     _evidence(repo_root, "20261008-100000-ccccccc", "PASS", sha, "| be | 10개 중 실패 0 | x |\n")
     body = client.get("/api/dashboard").json()
     assert _checks(body) == {
@@ -334,7 +356,10 @@ def test_readiness_checks_team_repo(repo_root, monkeypatch):
         "reqs": "fail",
     }
     detail = {c["key"]: c["detail"] for c in body["readiness"]["checks"]}
-    assert detail["placeholders"] == "README.md 2개" and "REQ-02" in detail["reqs"]
+    assert (
+        detail["placeholders"] == "README.md 2개 · docs/prd/REQ-01-a.md 1개"
+        and "REQ-02" in detail["reqs"]
+    )
 
 
 def test_readiness_evidence_from_other_commit_or_dirty_fails(repo_root, monkeypatch):

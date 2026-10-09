@@ -38,6 +38,7 @@ say "문서·보안·PR 점수"
 [ -f "$ROOT/scripts/test_pr_review_score.py" ] && step pr-score-test "$ROOT" python3 scripts/test_pr_review_score.py
 [ -f "$ROOT/scripts/test_issue_monitor.py" ] && step issue-monitor-test "$ROOT" python3 scripts/test_issue_monitor.py
 [ -f "$ROOT/scripts/test_ticket_claim.py" ] && step ticket-claim-test "$ROOT" python3 scripts/test_ticket_claim.py
+[ -f "$ROOT/scripts/test_prd_docs.py" ] && step prd-docs-test "$ROOT" python3 scripts/test_prd_docs.py
 if [ ! -f "$ROOT/docs/prd.md" ]; then
   printf '  %-22s \033[33mSKIP\033[0m (제출 문서 없음 — 키트 원본 레포)\n' docs
 elif [ "$strict" = 1 ]; then

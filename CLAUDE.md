@@ -22,6 +22,7 @@
 | backend 코드·테스트·DB | `.claude/rules/backend.md`, `database/README.md` | `backend/**`를 다룰 때 자동 |
 | AI 에이전트·LLM | `.claude/rules/agent.md` | 자동 |
 | 파이프라인 (단계·게이트·시간표·장애 대응) | `docs/pipeline.md` | 링크 |
+| 요구사항 → 정의서 → 티켓 (PO·PM·역할 에이전트, 티켓의 요구사항 근거) | `docs/requirements-flow.md` | 링크 |
 | 키트 내보내기·리허설 | `templates/starter/README.md` | 링크 |
 | 제출 문서 8개·채점 근거 | `templates/submission/GUIDE.md` | 링크 |
 | PR 자동 점검 점수 (#80) | `docs/superpowers/specs/2026-10-03-pr-review-scoring-design.md`, `scripts/pr_review_score.py` | 링크 |

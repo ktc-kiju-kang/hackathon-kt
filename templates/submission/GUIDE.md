@@ -15,7 +15,7 @@
 |---|---|---|
 | `README.md` | 한 줄 소개, 실행 방법, 8개 문서·결과로 가는 링크 | 처음 뼈대 → 마지막에 결과 링크 |
 | `docs/project-brief.md` | 문제·대상 사용자·목표·범위(주최 요구 vs 팀 추가) | 주제 공개 직후 (1시간 안) |
-| `docs/prd.md` | REQ·AC 표 — **모든 ID의 원본** | 주제 공개 직후 |
+| `docs/prd.md` | 요구사항 정의서 **인덱스** — 원문(SRC)·REQ 표·상태. REQ별 AC는 하위 정의서 `docs/prd/REQ-01-<설명>.md` (ID 칸이 링크). **모든 ID의 원본** | 주제 공개 직후 |
 | `docs/arch.md` | 구성도·기술 선택 이유·데이터·API·REQ별 코드 위치 | 구현 시작 전 → 구현하며 갱신 |
 | `docs/experience.md` | 화면 흐름·화면별 REQ·KDS 적용·오류/빈 상태 | 화면 만들 때 |
 | `docs/development.md` | 개발 과정·AI 활용 기록(AI가 한 것 vs 사람이 확인·고친 것)·결정 | 계속 (작업 끝날 때마다 한 줄) |
@@ -31,7 +31,7 @@
    python3 templates/starter/export.py <배정레포>
    ```
    키트 없이 문서만: `rsync -a --exclude GUIDE.md templates/submission/ <배정레포>/`
-2. `project-brief.md` → `prd.md`: 주제 요구를 REQ로 옮기고(출처=주최), 팀 아이디어는 출처=팀으로 따로 적는다. REQ마다 AC를 1개 이상.
+2. `project-brief.md` → `prd.md`: 주제 원문을 SRC로 나눠 붙이고, 요구를 REQ로 옮기고(출처=`주최 (SRC-…)`), 팀 아이디어는 출처=팀으로 따로 적는다. REQ마다 하위 정의서 `docs/prd/REQ-<번호>-<설명>.md`(양식 `docs/prd/REQ-01.md` 복사)에 AC를 1개 이상, 인덱스 표의 '확인 조건' 칸에 그 AC 목록.
 3. REQ마다 GitHub Issue를 주최 양식(개발 작업·검증)으로 만든다. Issue 제목에 `[REQ-01]`.
 4. `e2e-test.md`에 TC 시나리오(GIVEN/WHEN/THEN)를 **구현 전에** 적는다. 상태는 `미실행`.
 5. `security-compliance.md`에 SEC 행을 정책 그대로 만들고 적용/해당 없음을 먼저 정한다.
@@ -42,8 +42,10 @@
 ## ID 규칙
 | ID | 뜻 | 정의하는 곳 | 참조하는 곳 |
 |---|---|---|---|
-| `REQ-01` | 요구사항 | `prd.md` | 모든 문서, Issue 제목 |
-| `AC-01-1` | REQ-01의 1번 확인 조건 | `prd.md` | `e2e-test.md`, Issue 완료 조건 |
+| `SRC-01` | 주제 원문의 1번 문장 | `prd.md` "원문" | `prd.md` 출처 칸·하위 정의서·Issue 근거 |
+| `FLOW-01` | 핵심 사용자 흐름 | `experience.md` 1절 | 하위 정의서 "관련 흐름" |
+| `REQ-01` | 요구사항 | `prd.md` 요구사항 표 | 모든 문서, Issue 제목 |
+| `AC-01-1` | REQ-01의 1번 확인 조건 | `docs/prd/REQ-01-….md` | `prd.md` '확인 조건' 칸, `e2e-test.md`, Issue 완료 조건 |
 | `TC-01-1` | AC-01-1을 확인하는 1번 시험 | `e2e-test.md` | `security-compliance.md`, Issue 근거 |
 | `TC-S01-1` | SEC-01을 확인하는 1번 시험 | `e2e-test.md` | `security-compliance.md` |
 | `SEC-01` | 주최 보안 기준 항목 | `security-policy.md` (주최) | `security-compliance.md`, `e2e-test.md` |

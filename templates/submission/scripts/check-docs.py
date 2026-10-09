@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""제출 문서 8개 검사 — 빠진 문서, 남은 {{자리표시}}, 끊긴 REQ→AC→TC 사슬, SEC 누락.
+"""제출 문서 8개 검사 — 빠진 문서, 남은 {{자리표시}}, 끊긴 SRC→REQ→AC→TC 사슬, SEC 누락.
+
+prd.md는 인덱스(원문 SRC·요구사항 표·상태)이고, REQ별 확인 조건(AC)은 요구사항 표의 ID 칸이
+링크한 하위 정의서 docs/prd/REQ-01-<설명>.md에 둔다 (하위 파일 없이 prd.md 한 파일에 AC를 둬도 된다).
 
 사용: python3 scripts/check-docs.py [--draft] [저장소 루트]
   --draft  작성 중: 자리표시·미실행·빈 표는 경고로만 본다 (제출 직전에는 빼고 실행)
@@ -25,6 +28,10 @@ PLACEHOLDER = re.compile(r"\{\{[^}]*\}\}")
 COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
 # 한글 조사("REQ-01을")가 붙어도 잡히도록 \b 대신 영문·숫자만 막는 경계를 쓴다
 ID_RE = re.compile(r"(?<![A-Za-z0-9-])((?:REQ|AC|TC|SEC)-S?\d+(?:-\d+)?)(?![0-9])")
+PRD_LINK = re.compile(r"\]\((prd/[^)\s#]+)\)")  # 요구사항 표 ID 칸: [REQ-01](prd/REQ-01-login.md)
+CHILD_NAME = re.compile(r"REQ-(\d+)(?:-[a-z0-9-]+)?\.md")
+SRC_RE = re.compile(r"SRC-\d+")
+FLOW_RE = re.compile(r"FLOW-\d+")
 ID_PAT = {
     "REQ": r"REQ-\d+",
     "AC": r"AC-\d+-\d+",
@@ -83,6 +90,28 @@ def req_of(ac: str) -> str:
     return "REQ-" + ac.split("-")[1]
 
 
+def prd_children(
+    root: Path, parent: str, errors: list[str]
+) -> list[tuple[str, str]]:
+    """부모 prd.md가 링크한 REQ별 하위 정의서 [(경로, 내용)]. 링크되지 않은 docs/prd/*.md는 오류."""
+    linked = list(dict.fromkeys(PRD_LINK.findall(parent)))
+    out = []
+    for rel in linked:
+        p = root / "docs" / rel
+        if not CHILD_NAME.fullmatch(p.name):
+            errors.append(f"prd.md: 하위 정의서 이름은 prd/REQ-01-<설명>.md 형식이어야 함 ({rel})")
+        elif not p.is_file():
+            errors.append(f"prd.md: 링크한 docs/{rel} 없음")
+        else:
+            out.append((f"docs/{rel}", COMMENT.sub("", p.read_text(encoding="utf-8"))))
+    folder = root / "docs" / "prd"
+    if folder.is_dir():
+        for p in sorted(folder.glob("*.md")):
+            if f"prd/{p.name}" not in linked and not p.name.startswith("_"):
+                errors.append(f"docs/prd/{p.name}: prd.md 요구사항 표에서 링크되지 않음")
+    return out
+
+
 def main() -> int:
     flags = {a for a in sys.argv[1:] if a.startswith("-")}
     if flags - {"--draft"}:
@@ -111,6 +140,47 @@ def main() -> int:
     prd = texts.get("docs/prd.md", "")
     reqs = id_rows(prd, "REQ", errors, "prd.md")
     acs = id_rows(prd, "AC", errors, "prd.md")
+    for rel, text in prd_children(root, prd, errors):
+        texts[rel] = text  # 자리표시·정의 안 된 ID 검사에도 넣는다
+        n = len(PLACEHOLDER.findall(text))
+        if n:
+            soft.append(f"{rel}: 채우지 않은 {{{{자리표시}}}} {n}개")
+        if id_rows(text, "REQ", [], rel):
+            errors.append(f"{rel}: REQ 표는 부모 prd.md에만 둔다 (상태가 두 곳이 됨)")
+        m = CHILD_NAME.fullmatch(Path(rel).name)  # prd_children가 이름 형식을 확인했다
+        own = f"REQ-{int(m[1]):02d}" if m else ""
+        if own not in reqs:
+            errors.append(f"{rel}: {own}가 prd.md 요구사항 표에 없음")
+        for ac, row in id_rows(text, "AC", errors, rel).items():
+            if req_of(ac) != own:
+                errors.append(f"{rel}: {ac}는 {own}의 확인 조건이 아님")
+            if ac in acs:
+                errors.append(f"{rel}: {ac}가 두 번 정의됨")
+            acs[ac] = row
+    # 하위 정의서 링크가 그 REQ의 파일을 가리키는가, 요약 칸 '확인 조건'이 실제 AC와 같은가
+    for req, r in reqs.items():
+        link = PRD_LINK.search(r.get("ID", ""))
+        name = CHILD_NAME.fullmatch(Path(link[1]).name) if link else None
+        if link and name and f"REQ-{int(name[1]):02d}" != req:
+            errors.append(f"prd.md: {req}의 링크가 다른 REQ 파일을 가리킴 ({link[1]})")
+        if "확인 조건" in r:
+            want = sorted(ac for ac in acs if req_of(ac) == req)
+            got = sorted(x for x in refs(r["확인 조건"]) if x.startswith("AC-"))
+            if got != want:
+                errors.append(
+                    f"prd.md: {req}의 '확인 조건' 칸({', '.join(got) or '없음'})이"
+                    f" 정의된 AC({', '.join(want) or '없음'})와 다름"
+                )
+    # 원문(SRC)은 REQ의 '출처' 칸이나 '범위 밖' 표로 이어져야 한다 (질문·메모에만 나오면 안 이어진 것)
+    defined: set[str] = set()
+    used = {s for r in reqs.values() for s in SRC_RE.findall(r.get("출처", ""))}
+    for header, body in tables(prd):
+        if header[:1] == ["SRC"]:
+            (defined if "원문" in header else used).update(
+                s for cells in body for s in SRC_RE.findall(cells[0])
+            )
+    for src in sorted(defined - used, key=lambda s: int(s[4:])):
+        soft.append(f"prd.md: {src}가 어느 REQ의 출처나 '범위 밖'에도 없음")
     tcs = id_rows(texts.get("docs/e2e-test.md", ""), "TC", errors, "e2e-test.md")
     secs = id_rows(
         texts.get("docs/security-compliance.md", ""),
@@ -170,6 +240,17 @@ def main() -> int:
         for ref in sorted(found - known):
             if not ref.startswith("SEC-"):
                 warns.append(f"{rel}: {ref}가 prd.md/e2e-test.md에 정의되지 않음")
+    # FLOW: experience.md 1절 표에 정의된 흐름만 가리킨다 ({{…}} 안은 예시라서 제외)
+    flows = {
+        cells[0]
+        for header, body in tables(texts.get("docs/experience.md", ""))
+        if header[:1] == ["FLOW"]
+        for cells in body
+        if FLOW_RE.fullmatch(cells[0])
+    }
+    for rel, text in texts.items():
+        for ref in sorted(set(FLOW_RE.findall(PLACEHOLDER.sub("", text))) - flows):
+            warns.append(f"{rel}: {ref}가 experience.md 흐름 표에 정의되지 않음")
     # SEC: 주최 정책의 모든 항목이 compliance 표에 있는가
     policy = root / "docs/security-policy.md"
     if not policy.exists():
