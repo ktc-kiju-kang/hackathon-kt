@@ -13,6 +13,11 @@ export function elapsedMs(openedAt: string, now: Date | number): number {
   return Math.max(0, at - opened)
 }
 
+/** 24시간을 "넘은" PR인가 (REQ-02). 정확히 24시간은 아니다. 계산할 수 없는 값(NaN)은 강조하지 않는다. */
+export function isStale(ms: number): boolean {
+  return ms > DAY
+}
+
 /** 1시간 미만 "n분", 24시간 미만 "n시간", 그 이상 "n일 n시간" — 모자란 단위는 버린다. */
 export function formatElapsed(ms: number): string {
   if (!Number.isFinite(ms)) return '-'

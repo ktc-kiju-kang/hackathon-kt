@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import type { GithubStatus } from './api'
 import { GithubSection } from './DashboardView'
-import { elapsedMs, formatElapsed, formatKst } from './prAge'
+import { elapsedMs, formatElapsed, formatKst, isStale } from './prAge'
 import { PullRow } from './PullRow'
 
 // 시험은 현재 시각을 고정해서 돌린다 (docs/backlog/e2e-test.md TC-01-2~4)
@@ -144,5 +144,50 @@ describe('TC-01-4 GitHub 현황 실패', () => {
     const html = render(gh({ pulls: [pull()] }))
     expect(html).toContain('10-09 14:05')
     expect(html).toContain('30분')
+  })
+})
+
+describe('TC-02 isStale (24시간 초과만)', () => {
+  const DAY = 24 * HOUR
+  it('정확히 24시간은 강조하지 않고, 1ms라도 넘으면 강조한다 (AC-02-2)', () => {
+    expect(isStale(DAY)).toBe(false)
+    expect(isStale(DAY + 1)).toBe(true)
+    expect(isStale(23 * HOUR + 59 * MIN)).toBe(false)
+  })
+
+  it('계산할 수 없는 값(NaN)은 강조하지 않는다', () => {
+    expect(isStale(Number.NaN)).toBe(false)
+  })
+})
+
+describe('TC-02 PullRow 강조', () => {
+  const STALE = '24시간 넘음'
+  const render = (p: Pull) => renderToStaticMarkup(createElement(PullRow, { pull: p, now: NOW }))
+  const hoursAgo = (h: number, extraMs = 0) => new Date(NOW.getTime() - h * HOUR - extraMs).toISOString()
+
+  it('TC-02-1: 25시간 된 PR은 경고 아이콘과 문구가 보이고, 3시간 된 PR은 없다', () => {
+    const old = render(pull({ number: 1, opened_at: hoursAgo(25) }))
+    const fresh = render(pull({ number: 2, opened_at: hoursAgo(3) }))
+    expect(old).toContain(STALE)
+    expect(old).toContain('lucide-triangle-alert') // 색만으로 구별하지 않는다: 아이콘 + 문구
+    expect(fresh).not.toContain(STALE)
+    expect(fresh).not.toContain('lucide-triangle-alert')
+  })
+
+  it('TC-02-2: 정확히 24시간 된 PR은 강조하지 않고 1초 더 지나면 강조한다', () => {
+    expect(render(pull({ opened_at: hoursAgo(24) }))).not.toContain(STALE)
+    expect(render(pull({ opened_at: hoursAgo(24, 1000) }))).toContain(STALE)
+  })
+
+  it('TC-02-3: 초안 PR도 24시간을 넘으면 같은 강조가 보인다', () => {
+    const html = render(pull({ draft: true, opened_at: hoursAgo(30) }))
+    expect(html).toContain('초안')
+    expect(html).toContain(STALE)
+  })
+
+  it('강조해도 경과 시간·업데이트 시각(REQ-01)은 그대로 보인다', () => {
+    const html = render(pull({ opened_at: hoursAgo(30), updated_at: '2026-10-09T05:05:00Z' }))
+    expect(html).toContain('1일 6시간')
+    expect(html).toContain('10-09 14:05')
   })
 })
