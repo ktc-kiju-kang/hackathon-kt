@@ -50,6 +50,7 @@ envs=$(git diff --name-only --diff-filter=d origin/main...HEAD | grep -E '(^|/)\
 [ -z "$envs" ] || die "환경 파일이 커밋에 들어 있습니다 — push하지 않음: $envs (git rm --cached 후 .gitignore 확인)"
 if command -v gitleaks >/dev/null; then
   gitleaks git . --redact --no-banner >"$RUN_DIR/ship-gitleaks.log" 2>&1 || { tail -n 20 "$RUN_DIR/ship-gitleaks.log"; die "비밀값이 커밋 이력에 있습니다 — push하지 않음 (.run/ship-gitleaks.log)"; }
+  export VERIFY_SKIP_GITLEAKS=1  # 2단계 verify가 같은 이력을 또 검사하지 않게
 else
   warn "gitleaks 미설치 — push 전 비밀값 검사 없이 올라갑니다 (CI Security가 잡음). 설치: brew install gitleaks"
 fi

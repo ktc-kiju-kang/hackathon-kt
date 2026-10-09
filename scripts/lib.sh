@@ -178,15 +178,17 @@ migration_gate() {  # migration_gate <PR> — 루프 자동 머지에서 새 마
 # ---- ship 보조 -------------------------------------------------------------------------
 CI_SEEN=""  # 이 실행에서 PR 체크를 한 번이라도 봤는가 — 두 번째 ci_wait(main 재반영 후 push 직후)가 "CI 없음"으로 오판하지 않게
 ci_wait() {  # ci_wait <PR> [head SHA] — PR 체크가 끝날 때까지 기다린다. 0=통과(CI 없음 포함), 1=실패, 2=시간 초과
-  local pr=$1 want=${2:-} checks states i max=${CI_WAIT_MAX:-120} poll=${CI_POLL_SEC:-10}
+  local pr=$1 want=${2:-} checks states i got max=${CI_WAIT_MAX:-120} poll=${CI_POLL_SEC:-10} appear=${CI_APPEAR_MAX:-30}
   if [ -n "$want" ]; then  # push 직후 GitHub이 아직 이전 커밋을 PR head로 보고 그 체크(통과)를 돌려주는 창을 막는다
-    for i in $(seq 0 "${CI_APPEAR_MAX:-12}"); do
-      [ "$(gh pr view "$pr" --json headRefOid -q .headRefOid 2>/dev/null)" = "$want" ] && break
-      [ "$i" -lt "${CI_APPEAR_MAX:-12}" ] || { warn "PR #$pr head가 push한 커밋(${want:0:7})으로 바뀌지 않음"; return 2; }
+    for i in $(seq 0 "$appear"); do
+      got=$(gh pr view "$pr" --json headRefOid -q .headRefOid 2>/dev/null)
+      [ "$got" = "$want" ] && break
+      [ "$i" -lt "$appear" ] || { [ -n "$got" ] && warn "PR #$pr head가 push한 커밋(${want:0:7})으로 바뀌지 않음" || warn "PR #$pr 조회 실패 — gh auth status·네트워크 확인"; return 2; }
       sleep "$poll"
     done
   fi
   [ "${SHIP_NO_CI:-}" = 1 ] && { echo "  SHIP_NO_CI=1 — CI 대기 생략, 로컬 verify 결과로 진행"; return 0; }
+  # gh pr checks --json은 pending·fail이어도 종료코드 0 (gh 2.101에서 pending으로 확인 — 종료코드 8은 --json 없이만)
   count_checks() {  # 체크 개수. 조회 오류는 ERR — '없음'이 아니다 (gh가 체크 0개를 "no checks reported" 오류로 내는 판도 0으로)
     local out
     if out=$(gh pr checks "$pr" --json name,bucket -q 'length' 2>&1); then echo "$out"
@@ -194,12 +196,12 @@ ci_wait() {  # ci_wait <PR> [head SHA] — PR 체크가 끝날 때까지 기다�
   }
   checks=$(count_checks)
   # 오류이거나, CI가 있는 레포인데 아직 0개(push 직후 등록 전)면 생길 때까지 잠시 기다린다
-  for i in $(seq 1 "${CI_APPEAR_MAX:-12}"); do
+  for i in $(seq 1 "$appear"); do  # 기본 30×10초 = 5분 (Actions 큐가 밀릴 때)
     { [ "$checks" = ERR ] || { [ "$checks" = 0 ] && [ -n "$CI_SEEN" ]; }; } || break
     sleep "$poll"; checks=$(count_checks)
   done
   [ "$checks" = ERR ] && { warn "PR 체크 조회 실패 — gh auth status·네트워크 확인 후 make ship"; return 2; }
-  [ "$checks" = 0 ] && [ -n "$CI_SEEN" ] && { warn "CI 체크가 생기지 않음 — GitHub Actions 확인 후 make ship (Actions가 없는 레포면 SHIP_NO_CI=1)"; return 2; }
+  [ "$checks" = 0 ] && [ -n "$CI_SEEN" ] && { warn "CI 체크가 생기지 않음 — GitHub Actions 확인 후 make ship (큐가 밀리면 CI_APPEAR_MAX=60, Actions가 없는 레포면 SHIP_NO_CI=1)"; return 2; }
   [ "$checks" -gt 0 ] 2>/dev/null || { echo "  이 레포에 CI가 없어 로컬 verify 결과로 진행"; return 0; }
   CI_SEEN=1
   echo "  CI 대기 (최대 $((max * poll / 60))분)…"
@@ -208,6 +210,7 @@ ci_wait() {  # ci_wait <PR> [head SHA] — PR 체크가 끝날 때까지 기다�
     [ -n "$states" ] || { sleep "$poll"; continue; }  # 조회 실패·빈 결과는 통과가 아니다 — 다시 본다
     # cancel은 새 실행으로 대체된 것(PR 본문 수정 → PR Review 재실행)이라 실패로 보지 않는다
     case "$states" in *fail*) gh pr checks "$pr" 2>/dev/null | grep -i "fail"; return 1;; esac
+    case "$states" in cancel) warn "CI 실행이 모두 취소됨 — 통과한 체크가 없다"; return 1;; esac  # 사람이 취소한 경우
     case "$states" in *pending*) sleep "$poll";; *) ok "CI 통과 ($states)"; return 0;; esac
   done
   return 2

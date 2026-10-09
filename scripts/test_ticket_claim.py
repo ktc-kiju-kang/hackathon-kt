@@ -467,6 +467,10 @@ class TicketScriptTest(unittest.TestCase):
         self.put("pr_view", {"headRefOid": "abc123"})
         self.put("pr_checks", checks("pass"))
         self.assertIn("rc=0", self.lib("ci_wait 7 abc123; echo rc=$?").stdout)
+        self.put("pr_checks", checks("cancel", "cancel"))  # 모두 취소 = 통과한 체크 없음 → 실패
+        self.assertIn("rc=1", self.lib("ci_wait 7; echo rc=$?").stdout)
+        self.put("pr_checks", checks("pass", "cancel"))  # 대체 실행으로 취소된 것은 통과
+        self.assertIn("rc=0", self.lib("ci_wait 7; echo rc=$?").stdout)
         r = self.lib("ci_wait 7 fff999; echo rc=$?", CI_APPEAR_MAX="1")
         self.assertIn("head가 push한 커밋", r.stdout)
         self.assertIn("rc=2", r.stdout)

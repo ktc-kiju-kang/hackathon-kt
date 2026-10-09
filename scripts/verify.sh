@@ -53,7 +53,9 @@ elif [ "$strict" = 1 ]; then
 else
   step docs-draft "$ROOT" "$PY" scripts/check-docs.py --draft
 fi
-if command -v gitleaks >/dev/null; then
+if [ "${VERIFY_SKIP_GITLEAKS:-}" = 1 ]; then
+  printf '  %-22s \033[33mSKIP\033[0m (ship 1단계에서 검사함)\n' gitleaks
+elif command -v gitleaks >/dev/null; then
   step gitleaks "$ROOT" gitleaks git . --redact --no-banner  # 커밋 이력만 (.env·node_modules 제외)
 else
   printf '  %-22s \033[33mSKIP\033[0m (gitleaks 미설치 — CI가 있으면 CI가 검사)\n' gitleaks
