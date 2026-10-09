@@ -111,6 +111,23 @@ class CheckDocsTest(unittest.TestCase):
         _, warns = self.run_check()
         self.assertFalse(any("SRC-02" in w for w in warns), warns)
 
+    def test_ac_check_column_must_be_one_means(self):
+        self.edit("docs/prd/REQ-02.md", "| 정상 | API | TC-02-1 |", "| 정상 | API·화면 | TC-02-1 |")
+        errors, _ = self.run_check()
+        self.assertEqual(
+            errors,
+            [
+                "오류  docs/prd/REQ-02.md: AC-02-1 '확인' 칸 'API·화면' — API/화면/수동 중 하나"
+                " (둘 다 필요하면 AC를 나눈다)"
+            ],
+        )
+
+    def test_src_linked_from_non_functional_source(self):
+        self.edit("docs/prd.md", "| 주최 (SRC-02) |", "| 주최 |")
+        self.edit("docs/prd.md", "| {{SRC- 또는 팀}} |", "| SRC-02 |")  # 비기능 표 출처
+        _, warns = self.run_check()
+        self.assertFalse(any("SRC-02" in w for w in warns), warns)
+
     def test_undefined_flow_warns(self):
         self.edit("docs/prd/REQ-02.md", "관련 흐름: FLOW-01", "관련 흐름: FLOW-09")
         errors, warns = self.run_check()

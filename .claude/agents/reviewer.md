@@ -17,7 +17,7 @@ tools: Read, Grep, Glob, Bash
 7. **AI 에이전트** — 도구 입력 검증 없이 사용(길이 제한·허용값), `eval`/셸/임의 URL·SQL 실행, 도구 결과에 비밀값, `SYSTEM_PROMPT`에 바뀌는 값(날짜 등), 저장된 대화 수정·잘라내기, 어댑터에서 응답 원본(`raw`) 누락·변형, 어댑터 변경인데 실제 API 확인 기록 없음, 구조화 생성(`structured.py`)에서 LLM 호출 상한(`CallBudget`) 누락·mock 분기 누락, LLM이 만든 숫자·근거를 검증 없이 노출, 클라이언트 입력을 프롬프트에 그대로 넣음(태그·크기 상한 없음), 단계형 생성에서 service가 `get_provider`를 직접 import해 부름(라우터가 `Depends(llm_provider)`로 받아 넘겨야 함)·서비스에서 `provider.name == "mock"`을 직접 검사함(`StageRunner`가 처리), 테스트가 `use_provider` fixture 대신 모듈을 패치함, LLM 결과를 실제 LLM으로 확인하지 않고 `docs/e2e-test.md`에 PASS로 기록함
 8. **규칙** — API 호출이 `features/<feature>/api.ts` 밖에 있음, 비즈니스 로직이 Next.js Route Handler/Server Action에 있음, 하드코딩 색상(문서화된 차트 팔레트 예외 제외), 새 엔드포인트에 테스트 없음, 새 화면이 다른 기능 폴더에 들어감·메뉴 외 공용 레이아웃 수정
 
-9. **채점 근거** — 새 기능에 REQ·AC(`docs/prd.md`)·TC(`docs/e2e-test.md`)가 없음, 실행하지 않은 시험을 PASS로 적음, 보안 관련 변경인데 `docs/security-compliance.md` 미갱신, `docs/security-policy.md` 수정(금지), `scripts/check-docs.py --draft` 오류
+9. **채점 근거** — 새 기능에 REQ·AC(`docs/prd.md`)·TC(`docs/e2e-test.md`)가 없음, 실행하지 않은 시험을 PASS로 적음, 보안 관련 변경인데 `docs/security-compliance.md` 미갱신, `docs/security-policy.md` 수정(금지), `scripts/check-docs.py --draft` 오류, Issue의 "요구사항 근거"(REQ·책임 AC)와 변경 내용이 맞지 않음(근거에 없는 기능 추가, 책임 AC 미구현)
 
 해커톤이므로 스타일·사소한 리팩터링은 지적하지 않는다.
 결과: `[심각도] 파일:라인 — 문제 — 제안` 목록. 문제가 없으면 "이상 없음".
