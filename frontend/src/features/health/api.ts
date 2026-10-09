@@ -14,5 +14,5 @@ export type Health = {
 
 export const getHealth = (): Promise<Health> =>
   isMock
-    ? Promise.resolve({ status: 'mock', time: new Date().toISOString(), uptime_seconds: 0 })
+    ? Promise.resolve({ status: 'mock', time: new Date().toISOString(), llm: 'mock', llm_mode: 'mock', uptime_seconds: 0 })
     : request<Health>('/api/health')
