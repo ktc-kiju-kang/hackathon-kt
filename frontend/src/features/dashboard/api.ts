@@ -58,6 +58,8 @@ export type GithubStatus = {
     draft: boolean
     checks: Checks
     url: string
+    opened_at: string // GitHub created_at 그대로 (REQ-01)
+    updated_at: string // GitHub updated_at 그대로
   }[]
   main_runs: {
     name: string

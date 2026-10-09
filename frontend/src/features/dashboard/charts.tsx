@@ -1,9 +1,17 @@
 'use client'
 
-import { CheckCircle2Icon, CircleDashedIcon, CircleDotIcon, LoaderCircleIcon, XCircleIcon } from 'lucide-react'
+import {
+  CheckCircle2Icon,
+  CircleDashedIcon,
+  CircleDotIcon,
+  ExternalLinkIcon,
+  LoaderCircleIcon,
+  XCircleIcon,
+} from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import type { Checks } from './api'
 
 // 색은 세 가지만: 통과·성공·검증됨 = teal(--chart-1, 진행 중은 옅은 teal), 실패 = 빨강(--destructive, 오류에만),
 // 나머지 = KDS 회색.
@@ -24,6 +32,24 @@ export function ToneIcon({ tone, running, className }: { tone: Tone; running?: b
   if (tone === 'partial') return <CircleDotIcon className={cn(cls, 'text-[var(--chart-1)]')} aria-label="진행 중" />
   if (tone === 'bad') return <XCircleIcon className={cn(cls, 'text-destructive')} aria-label="실패" />
   return <CircleDashedIcon className={cn(cls, 'text-muted-foreground')} aria-label="기타" />
+}
+
+/** PR CI 검사 결과의 색·아이콘·글자 (열린 PR 줄에서 쓴다). */
+export const CHECKS: Record<Checks, { tone: Tone; label: string; running?: boolean }> = {
+  pass: { tone: 'good', label: '통과' },
+  fail: { tone: 'bad', label: '실패' },
+  pending: { tone: 'rest', label: '진행 중', running: true },
+  none: { tone: 'rest', label: '검사 없음' },
+}
+
+/** 새 탭으로 여는 바깥 링크 (끝에 화살표 아이콘). */
+export function Link({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <a href={href} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:underline">
+      {children}
+      <ExternalLinkIcon className="size-3 text-muted-foreground" aria-hidden />
+    </a>
+  )
 }
 
 /** 지표 카드 하나: 제목 · 큰 숫자 · 보조 글 · 아래 그래픽(막대 등). */

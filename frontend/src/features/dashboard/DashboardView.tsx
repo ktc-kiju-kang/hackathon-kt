@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { ExternalLinkIcon, PauseIcon, PlayIcon, RefreshCwIcon } from 'lucide-react'
+import { PauseIcon, PlayIcon, RefreshCwIcon } from 'lucide-react'
 import { ErrorLine } from '@/components/error-line'
 import { PageHeader } from '@/components/page-header'
 import { Badge } from '@/components/ui/badge'
@@ -20,12 +20,12 @@ import {
   runState,
   testedSameAsRunning,
   testTotals,
-  type Checks,
   type Dashboard,
   type GithubStatus,
   type LeadTime,
 } from './api'
-import { DotStrip, Legend, Meter, StatTile, ToneIcon, type Dot, type Segment, type Tone } from './charts'
+import { DotStrip, Legend, Link, Meter, StatTile, ToneIcon, type Dot, type Segment, type Tone } from './charts'
+import { PullRow } from './PullRow'
 import { DeadlineSection, Empty, LeadTimeSection, Section, TeamSection, TrendSection } from './sections'
 
 const AUTO_SEC = 30 // 자동 새로 고침 간격 (GitHub은 서버가 1~5분 캐시하므로 한도 걱정 없음)
@@ -149,7 +149,7 @@ export function DashboardView() {
       )}
       <LeadTimeSection lt={lead} />
       <TeamSection gh={gh} now={now} />
-      <GithubSection gh={gh} />
+      <GithubSection gh={gh} now={now} />
       {data && <ServerSection data={data} />}
     </div>
   )
@@ -423,23 +423,7 @@ function ReqsSection({ data }: { data: Dashboard }) {
   )
 }
 
-const CHECKS: Record<Checks, { tone: Tone; label: string; running?: boolean }> = {
-  pass: { tone: 'good', label: '통과' },
-  fail: { tone: 'bad', label: '실패' },
-  pending: { tone: 'rest', label: '진행 중', running: true },
-  none: { tone: 'rest', label: '검사 없음' },
-}
-
-function Link({ href, children }: { href: string; children: React.ReactNode }) {
-  return (
-    <a href={href} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:underline">
-      {children}
-      <ExternalLinkIcon className="size-3 text-muted-foreground" aria-hidden />
-    </a>
-  )
-}
-
-function GithubSection({ gh }: { gh: GithubStatus | null }) {
+export function GithubSection({ gh, now }: { gh: GithubStatus | null; now: Date }) {
   if (!gh) {
     return (
       <Section title="GitHub">
@@ -477,28 +461,9 @@ function GithubSection({ gh }: { gh: GithubStatus | null }) {
             <Card>
               <CardContent>
                 <ul className="divide-y divide-border">
-                  {gh.pulls.map((p) => {
-                    const c = CHECKS[p.checks]
-                    return (
-                      <li key={p.number} className="flex items-start gap-3 py-3 first:pt-0 last:pb-0">
-                        <ToneIcon tone={c.tone} running={c.running} className="mt-0.5" />
-                        <div className="min-w-0 flex-1">
-                          <Link href={p.url}>
-                            <span className="truncate">
-                              #{p.number} {p.title}
-                            </span>
-                          </Link>
-                          <div className="text-[13px] text-muted-foreground">
-                            {p.author} · {p.branch}
-                            {p.draft && ' · 초안'}
-                          </div>
-                        </div>
-                        <span className={p.checks === 'fail' ? 'text-sm text-destructive' : 'text-sm text-muted-foreground'}>
-                          CI {c.label}
-                        </span>
-                      </li>
-                    )
-                  })}
+                  {gh.pulls.map((p) => (
+                    <PullRow key={p.number} pull={p} now={now} />
+                  ))}
                 </ul>
               </CardContent>
             </Card>

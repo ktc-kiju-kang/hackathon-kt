@@ -111,6 +111,8 @@ const pr = (number: number, author: string, checks: 'pass' | 'fail') => ({
   draft: false,
   checks,
   url: `p${number}`,
+  opened_at: '2026-10-09T00:00:00Z',
+  updated_at: '2026-10-09T00:00:00Z',
 })
 const run = (name: string, url: string, conclusion: string) => ({
   name,
