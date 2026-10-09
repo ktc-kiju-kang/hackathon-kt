@@ -571,13 +571,17 @@ class TicketScriptTest(unittest.TestCase):
         self.put("issue_comments", [comment(1, "kim", "OWNER", "2026-10-02T00:00:00Z", "필드 하나 더")])
         self.put("prs", [{"number": 9, "state": "OPEN", "headRefName": "feat/5-req-01-be", "body": "Closes #5", "isDraft": False}])
         self.put("pr_checks", [{"name": "ci", "bucket": "pass"}])
-        self.put("pr_view", {"commits": [{"committedDate": "2026-10-02T12:00:00Z"}]})  # PR 댓글은 마지막 커밋 이후만 '새 것'
+        self.put("pr_view", {"commits": [{"committedDate": "2026-10-02T12:00:00Z", "messageHeadline": "feat: x"},
+                                         {"committedDate": "2026-10-04T00:00:00Z", "messageHeadline": "Merge remote-tracking branch 'origin/main' into feat/5"}]})  # PR 댓글은 마지막 작업 커밋 이후만 '새 것' (sync Merge 제외)
         r = self.tick()
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertIn("STATE CONTINUE", r.stdout)
         self.assertIn("PR 9 OPEN checks=pass", r.stdout)
         self.assertIn("NEW_COMMENTS 1 ", r.stdout)
-        self.assertIn("PR_COMMENTS 0 ", r.stdout)  # 2026-10-02T00:00 댓글은 마지막 커밋(12:00) 전
+        self.assertIn("PR_COMMENTS 0 ", r.stdout)  # 2026-10-02T00:00 댓글은 마지막 작업 커밋(12:00) 전
+        self.put("issue_comments", [comment(1, "kim", "OWNER", "2026-10-03T00:00:00Z", "리뷰: 이름 바꿔요")])  # 작업 커밋 뒤·sync Merge 전 → 새 것
+        self.assertIn("PR_COMMENTS 1 ", self.tick().stdout)
+        self.put("issue_comments", [comment(1, "kim", "OWNER", "2026-10-02T00:00:00Z", "옛 댓글")])
         self.assertIn("BRANCH feat/5-req-01-be (이 폴더)", r.stdout)
         self.assertIn("새 댓글", r.stdout)
         self.assertEqual(run(["git", "-C", str(self.repo), "branch", "--show-current"]).stdout.strip(), "feat/5-req-01-be")

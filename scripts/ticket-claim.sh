@@ -251,8 +251,8 @@ cmd_comments() {
 cmd_pr_comments() {
   local n=$1 since=${2:-}
   num_or_die "$n"
-  if [ -z "$since" ]; then  # 마지막 커밋 전의 리뷰는 그 커밋에 반영된 것으로 본다 (매 틱 같은 피드백을 '새 것'으로 주지 않게)
-    since=$(gh pr view "$n" --json commits --jq '[.commits[].committedDate] | max // ""' 2>/dev/null)
+  if [ -z "$since" ]; then  # 마지막 '작업' 커밋 전의 리뷰는 그 커밋에 반영된 것으로 본다 (매 틱 같은 피드백을 '새 것'으로 주지 않게). sync의 Merge 커밋은 작업이 아니다
+    since=$(gh pr view "$n" --json commits --jq '[.commits[] | select(.messageHeadline | startswith("Merge ") | not) | .committedDate] | max // ""' 2>/dev/null)
     since=${since:-1970-01-01T00:00:00Z}
   fi
   {

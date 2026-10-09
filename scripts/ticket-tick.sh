@@ -116,9 +116,10 @@ PR #$prn 은 이미 머지됐습니다 — 추가 요청은 후속 Issue로 받�
       *)
         write_spec "$n"  # 세션이 바뀌어도 원 명세(본문·이전 댓글)를 같은 곳에서 읽게
         checkout_branch "$n" "$prb"
-        wait_msg=$("$T" merge-wait "$n" 2>/dev/null); wrc=$?
+        wait_msg=$("$T" merge-wait "$n" 2>&1); wrc=$?
         echo "STATE CONTINUE"
         [ $wrc = 1 ] && echo "MERGE_WAIT $(echo "$wait_msg" | paste -sd';' -)"
+        [ $wrc -ge 2 ] && { echo "MERGE_WAIT 판정 실패 — $(echo "$wait_msg" | tail -1)"; wrc=1; }  # 조회 실패도 '대기'로 다룬다 (ship이 다시 판정)
         case "$checks" in  # lib.sh ci_wait와 같은 기준: fail, 또는 전부 취소(통과한 체크 없음)만 실패
           *fail*|cancel) echo "NEXT PR #$prn 체크 실패·취소 — 실패한 체크(gh pr checks $prn)와 PR_COMMENTS를 읽고 같은 브랜치에서 고친 뒤 make ship (같은 체크가 3번 연속 실패하면 댓글 후 release $n blocked)" ;;
           *) if [ "$nc" != 0 ] || [ "$npc" != 0 ]; then echo "NEXT 새 댓글·리뷰 피드백을 명세 변경으로 읽어 코드·테스트에 반영하고 make ship (답할 게 있으면 마커 댓글)"
