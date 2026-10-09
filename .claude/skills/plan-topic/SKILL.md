@@ -19,6 +19,6 @@ disable-model-invocation: true
    - **E2E 의존에 순환이 없게** 한다: 각 TC의 E2E는 **자기 REQ와 머지 순서가 앞선 REQ의 API만** 쓴다. "등록 후 목록에 보인다"는 목록 REQ의 TC로 둔다 (등록 REQ의 E2E가 아직 없는 목록 API를 부르면 둘 다 머지되지 않는다 — 2026-10-08 리허설에서 실제로 막힘). 앞선 REQ가 없을 때의 확인은 backend 테스트에서 DB를 직접 조회한다.
 5. **보안 매핑** → `docs/security-compliance.md`: 정책의 SEC를 **그대로** 옮기고, 각 SEC가 어느 REQ·코드에 해당하는지 또는 `해당 없음(이유)`. 해당하는 SEC는 TC-Sxx-n을 만든다.
 6. **설계 초안** → `docs/arch.md`: 화면·API·테이블 목록과 REQ 연결. "REQ별 코드 위치"에 **모든 REQ의 블록을 미리** 만든다 (예정 경로) — 구현 중에는 담당자가 자기 블록만 고쳐 충돌이 나지 않는다. 메뉴는 `frontend/src/components/menu-items.ts`에 REQ 화면마다 한 줄.
-7. **Issue 분할·일정** — REQ별 Issue 목록(제목 `[REQ-01] …`), 담당자 3명 배정안(같은 파일을 두 사람이 건드리지 않게 기능 단위로), 의존 순서, `docs/pipeline.md` 시간표에 맞춘 일정. 표로 보여 준다.
+7. **Issue 분할·일정** — (현재 기본은 아래의 "REQ 하나 = Issue 하나 = 한 사람". 역할별 티켓(plan·BE·FE, `docs/requirements-flow.md`)은 PO·PM 에이전트와 `role:` 라벨이 생긴 뒤에 쓴다.) REQ별 Issue 목록(제목 `[REQ-01] …`), 담당자 3명 배정안(같은 파일을 두 사람이 건드리지 않게 기능 단위로), 의존 순서, `docs/pipeline.md` 시간표에 맞춘 일정. 표로 보여 준다.
 8. **게이트** — `python3 scripts/check-docs.py --draft` 오류 0을 확인하고, 질문 목록·범위·분담을 사용자에게 보여 확인받는다. 확인 후 `/new-issue`로 Issue를 만든다 (생성은 사용자 확인 후, 여러 개면 목록으로 한 번에 확인).
 9. 기획에서 AI가 낸 안을 팀이 바꾼 것은 `docs/development.md` "결정과 변경" / "AI 활용 기록"에 남긴다.

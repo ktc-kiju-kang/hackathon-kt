@@ -84,7 +84,7 @@ def test_read_reqs_index_with_child_links(tmp_path):
     prd.write_text(
         "| ID | 출처 | 요구사항 | 우선순위 | Issue | 확인 조건 | 상태 |\n"
         "|---|---|---|---|---|---|---|\n"
-        "| [REQ-01](prd/REQ-01-todo.md) | 주최 (SRC-01) | 할 일을 등록한다"
+        "| **[REQ-01](prd/REQ-01-todo.md)** | 주최 (SRC-01) | 할 일을 등록한다"
         " | 필수 | #3 | AC-01-1 | 구현됨-미검증 |\n",
         encoding="utf-8",
     )

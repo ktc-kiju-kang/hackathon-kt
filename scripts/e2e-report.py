@@ -191,7 +191,8 @@ def update_prd(text: str, tc_status: dict[str, str], children: str = "") -> tupl
     changed, lines = [], text.splitlines()
     for n, line in enumerate(lines):
         cells = split_row(line) if line.lstrip().startswith("|") else []
-        req = re.sub(r"[*`\[\]]|\(.*?\)$", "", cells[0]).strip() if cells else ""  # [REQ-01](prd/…)
+        # **[REQ-01](prd/…)** → 장식을 먼저, 그다음 링크를 벗긴다 (check-docs.py norm과 같은 순서)
+        req = re.sub(r"\(.*?\)$", "", re.sub(r"[*`\[\]]", "", cells[0])).strip() if cells else ""
         if not re.fullmatch(r"REQ-\d+", req) or req not in req_tcs or cells[-1].startswith("제외"):
             continue
         sts = [tc_status.get(t, "미실행") for t in req_tcs[req]]

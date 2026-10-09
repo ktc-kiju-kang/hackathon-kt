@@ -158,7 +158,7 @@ def read_reqs(prd: Path) -> Reqs:
         return Reqs(status="none")
     items = []
     for c in _table_rows(prd.read_text(encoding="utf-8", errors="replace"), "ID"):
-        rid = re.sub(r"[*`\[\]]|\(.*?\)$", "", c[0]).strip()
+        rid = re.sub(r"\(.*?\)$", "", re.sub(r"[*`\[\]]", "", c[0])).strip()  # 장식 → 링크 순
         if re.fullmatch(r"REQ-\d+", rid) and len(c) >= 6:
             items.append(Req(id=rid, title=c[2], priority=c[3], issue=c[4], state=c[-1]))
     return Reqs(status="ok", items=items)

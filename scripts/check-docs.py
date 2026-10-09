@@ -170,10 +170,16 @@ def main() -> int:
                     f"prd.md: {req}의 '확인 조건' 칸({', '.join(got) or '없음'})이"
                     f" 정의된 AC({', '.join(want) or '없음'})와 다름"
                 )
-    # 원문(SRC)은 REQ의 출처나 '범위 밖'으로 한 번 이상 이어져야 한다 (정의 1번 + 참조)
-    for src in sorted(set(SRC_RE.findall(prd))):
-        if len(re.findall(rf"{src}(?!\d)", prd)) < 2:
-            soft.append(f"prd.md: {src}가 어느 REQ의 출처나 '범위 밖'에도 없음")
+    # 원문(SRC)은 REQ의 '출처' 칸이나 '범위 밖' 표로 이어져야 한다 (질문·메모에만 나오면 안 이어진 것)
+    defined: set[str] = set()
+    used = {s for r in reqs.values() for s in SRC_RE.findall(r.get("출처", ""))}
+    for header, body in tables(prd):
+        if header[:1] == ["SRC"]:
+            (defined if "원문" in header else used).update(
+                s for cells in body for s in SRC_RE.findall(cells[0])
+            )
+    for src in sorted(defined - used, key=lambda s: int(s[4:])):
+        soft.append(f"prd.md: {src}가 어느 REQ의 출처나 '범위 밖'에도 없음")
     tcs = id_rows(texts.get("docs/e2e-test.md", ""), "TC", errors, "e2e-test.md")
     secs = id_rows(
         texts.get("docs/security-compliance.md", ""),
