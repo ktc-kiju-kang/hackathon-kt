@@ -582,6 +582,45 @@ class TicketScriptTest(unittest.TestCase):
         self.assertEqual(r.returncode, 1)
         self.assertIn("머지됨", r.stdout)
 
+    def test_tick_other_branches(self):
+        """NEEDS-HUMAN(선행에 # 없는 번호) · OTHER-SESSION · PR CLOSED · MERGE_WAIT · 명세 조회 실패."""
+        self.tick_repo()
+        self.put("issues", [issue(5, body="- 선행: 04")])
+        self.put("issue_5", {"number": 5, "title": "t", "body": "- 선행: 04", "state": "OPEN", "labels": []})
+        r = self.tick()
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("STATE NEEDS-HUMAN", r.stdout)
+        self.assertIn("'#' 없는 번호", r.stdout)
+        self.assertEqual(run(["git", "-C", str(self.repo), "branch", "--show-current"]).stdout.strip(), "main")
+        # 같은 계정의 다른 세션이 잡은 티켓
+        self.claim_branch(5, "me")
+        self.put("issue_5", {"number": 5, "title": "t", "body": "", "state": "OPEN", "labels": []})
+        self.put("issue_comments", [comment(1, "me", "OWNER", "2026-10-02T00:00:00Z", "<!-- ticket-agent session=other1 -->\n작업 시작")])
+        r = self.tick(TICKET_SESSION="mine1")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("STATE OTHER-SESSION", r.stdout)
+        # 내 세션 + PR이 머지 없이 닫힘
+        self.put("issue_comments", [])
+        self.put("prs", [{"number": 9, "state": "CLOSED", "headRefName": "feat/5-t", "body": "Closes #5", "isDraft": False}])
+        r = self.tick()
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("PR 9 CLOSED", r.stdout)
+        self.assertIn("release 5 blocked", r.stdout)
+        # 열린 PR + 머지 조건이 안 풀림
+        self.put("issue_5", {"number": 5, "title": "t", "body": "- 머지 조건: #11", "state": "OPEN", "labels": []})
+        self.put("issue_11", {"number": 11, "state": "open"})
+        self.put("prs", [{"number": 9, "state": "OPEN", "headRefName": "feat/5-t", "body": "Closes #5", "isDraft": False}])
+        self.put("pr_checks", [{"name": "ci", "bucket": "pass"}])
+        r = self.tick()
+        self.assertIn("MERGE_WAIT #11 아직 열림", r.stdout, r.stdout + r.stderr)
+        self.assertIn("머지 조건 대기 중", r.stdout)
+        # PR 없음 + 댓글 조회 실패 → ERROR (빈 SPEC으로 needs-info 가지 않게)
+        self.put("prs", [])
+        (self.fix / "issue_comments.json").unlink()
+        r = self.tick()
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("STATE ERROR", r.stdout)
+
     def test_tick_uses_worktree_when_human_is_working_here(self):
         """사람이 이 폴더에서 작업 중(다른 브랜치·미커밋)이면 건드리지 않고 worktree."""
         self.tick_repo()
@@ -592,8 +631,28 @@ class TicketScriptTest(unittest.TestCase):
         r = self.tick()
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertIn("BRANCH feat/5-req-02-fe (worktree ", r.stdout)
+        self.assertIn(f"WORKDIR {os.path.realpath(self.tmp / 'repo-wt-5')}", r.stdout)
         self.assertEqual(run(["git", "-C", str(self.repo), "branch", "--show-current"]).stdout.strip(), "fix/99-mine")
         self.assertTrue((self.tmp / "repo-wt-5").is_dir())
+        # 열린 PR이 origin에만 있는 브랜치면 worktree를 origin/<브랜치> 기준으로 만들고, 사람의 폴더는 건드리지 않는다
+        self.git("switch", "-q", "-c", "feat/6-req-02-fe", "origin/main")
+        self.write_commit({"y.txt": "1\n"}, "pr commit")
+        self.git("push", "-q", "origin", "feat/6-req-02-fe")
+        self.git("switch", "-q", "fix/99-mine")
+        self.git("branch", "-D", "feat/6-req-02-fe")
+        self.git("push", "-q", "origin", ":refs/heads/claim/5")  # 앞 티켓은 끝난 것으로
+        self.claim_branch(6, "me")
+        self.put("issues", [issue(6)])
+        self.put("issue_6", {"number": 6, "title": "[REQ-02][FE] 화면2", "body": "", "state": "OPEN", "labels": []})
+        self.put("prs", [{"number": 10, "state": "OPEN", "headRefName": "feat/6-req-02-fe", "body": "Closes #6", "isDraft": False}])
+        self.put("pr_checks", [{"name": "ci", "bucket": "pass"}])
+        before = run(["git", "-C", str(self.repo), "rev-parse", "fix/99-mine"]).stdout
+        r = self.tick()
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("BRANCH feat/6-req-02-fe (worktree ", r.stdout)
+        self.assertEqual(run(["git", "-C", str(self.repo), "branch", "--show-current"]).stdout.strip(), "fix/99-mine")
+        self.assertEqual(run(["git", "-C", str(self.repo), "rev-parse", "fix/99-mine"]).stdout, before)
+        self.assertTrue((self.tmp / "repo-wt-6" / "y.txt").exists())
 
     def test_list_filters_by_role(self):
         self.put(

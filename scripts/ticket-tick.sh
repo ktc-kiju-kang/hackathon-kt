@@ -1,21 +1,22 @@
 #!/usr/bin/env bash
 # /ticket-loop 한 틱의 결정적인 앞부분 — 킬 스위치·선점 정리·내 티켓·PR 상태·새 댓글·새 선점·브랜치까지 스크립트가 하고,
 # 에이전트는 이 출력을 읽고 명세 검사(스킬 3단계)부터 시작한다. 큐 조작은 전부 scripts/ticket-claim.sh.
-#   scripts/ticket-tick.sh                 (역할 루프는 TICKET_ROLE=architect|backend|frontend)
+#   scripts/ticket-tick.sh                 (역할 루프는 TICKET_ROLE=architect|backend|frontend — 역할 루프는 각각 다른 체크아웃에서)
 # 출력 (한 줄에 하나, 에이전트가 읽는다):
 #   STATE PAUSED | OTHER-SESSION | CONTINUE | CLAIMED | WAIT | NEEDS-HUMAN | ERROR
-#   ISSUE <번호> <제목>            BRANCH <이름> (이 폴더 | worktree <경로>)
+#   ISSUE <번호> <제목>            BRANCH <이름> (이 폴더 | worktree <경로>)        WORKDIR <작업 폴더>
 #   PR <번호> <OPEN|MERGED|CLOSED> checks=<pass|fail|pending|none|…> [draft]      또는  PR 없음
-#   NEW_COMMENTS <n> <파일>  PR_COMMENTS <n> <파일>  SPEC <파일>   NEXT <에이전트가 할 일 한 줄>
+#   NEW_COMMENTS <n> <파일>  PR_COMMENTS <n> <파일>  SPEC <파일>  MERGE_WAIT <이유>   NEXT <에이전트가 할 일 한 줄>
 # 종료코드: 0=할 일 있음(CONTINUE·CLAIMED), 1=이번 틱은 끝(PAUSED·WAIT·OTHER-SESSION·NEEDS-HUMAN), 2=오류
-# 작업 폴더: 트리가 깨끗하고 main이거나 그 티켓의 브랜치면 **이 폴더에서** 브랜치를 바꾼다 (루프 전용 체크아웃 — worktree·make setup을 티켓마다 하지 않는다).
-#            사람이 작업 중(다른 브랜치·미커밋 변경)이면 worktree를 만든다.
+# 작업 폴더: 수정·스테이지된 변경이 없고 main이거나 그 티켓의 브랜치면 **이 폴더에서** 브랜치를 바꾼다 (루프 전용 체크아웃 —
+#            worktree·make setup을 티켓마다 하지 않는다). 사람이 작업 중(다른 브랜치·미커밋 변경)이면 worktree를 만들고 그 안을 WORKDIR로 준다.
 set -uo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 T="$HERE/ticket-claim.sh"
 ROOT=$(git -C "$HERE" rev-parse --show-toplevel)
-OUT="${RUN_DIR:-$ROOT/.run}/tick"
+OUT="${RUN_DIR:-$ROOT/.run}/tick-${TICKET_ROLE:-all}"  # 역할 루프마다 따로 (같은 체크아웃에서 둘이 돌면 파일을 덮지 않게)
 rm -rf "$OUT"; mkdir -p "$OUT"
+WORK=$ROOT  # checkout_branch가 정한다
 
 fail() { echo "STATE ERROR"; echo "NEXT $*"; exit 2; }
 end()  { echo "STATE $1"; echo "NEXT $2"; exit 1; }
@@ -26,28 +27,37 @@ slug_of() {  # 제목의 [REQ-01][BE] 같은 태그 → req-01-be (없으면 tic
   s=$(printf '%s' "$1" | grep -o '\[[^]]*\]' | tr -d '[]' | tr 'A-Z' 'a-z' | tr -c 'a-z0-9\n' '-' | paste -sd- - | sed 's/-\{2,\}/-/g; s/^-//; s/-$//')
   echo "${s:-ticket}"
 }
-checkout_branch() {  # checkout_branch <번호> <브랜치> — 이 폴더 또는 worktree. BRANCH 줄을 출력
-  local n=$1 b=$2 cur dir
+checkout_branch() {  # checkout_branch <번호> <브랜치> — 이 폴더 또는 worktree. BRANCH·WORKDIR 줄을 출력하고 WORK를 정한다
+  local n=$1 b=$2 cur dir remote=""
   cur=$(git -C "$ROOT" branch --show-current)
+  git -C "$ROOT" fetch -q origin "$b" 2>/dev/null && remote=1  # 다른 PC·세션이 push한 브랜치
   # 미추적 파일은 브랜치를 바꿔도 그대로라 보지 않는다 (.run/ 등). 수정·스테이지된 변경이 있으면 사람이 작업 중
   if [ -z "$(git -C "$ROOT" status --porcelain --untracked-files=no)" ] && { [ "$cur" = main ] || [ "$cur" = "$b" ] || [[ "$cur" == */$n-* ]]; }; then
-    if git -C "$ROOT" show-ref -q --verify "refs/heads/$b"; then
-      git -C "$ROOT" switch -q "$b" || fail "브랜치 $b 로 바꾸지 못함"
-    elif git -C "$ROOT" fetch -q origin "$b" 2>/dev/null; then  # 다른 PC·세션이 push한 브랜치
-      git -C "$ROOT" switch -q -c "$b" --track "origin/$b" || fail "origin/$b 체크아웃 실패"
-    else
-      git -C "$ROOT" switch -q -c "$b" origin/main || fail "origin/main에서 $b 를 만들지 못함"
-    fi
+    if git -C "$ROOT" show-ref -q --verify "refs/heads/$b"; then git -C "$ROOT" switch -q "$b" || fail "브랜치 $b 로 바꾸지 못함"
+    elif [ -n "$remote" ]; then git -C "$ROOT" switch -q -c "$b" --track "origin/$b" || fail "origin/$b 체크아웃 실패"
+    else git -C "$ROOT" switch -q -c "$b" origin/main || fail "origin/main에서 $b 를 만들지 못함"; fi
+    WORK=$ROOT
     echo "BRANCH $b (이 폴더)"
   else
     dir="$(dirname "$ROOT")/$(basename "$ROOT")-wt-$n"
     if [ ! -d "$dir" ]; then
       if git -C "$ROOT" show-ref -q --verify "refs/heads/$b"; then git -C "$ROOT" worktree add -q "$dir" "$b"
+      elif [ -n "$remote" ]; then git -C "$ROOT" worktree add -q --track -b "$b" "$dir" "origin/$b"
       else git -C "$ROOT" worktree add -q -b "$b" "$dir" origin/main; fi || fail "worktree 생성 실패: $dir"
       for f in frontend/.env.local backend/.env CLAUDE.local.md; do [ -f "$ROOT/$f" ] && cp "$ROOT/$f" "$dir/$f"; done
     fi
+    WORK=$dir
     echo "BRANCH $b (worktree $dir — 이 폴더는 사람이 작업 중(브랜치 ${cur}·미커밋 변경). 그 안에서 make setup 후 작업, DB가 겹치면 DB_PORT=55433)"
   fi
+  [ -n "$remote" ] && git -C "$WORK" pull -q --ff-only origin "$b" 2>/dev/null  # 남이 올린 커밋이 있으면 작업 폴더에 받는다 (갈라졌으면 그대로 — 에이전트가 본다)
+  echo "WORKDIR $WORK"
+}
+write_spec() {  # write_spec <번호> — 본문 + 선점 전 것까지 모든 신뢰 댓글 → SPEC 파일
+  local n=$1 body
+  body=$(gh issue view "$n" --json title,body -q '"# " + .title + "\n\n" + (.body // "")') || fail "#$n 명세 조회 실패 — 다음 틱에 다시"
+  { echo "$body"; echo; echo "## 댓글 (신뢰 작성자, 선점 전 것까지 전부 — 나중 댓글이 이긴다)"
+    "$T" comments "$n" 1970-01-01T00:00:00Z | jq -r '"- " + .user + " (" + .created_at + "): " + .body'; } >"$OUT/spec.md" || fail "#$n 댓글 조회 실패 — 다음 틱에 다시"
+  echo "SPEC $OUT/spec.md"
 }
 
 # ---- 0. 킬 스위치·정리 ----
@@ -63,7 +73,9 @@ n=$(echo "$mine" | head -1)
 if [ -n "$n" ]; then
   title=$(gh issue view "$n" --json title -q .title 2>/dev/null)
   echo "ISSUE $n $title"
-  "$T" owns "$n" >/dev/null 2>&1 || end OTHER-SESSION "#$n 은 같은 계정의 다른 세션이 작업 중 — 건드리지 않고 끝낸다 (새 티켓도 잡지 않는다)"
+  "$T" owns "$n" >/dev/null 2>&1; orc=$?
+  [ $orc = 1 ] && end OTHER-SESSION "#$n 은 같은 계정의 다른 세션이 작업 중 — 건드리지 않고 끝낸다 (새 티켓도 잡지 않는다)"
+  [ $orc = 0 ] || fail "#$n 세션 확인 실패 (owns) — 다음 틱에 다시"
   prs=$(gh pr list --state all --limit 100 --json number,state,headRefName,body,isDraft) || fail "PR 목록 조회 실패"
   pr=$(echo "$prs" | jq -c --arg n "$n" '[.[] | select((.headRefName|test("/"+$n+"-")) or ((.body // "")|test("(?i)(closes|fixes|resolves)\\s+#"+$n+"\\b")))] | sort_by(-.number) | .[0] // empty')
   "$T" comments "$n" >"$OUT/comments.jsonl" || fail "#$n 댓글 조회 실패"
@@ -90,12 +102,11 @@ PR #$prn 은 이미 머지됐습니다 — 추가 요청은 후속 Issue로 받�
         echo "STATE CONTINUE"; echo "NEXT PR #$prn 이 머지 없이 닫혔다 — 사람이 접은 것. 이유를 묻는 댓글(마커 포함) 후 scripts/ticket-claim.sh release $n blocked. 다시 구현하지 않는다"; exit 0 ;;
       *)
         checkout_branch "$n" "$prb"
-        git -C "$ROOT" pull -q --ff-only origin "$prb" 2>/dev/null || true
         wait_msg=$("$T" merge-wait "$n" 2>/dev/null); wrc=$?
         echo "STATE CONTINUE"
-        if [ $wrc = 1 ]; then echo "MERGE_WAIT $(echo "$wait_msg" | paste -sd';' -)"; fi
+        [ $wrc = 1 ] && echo "MERGE_WAIT $(echo "$wait_msg" | paste -sd';' -)"
         case "$checks" in
-          *fail*) echo "NEXT PR #$prn 체크 실패 — 실패한 체크(gh pr checks $prn)와 PR_COMMENTS를 읽고 같은 브랜치에서 고친 뒤 make ship (같은 체크가 3번 연속 실패하면 댓글 후 release $n blocked)" ;;
+          *fail*|*cancel*) echo "NEXT PR #$prn 체크 실패·취소 — 실패한 체크(gh pr checks $prn)와 PR_COMMENTS를 읽고 같은 브랜치에서 고친 뒤 make ship (같은 체크가 3번 연속 실패하면 댓글 후 release $n blocked)" ;;
           *) if [ "$nc" != 0 ] || [ "$npc" != 0 ]; then echo "NEXT 새 댓글·리뷰 피드백을 명세 변경으로 읽어 코드·테스트에 반영하고 make ship (답할 게 있으면 마커 댓글)"
              elif [ $wrc = 1 ]; then echo "NEXT 머지 조건 대기 중 — 코드를 바꾸지 않는다. 머지 조건 Issue가 완료로 닫혔으면 make ship만 다시, 아니면 끝낸다"
              else echo "NEXT 새 댓글·실패 없음 — PR #$prn 은 리뷰·머지 대기. 할 일 없으면 끝낸다"; fi ;;
@@ -107,8 +118,9 @@ PR #$prn 은 이미 머지됐습니다 — 추가 요청은 후속 Issue로 받�
   b=$(git -C "$ROOT" for-each-ref --format='%(refname:short)' "refs/heads/*/$n-*" | head -1)
   [ -n "$b" ] || b=$(git -C "$ROOT" ls-remote --heads origin "*/$n-*" 2>/dev/null | sed 's|.*refs/heads/||' | head -1)
   [ -n "$b" ] || b="feat/$n-$(slug_of "$title")"
+  write_spec "$n"
   checkout_branch "$n" "$b"
-  echo "STATE CONTINUE"; echo "NEXT 구현을 이어간다 (명세는 gh issue view $n + comments) → make verify → ship"; exit 0
+  echo "STATE CONTINUE"; echo "NEXT 구현을 이어간다 (명세는 SPEC 파일) → make verify → ship"; exit 0
 fi
 
 # ---- 2. 새 티켓 선점 ----
@@ -126,11 +138,7 @@ title=$(gh issue view "$cand" --json title -q .title 2>/dev/null)
 echo "ISSUE $cand $title"
 labels=$(gh issue view "$cand" --json labels -q '[.labels[].name]|join(",")' 2>/dev/null)
 case ",$labels," in *,plan,*) type=docs ;; *) type=feat ;; esac
-{ gh issue view "$cand" --json title,body -q '"# " + .title + "\n\n" + (.body // "")'
-  echo; echo "## 댓글 (신뢰 작성자, 선점 전 것까지 전부 — 나중 댓글이 이긴다)"
-  "$T" comments "$cand" 1970-01-01T00:00:00Z | jq -r '"- " + .user + " (" + .created_at + "): " + .body'
-} >"$OUT/spec.md" 2>/dev/null
-echo "SPEC $OUT/spec.md"
+write_spec "$cand"
 checkout_branch "$cand" "$type/$cand-$(slug_of "$title")"
 echo "STATE CLAIMED"
 echo "NEXT 명세 검사(스킬 3단계)부터: SPEC 파일을 읽고 대상 코드가 origin/main에 있는지 본다 → 모호하면 질문 댓글 후 release $cand needs-info / 사람이 봐야 할 변경이면 release $cand needs-human / 아니면 구현(4단계)"

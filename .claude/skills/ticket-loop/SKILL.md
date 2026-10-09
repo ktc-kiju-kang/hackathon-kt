@@ -6,7 +6,7 @@ description: GitHub Issue(티켓) 큐를 한 번 점검한다 — scripts/ticket
 GitHub Issue = 티켓. **한 번 실행 = 한 틱**이다. 반복은 `/loop 5m /ticket-loop`가 맡고, 이 스킬은 스스로 예약하지 않는다.
 상태는 전부 GitHub(선점 ref `claim/<번호>`·담당자·PR)에 둔다. 세션이 바뀌어도 이어진다.
 **역할:** 인자로 역할(`architect`·`backend`·`frontend`)이 오면 이번 틱의 모든 `scripts/ticket-tick.sh`·`scripts/ticket-claim.sh` 앞에 `TICKET_ROLE=<역할>`을 붙인다 — `role:<역할>` 라벨 Issue만 후보가 된다 (`docs/requirements-flow.md` 2절). 인자가 없으면 모든 Issue. 한 계정에 역할 없는 루프는 하나, 역할 루프는 역할마다 하나.
-**작업 폴더:** 루프는 자기 체크아웃에서 브랜치만 바꿔 일한다 (티켓마다 worktree·`make setup`을 하지 않는다 — `make setup`은 처음 한 번). 사람이 그 폴더에서 작업 중(다른 브랜치·미커밋 변경)이면 `ticket-tick.sh`가 대신 worktree를 만들어 경로를 알려 준다.
+**작업 폴더:** 루프는 자기 체크아웃에서 브랜치만 바꿔 일한다 (티켓마다 worktree·`make setup`을 하지 않는다 — `make setup`은 처음 한 번). **역할 루프는 각각 다른 체크아웃**(clone 또는 worktree)에서 돌린다 — 한 폴더에서 둘이 브랜치를 번갈아 바꾸면 안 된다. 사람이 그 폴더에서 작업 중(다른 브랜치·미커밋 변경)이면 `ticket-tick.sh`가 대신 worktree를 만들어 `WORKDIR`로 알려 준다 — 그 뒤 모든 작업·`make`는 `WORKDIR` 안에서.
 
 ## 사전 승인과 금지
 - 이 루프를 시작한 것이 **"ship" 요청**이다 (CLAUDE.md 예외). **기본은 `SHIP_NO_MERGE=1`** — PR·AI 리뷰까지 하고 머지는 사람이 한다. 사용자가 `TICKET_LOOP_MERGE=1`을 주고 시작했을 때만 `TICKET_LOOP_MERGE=1 make ship`으로 머지까지 맡긴다.
