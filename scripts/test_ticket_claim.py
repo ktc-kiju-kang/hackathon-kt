@@ -222,6 +222,25 @@ class TicketScriptTest(unittest.TestCase):
         self.assertEqual(r.returncode, 2)
         self.assertIn("조회 실패", r.stderr)
 
+    def test_merge_wait_reads_only_merge_condition_lines(self):
+        """FE의 '- 머지 조건:'(같은 REQ의 BE)이 완료로 닫히기 전에는 머지하지 않는다 — 선행과 같은 기준."""
+        body = "- 선행: #10\n- 머지 조건: #11 (같은 REQ의 BE)\n  * 머지 조건 : #13\n- 참고: #14 [REQ-01][BE]"
+        self.put("issue_12", {"number": 12, "state": "open", "body": body})
+        self.put("issue_11", {"number": 11, "state": "closed", "state_reason": "completed"})
+        self.put("issue_13", {"number": 13, "state": "closed", "state_reason": None})  # 옛 닫힘 = 완료
+        r = self.sh("ticket-claim.sh", "merge-wait", "12")
+        self.assertEqual((r.returncode, r.stdout), (0, ""), r.stderr)  # 선행 #10·참고 #14(픽스처 없음)는 보지 않는다
+        self.put("issue_11", {"number": 11, "state": "open"})
+        r = self.sh("ticket-claim.sh", "merge-wait", "12")
+        self.assertEqual(r.returncode, 1)
+        self.assertEqual(r.stdout.strip(), "#11 아직 열림 — 먼저 머지된 뒤")
+        self.put("issue_11", {"number": 11, "state": "closed", "state_reason": "not_planned"})
+        self.assertIn("#11 이 완료로 닫히지 않음 (not_planned)", self.sh("ticket-claim.sh", "merge-wait", "12").stdout)
+        (self.fix / "issue_11.json").unlink()  # 조회 실패도 머지하지 않는다 (이유를 보인다)
+        self.assertIn("#11 조회 실패", self.sh("ticket-claim.sh", "merge-wait", "12").stdout)
+        self.put("issue_12", {"number": 12, "state": "open", "body": None})  # 본문 없음·머지 조건 없음
+        self.assertEqual(self.sh("ticket-claim.sh", "merge-wait", "12").returncode, 0)
+
     def test_list_filters_by_role(self):
         self.put(
             "issues",
