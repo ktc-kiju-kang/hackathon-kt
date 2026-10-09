@@ -105,6 +105,17 @@ class CheckTest(unittest.TestCase):
         self.assertEqual(len(self.check()), 1)
         self.assertIn("CREATE TABLE·INDEX가 아닌 문장 — drop table chat", self.check()[0])
 
+    def test_block_comments_and_existing_tables(self):
+        self.commit({"database/migrations/202610092054_add_memos.sql": "/* REQ-01\n메모 */\n" + SAME})
+        self.assertEqual(self.check(), [])
+        self.git("reset", "-q", "--hard", "origin/main")
+        chat = "create table chat (id int);"
+        self.commit({"docs/contracts/chat.md": f"## 테이블\n    {chat}\n"})
+        self.git("push", "-q", "origin", "HEAD:main")
+        self.git("fetch", "-q", "origin")
+        self.commit({"database/migrations/202610092055_chat_again.sql": chat})
+        self.assertIn("이미 있는 마이그레이션이 만든 것", self.check()[0])
+
     def test_template_in_readme_is_not_a_draft(self):
         self.commit({"database/migrations/202610092054_add_x.sql": "CREATE TABLE <이름> (...);\n"})
         self.assertIn("초안에 없는 문장", self.check()[0])
