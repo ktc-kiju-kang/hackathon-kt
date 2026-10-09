@@ -95,6 +95,12 @@ describe('PullRow 화면', () => {
     expect(render(pull({ updated_at: '2026-10-09T05:05:00Z' }))).toContain('10-09 14:05')
   })
 
+  it('해석할 수 없는 시각이면 줄이 깨지지 않고 - 로 보인다', () => {
+    const html = render(pull({ opened_at: 'x', updated_at: 'x' }))
+    expect(html).toContain('열린 지 -')
+    expect(html).toContain('업데이트 -')
+  })
+
   it('초안 PR에도 시각이 보이고 기존 정보(작성자·브랜치·CI)는 그대로다', () => {
     const html = render(pull({ draft: true, checks: 'fail' }))
     expect(html).toContain('초안')
@@ -126,6 +132,12 @@ describe('TC-01-4 GitHub 현황 실패', () => {
     expect(html).toContain('GitHub 응답 실패')
     expect(html).not.toContain('10-09 14:05')
     expect(html).not.toContain('30분')
+  })
+
+  it('unconfigured면 PR 줄의 시각 없이 안내만 보인다', () => {
+    const html = render(gh({ status: 'unconfigured', message: 'GitHub 레포를 알 수 없어요', pulls: [pull()] }))
+    expect(html).toContain('GitHub 레포를 알 수 없어요')
+    expect(html).not.toContain('10-09 14:05')
   })
 
   it('정상이면 같은 컴포넌트가 PR 줄의 시각을 그린다', () => {
