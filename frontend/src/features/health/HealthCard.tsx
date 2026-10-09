@@ -48,7 +48,14 @@ export function HealthCard() {
                 {health.status}
               </Badge>
               {health.db && (
-                <Badge variant={health.db === 'ok' ? 'outline' : 'destructive'}>DB {health.db}</Badge>
+                <Badge variant={health.db === 'error' ? 'destructive' : 'outline'}>
+                  DB {health.db === 'error' ? '연결 안 됨' : health.db}
+                </Badge>
+              )}
+              {health.llm_mode && (
+                <Badge variant="outline" title={health.llm ?? undefined}>
+                  LLM {health.llm_mode}
+                </Badge>
               )}
               <span className="text-muted-foreground">
                 {new Date(health.time).toLocaleString('ko-KR')}
