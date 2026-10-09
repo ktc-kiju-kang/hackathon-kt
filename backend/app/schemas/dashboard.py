@@ -95,6 +95,8 @@ class GhPull(BaseModel):
     draft: bool
     checks: Literal["pass", "fail", "pending", "none"]
     url: str
+    opened_at: str  # GitHub created_at 그대로 (REQ-01) — datetime으로 다시 쓰지 않는다
+    updated_at: str  # GitHub updated_at 그대로
 
 
 class GhRun(BaseModel):

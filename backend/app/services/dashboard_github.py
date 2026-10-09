@@ -152,6 +152,8 @@ def _fetch(gh: _Api, repo: str) -> GithubStatus:
             draft=bool(p.get("draft")),
             checks=_checks(gh, base, p["head"]["sha"]),
             url=p["html_url"],
+            opened_at=p["created_at"],
+            updated_at=p["updated_at"],
         )
         for p in _get(gh, f"{base}/pulls", state="open", per_page=MAX_PULLS)
     ]
