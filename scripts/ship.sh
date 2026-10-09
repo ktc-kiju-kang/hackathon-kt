@@ -46,7 +46,7 @@ title=$(git log --reverse --format='%s' origin/main..HEAD | grep -v '^Merge ' | 
 link=Closes
 [ -n "$issue" ] && [ "$(gh issue view "$issue" --json state -q .state 2>/dev/null)" = CLOSED ] && link=Refs
 # 공개 레포에 올리기 전 비밀값 검사 — verify(2단계)보다 push가 먼저이므로 여기서 한 번 (gitleaks가 없으면 CI Security가 잡는다)
-envs=$(git diff --name-only origin/main...HEAD | grep -E '(^|/)\.env(\.|$)' | grep -v '\.env\.example$' || true)
+envs=$(git diff --name-only --diff-filter=d origin/main...HEAD | grep -E '(^|/)\.env(\.|$)' | grep -v '\.env\.example$' || true)
 [ -z "$envs" ] || die "환경 파일이 커밋에 들어 있습니다 — push하지 않음: $envs (git rm --cached 후 .gitignore 확인)"
 if command -v gitleaks >/dev/null; then
   gitleaks git . --redact --no-banner >"$RUN_DIR/ship-gitleaks.log" 2>&1 || { tail -n 20 "$RUN_DIR/ship-gitleaks.log"; die "비밀값이 커밋 이력에 있습니다 — push하지 않음 (.run/ship-gitleaks.log)"; }
@@ -59,7 +59,13 @@ if [ -z "$pr" ]; then
   { [ -n "$issue" ] && printf '%s #%s\n\n' "$link" "$issue"
     printf '## 변경 내용\n%s\n\n<!-- ship:start -->\n(make ship 검사 중)\n<!-- ship:end -->\n\n<!-- ai-review:start -->\n(AI 리뷰 대기)\n<!-- ai-review:end -->\n' "$commits"
   } >"$RUN_DIR/pr-body.md"
-  gh pr create --draft --base main --head "$branch" --title "$title" --body-file "$RUN_DIR/pr-body.md" >/dev/null || die "PR 생성 실패"
+  if ! out=$(gh pr create --draft --base main --head "$branch" --title "$title" --body-file "$RUN_DIR/pr-body.md" 2>&1); then
+    # GitHub Free 비공개 레포는 초안 PR이 없다 → 제목에 "WIP: "를 붙인 보통 PR로 (5단계가 뗀다)
+    case "$out" in *"Draft pull requests are not supported"*|*"draft"*"not supported"*)
+      gh pr create --base main --head "$branch" --title "WIP: $title" --body-file "$RUN_DIR/pr-body.md" >/dev/null || die "PR 생성 실패" ;;
+    *) echo "$out"; die "PR 생성 실패" ;;
+    esac
+  fi
   pr=$(gh pr view "$branch" --json number -q .number)
   echo "  초안 PR #$pr 생성 — CI 시작"
 fi
@@ -115,6 +121,8 @@ gh pr view "$pr" --json body -q .body >"$RUN_DIR/pr-body.old"
 [ "$link" = Refs ] && grep -qiE "^(closes|fixes|resolves) #$issue\b" "$RUN_DIR/pr-body.md" &&
   warn "PR 본문에 사람이 쓴 'Closes #$issue'가 있음 — Issue가 이미 닫혀 칸반 카드가 In Review로 돌아갈 수 있으니 Refs로 고치세요"
 gh pr edit "$pr" --body-file "$RUN_DIR/pr-body.md" >/dev/null || die "PR 본문 갱신 실패"
+cur_title=$(gh pr view "$pr" --json title -q .title 2>/dev/null)
+case "$cur_title" in "WIP: "*) gh pr edit "$pr" --title "${cur_title#WIP: }" >/dev/null 2>&1 || warn "제목의 WIP 제거 실패";; esac
 if [ "$(gh pr view "$pr" --json isDraft -q .isDraft 2>/dev/null)" = true ]; then
   gh pr ready "$pr" >/dev/null 2>&1 || { [ "${SHIP_NO_MERGE:-}" = 1 ] && warn "초안 해제 실패 — gh pr ready $pr" || die "초안 해제 실패 — gh pr ready $pr 뒤 make ship"; }
 fi
