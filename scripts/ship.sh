@@ -79,9 +79,14 @@ link=Closes
 # 역할 분담의 FE 티켓은 같은 REQ의 BE가 먼저 머지돼야 한다 — 시작 조건(선행)과 따로 "머지 조건" 줄에 둔다.
 # 판정은 선행과 같은 기준(완료로 닫힘만 통과): scripts/ticket-claim.sh merge-wait
 waiting=""
+# 머지 조건 줄이 있는 Issue만 판정한다 (없는 Issue는 ticket-claim.sh 초기화 실패로 머지가 막히지 않게)
 if [ -n "$issue" ] && [ "$KIND" != record ]; then
-  waiting=$("$ROOT/scripts/ticket-claim.sh" merge-wait "$issue" 2>&1); rc=$?
-  case $rc in 0) waiting="" ;; 1) ;; *) waiting="판정 실패: $(echo "$waiting" | tail -1)" ;; esac
+  if ! body=$(gh issue view "$issue" --json body -q .body 2>&1); then
+    waiting="판정 실패: Issue #$issue 조회 실패 — 다시 make ship"
+  elif echo "$body" | grep -qE '머지[[:space:]]*조건'; then
+    waiting=$("$ROOT/scripts/ticket-claim.sh" merge-wait "$issue" 2>&1); rc=$?
+    case $rc in 0) waiting="" ;; 1) ;; *) waiting="판정 실패: $(echo "$waiting" | tail -1) — 다시 make ship" ;; esac
+  fi
 fi
 {
   echo "<!-- ship:start -->"

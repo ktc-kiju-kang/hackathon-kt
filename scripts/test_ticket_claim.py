@@ -228,8 +228,12 @@ class TicketScriptTest(unittest.TestCase):
         r = self.sh("ticket-claim.sh", "claim", "9", "--dry-run")
         self.assertEqual(r.returncode, 1)
         self.assertIn("'#' 없는 번호", r.stdout)
-        self.put("issues", [issue(9, body="- 선행: 없음\n- 참고: 04 [REQ-01][plan]")])  # 없음·참고 줄은 괜찮다
-        self.assertEqual(self.sh("ticket-claim.sh", "claim", "9", "--dry-run").returncode, 0)
+        self.put("issues", [issue(9, body="- 선행: #10, 04")])  # 일부만 바뀐 줄도
+        self.assertIn("'#' 없는 번호", self.sh("ticket-claim.sh", "claim", "9", "--dry-run").stdout)
+        self.put("issue_10", {"number": 10, "state": "closed", "state_reason": "completed"})
+        for body in ("- 선행: 없음\n- 참고: 04 [REQ-01][plan]", "- 선행: #10 [REQ-01][plan] (2개 중 1)", "- 선행: #10 REQ-01 머지 후"):
+            self.put("issues", [issue(9, body=body)])  # 없음·참고 줄·괄호 설명·REQ-ID는 괜찮다
+            self.assertEqual(self.sh("ticket-claim.sh", "claim", "9", "--dry-run").returncode, 0, body)
 
     def test_merge_wait_reads_only_merge_condition_lines(self):
         """FE의 '- 머지 조건:'(같은 REQ의 BE)이 완료로 닫히기 전에는 머지하지 않는다 — 선행과 같은 기준."""
@@ -251,6 +255,8 @@ class TicketScriptTest(unittest.TestCase):
         r = self.sh("ticket-claim.sh", "merge-wait", "12")
         self.assertEqual(r.returncode, 1)
         self.assertIn("'#' 없는 번호", r.stdout)
+        self.put("issue_12", {"number": 12, "state": "open", "body": "- 머지조건: #11"})  # 띄어쓰기가 달라도 읽는다
+        self.assertIn("#11 조회 실패", self.sh("ticket-claim.sh", "merge-wait", "12").stdout)
         self.put("issue_12", {"number": 12, "state": "open", "body": None})  # 본문 없음·머지 조건 없음
         self.assertEqual(self.sh("ticket-claim.sh", "merge-wait", "12").returncode, 0)
 
