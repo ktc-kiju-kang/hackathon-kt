@@ -125,3 +125,89 @@ def test_search_and_export_tc_chat_search():  # TC-CHAT-SEARCH
         client.get(f"/api/chat/conversations/{conv['id']}/export", headers=other).status_code
         == 404
     )
+
+
+def _conv_with_answer(content: str = "안녕") -> str:
+    conv = client.post("/api/chat/conversations", json={}, headers=H).json()
+    client.post(
+        f"/api/chat/conversations/{conv['id']}/messages", json={"content": content}, headers=H
+    )
+    return conv["id"]
+
+
+def _roles(conv_id: str) -> list[str]:
+    msgs = client.get(f"/api/chat/conversations/{conv_id}/messages", headers=H).json()
+    return [m["role"] for m in msgs]
+
+
+def test_regenerate_replaces_last_answer_tc_chat_regen():  # TC-CHAT-REGEN-1
+    cid = _conv_with_answer("2+3*4 계산")  # user, assistant, tool, assistant
+    assert _roles(cid) == ["user", "assistant", "tool", "assistant"]
+    res = client.post(f"/api/chat/conversations/{cid}/regenerate", headers=H)
+    assert res.status_code == 200 and res.headers["content-type"].startswith("text/event-stream")
+    assert [e for e, _ in parse_sse(res.text)][-1] == "done"
+    # 사용자 메시지는 그대로, 답변 턴은 새로 하나만 (중복 없음)
+    assert _roles(cid) == ["user", "assistant", "tool", "assistant"]
+
+
+def test_regenerate_without_messages_is_422_tc_chat_regen():  # TC-CHAT-REGEN-2
+    conv = client.post("/api/chat/conversations", json={}, headers=H).json()
+    assert (
+        client.post(f"/api/chat/conversations/{conv['id']}/regenerate", headers=H).status_code
+        == 422
+    )
+
+
+def test_regenerate_other_client_is_404_tc_chat_regen():  # TC-CHAT-REGEN-3
+    cid = _conv_with_answer()
+    other = {"X-Client-Id": "someone-else"}
+    assert (
+        client.post(f"/api/chat/conversations/{cid}/regenerate", headers=other).status_code == 404
+    )
+    assert (
+        client.post("/api/chat/conversations/not-a-uuid/regenerate", headers=H).status_code == 404
+    )
+
+
+def test_regenerate_counts_toward_quota_and_keeps_answer_tc_chat_regen(
+    monkeypatch,
+):  # TC-CHAT-REGEN-4
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "chat_rate_per_ip", 2)
+    cid = _conv_with_answer()  # 1회
+    url = f"/api/chat/conversations/{cid}/regenerate"
+    assert client.post(url, headers=H).status_code == 200  # 2회
+    before = _roles(cid)
+    assert client.post(url, headers=H).status_code == 429  # 한도 초과
+    assert _roles(cid) == before  # 한도에 걸려도 기존 답변은 지워지지 않는다
+
+
+def test_stop_saves_partial_text_tc_chat_stop(monkeypatch):  # TC-CHAT-STOP
+    import asyncio
+
+    from app.agent.types import AgentEvent, Message
+    from app.services import chat as service
+
+    async def slow_agent(history):
+        yield AgentEvent(type="text", data={"text": "절반만 "})
+        yield AgentEvent(type="text", data={"text": "나온 답"})
+        await asyncio.sleep(60)  # 사용자가 여기서 중단
+
+    monkeypatch.setattr(service, "run_agent", slow_agent)
+    conv = client.post("/api/chat/conversations", json={}, headers=H).json()
+    store = service.get_chat_store()
+    user = Message(role="user", content="길게 답해줘")
+    store.append_messages(conv["id"], [user])
+
+    async def go():
+        stream = service._stream(conv["id"], [user])
+        assert (await anext(stream)).startswith("event: text")
+        await anext(stream)
+        await stream.aclose()  # 클라이언트 연결 끊김 = 중단
+        await asyncio.sleep(0.2)  # 취소된 생산자가 저장을 마칠 시간
+
+    asyncio.run(go())
+    rows = [r["data"] for r in store.list_messages(conv["id"])]
+    assert [r["role"] for r in rows] == ["user", "assistant"]
+    assert rows[1]["content"] == "절반만 나온 답"

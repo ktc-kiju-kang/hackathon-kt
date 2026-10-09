@@ -44,6 +44,14 @@ Request: `{ "content": string(1~8000) }` → 200 `text/event-stream` · 404 · 4
 
 한 요청에서 `text → message → tool_call* → tool_result* → text → message → ... → done` 순으로 반복된다 (최대 `AGENT_MAX_TURNS`).
 
+## POST /api/chat/conversations/{id}/regenerate — v1 (SSE)
+마지막 사용자 메시지 뒤의 assistant 턴(도구 호출·결과 포함)을 지우고 새 응답을 만든다. Request 본문 없음.
+→ 200 `text/event-stream` (이벤트 형식은 메시지 전송과 같다) · 404 (남의 대화·없는 대화)
+· **422** 사용자 메시지가 없는 대화 · **429** 한도 (재생성도 `CHAT_RATE_PER_IP`·`CHAT_DAILY_LIMIT`에 포함).
+한도·권한 확인은 지우기 **전**에 끝난다 — 한도에 걸려도 기존 답변은 남는다.
+
+**중단**: 클라이언트가 연결을 끊으면 서버는 LLM 호출을 멈추고, 그때까지 확정된 턴과 스트리밍 중이던 텍스트를 assistant 메시지로 저장한다.
+
 ## 타입
 ```ts
 Conversation = { id: string(uuid), title: string | null, created_at: string }
@@ -58,3 +66,4 @@ ChatMessage  = { role: "user" | "assistant" | "tool", content: string,
 | 2026-10-01 | 추가 | ktc-kiju-kang |
 | 2026-10-01 | `retry` 이벤트, `error.code` 추가 (v1 호환) | ktc-kiju-kang |
 | 2026-10-08 | `search`, `export` 추가 (v1 호환) | ktc-kiju-kang |
+| 2026-10-09 | `regenerate` 추가, 중단 시 부분 저장 명시 (v1 호환) | ktc-kiju-kang |

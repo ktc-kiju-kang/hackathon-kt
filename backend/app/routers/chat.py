@@ -54,3 +54,15 @@ async def send_message(
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@router.post("/conversations/{conversation_id}/regenerate")
+async def regenerate(
+    conversation_id: str, request: Request, client_id: str = ClientId
+) -> StreamingResponse:
+    stream = await service.regenerate_message(conversation_id, client_id, client_ip(request))
+    return StreamingResponse(
+        stream,
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
