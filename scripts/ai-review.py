@@ -114,7 +114,8 @@ def previous_findings(body: str) -> tuple[str, list[dict]]:
     for line in (sec.group(1) if sec else "").splitlines():
         cells = [c.strip() for c in line.strip().strip("|").split("|")]
         if len(cells) >= 3 and cells[0] in ("차단", "높음", "중간", "낮음") and cells[2] != "없음":
-            rows.append({"severity": cells[0], "location": cells[1], "problem": cells[2]})
+            # '이번 변경' 열이 '-'였던 높음은 그때도 머지를 막지 않은 것 — 다음 재리뷰에서 미해결이어도 막지 않는다
+            rows.append({"severity": cells[0], "location": cells[1], "problem": cells[2], "in_delta": cells[4] != "-" if len(cells) >= 5 else True})
     return commit, rows
 
 
@@ -131,7 +132,8 @@ def decide(r: dict, previous: list[dict]) -> tuple[bool, list[str]]:
             why.append(f"높음 {len(highs)}건")
     else:
         unresolved = [p for p in r.get("previous", []) if p["status"] == "미해결"
-                      and 0 <= p["index"] - 1 < len(previous) and previous[p["index"] - 1]["severity"] in ("차단", "높음")]
+                      and 0 <= p["index"] - 1 < len(previous) and previous[p["index"] - 1]["severity"] in ("차단", "높음")
+                      and previous[p["index"] - 1].get("in_delta", True)]  # 그때 머지를 막았던 것만
         if unresolved:
             why.append(f"이전 차단·높음 미해결 {len(unresolved)}건")
         new_high = [f for f in highs if f.get("in_delta")]

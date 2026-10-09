@@ -28,7 +28,10 @@ class RoundTripTest(unittest.TestCase):
         self.assertEqual((total, blocking, verdict), (52, 0, "머지 가능"))
         commit, prev = ar.previous_findings("본문\n\n" + block)
         self.assertEqual(commit, "abc123def456")
-        self.assertEqual([(p["severity"], p["problem"]) for p in prev], [("높음", "A/B 문제"), ("낮음", "사소")])
+        self.assertEqual([(p["severity"], p["problem"], p["in_delta"]) for p in prev], [("높음", "A/B 문제", True), ("낮음", "사소", True)])
+        block, *_ = ar.render(result([finding("높음", "범위 밖", in_delta=False)]), "abc123def456")
+        self.assertEqual(ar.previous_findings(block)[1][0]["in_delta"], False)
+        self.assertEqual(ar.previous_findings("<!-- ai-review:start -->\n### 지적 사항\n| 높음 | x | 옛 형식 | 제안 |\n<!-- ai-review:end -->")[1][0]["in_delta"], True)
         self.assertEqual(ar.previous_findings("블록 없음"), ("", []))
         block, *_ = ar.render(result(), "abc123def456")  # 지적 없음 → 빈 목록
         self.assertEqual(ar.previous_findings(block)[1], [])
@@ -69,6 +72,10 @@ class DecideTest(unittest.TestCase):
         # 범위 밖 index는 무시
         r = result(previous=[{"index": 9, "status": "미해결", "note": ""}])
         self.assertEqual(ar.decide(r, prev), (False, []))
+        # 지난 재리뷰에서 '기록만' 한 높음(이번 변경 -)은 미해결이어도 막지 않는다
+        prev2 = [{"severity": "높음", "location": "a", "problem": "범위 밖 높음", "in_delta": False}]
+        r = result(previous=[{"index": 1, "status": "미해결", "note": ""}])
+        self.assertEqual(ar.decide(r, prev2), (False, []))
 
 
 if __name__ == "__main__":
