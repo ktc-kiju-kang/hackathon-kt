@@ -6,7 +6,7 @@
 #   → 9 main에서 make verify (머지 후 깨졌는지)
 # 시작 전 Issue 선점 확인(scripts/claim.sh — 남이 잡은 Issue면 멈춤), 머지 후 선점 해제.
 # Issue 본문 "- 머지 조건: #N"의 Issue가 완료로 닫히지 않았으면 PR 본문에 적고 자동 머지하지 않는다 (docs/requirements-flow.md 2절).
-# 환경변수: SHIP_NO_MERGE=1 (PR·리뷰까지만), SHIP_SKIP_E2E=1, SHIP_KIND=record (make record 전용)
+# 환경변수: SHIP_NO_MERGE=1 (PR·리뷰까지만), SHIP_SKIP_E2E=1, SHIP_KIND=record (make record 전용), TICKET_LOOP_MERGE=1 (루프 자동 머지 — 테이블 초안 계약은 사람 머지)
 set -uo pipefail
 . "$(dirname "$0")/lib.sh"
 need_setup
@@ -135,10 +135,17 @@ if [ -n "$issue" ]; then
 fi
 
 merge_gate "$waiting" "$pr"
-# 계약에 테이블 SQL 초안을 넣거나 바꾼 PR은 사람이 머지한다 (G3) — BE 루프가 이 초안으로 마이그레이션을 만들기 때문
-if [ "$KIND" != record ] && git diff origin/main...HEAD -- 'docs/contracts/*.md' ':!docs/contracts/README.md' | grep -qiE '^[+-](.*CREATE[[:space:]]+(TABLE|INDEX)|## 테이블)'; then
-  [ "${SHIP_NO_MERGE:-}" = 1 ] || die "계약의 테이블 SQL 초안이 바뀐 PR은 사람이 머지합니다 (G3) — PR #$pr 확인 후 GitHub에서 머지"
-  warn "계약의 테이블 SQL 초안이 바뀜 — 스키마를 확인하고 머지하세요 (G3)"
+# 루프 자동 머지(TICKET_LOOP_MERGE=1)에서 테이블 SQL 초안이 있는 계약을 바꾼 PR은 사람이 머지한다 (G3)
+# — BE 루프가 그 초안으로 마이그레이션을 만들기 때문. 사람이 직접 ship하면 그 사람이 확인한 것으로 본다
+schema_contracts=""
+if [ "${TICKET_LOOP_MERGE:-}" = 1 ] && [ "$KIND" != record ]; then
+  for f in $(git diff --name-only origin/main...HEAD -- 'docs/contracts/*.md' ':!docs/contracts/README.md'); do
+    [ -f "$f" ] && grep -q '^## 테이블' "$f" && schema_contracts="$schema_contracts $f"
+  done
+fi
+if [ -n "$schema_contracts" ]; then
+  [ "${SHIP_NO_MERGE:-}" = 1 ] || die "테이블 SQL 초안이 있는 계약이 바뀜 ($schema_contracts) — 사람이 스키마를 확인하고 GitHub에서 머지합니다 (G3, PR #$pr)"
+  warn "테이블 SQL 초안이 있는 계약이 바뀜 ($schema_contracts) — 스키마를 확인하고 머지하세요 (G3)"
 fi
 [ "${SHIP_NO_MERGE:-}" = 1 ] && { ok "PR #$pr 준비 완료 (SHIP_NO_MERGE=1 — 머지 안 함)"; exit 0; }
 
