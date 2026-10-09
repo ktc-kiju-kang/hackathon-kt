@@ -24,7 +24,7 @@ GitHub Issue = 티켓. **한 번 실행 = 한 틱**이다. 반복은 `/loop 5m /
    - 새 댓글: `scripts/ticket-claim.sh comments <번호>` — 내 마지막 에이전트 댓글 이후의 신뢰 댓글. **명세 변경·질문·피드백으로 읽고** 코드와 테스트에 반영한다. 답할 게 있으면 댓글로 답한다(마커 포함).
    - PR이 있으면: `scripts/ticket-claim.sh pr-comments <PR번호>`로 리뷰 피드백을 읽고, `gh pr checks <PR번호>`(종료코드 8 = 아직 진행 중이지 실패가 아니다)로 실패한 체크를 확인해 같은 브랜치에 고친 뒤 다시 `make ship`. 같은 체크가 **3번 연속** 실패하면 원인·시도한 것을 댓글로 남기고 `release <번호> blocked`.
    - PR이 **머지 없이 닫혔으면** 사람이 접은 것이다: 이유를 묻는 댓글 후 `release <번호> blocked` (다시 구현하지 않는다). 머지된 Issue는 `Closes #`로 닫히므로 큐에서 사라진다.
-2. **새 티켓 선점** — 진행 중인 게 없을 때만. `scripts/ticket-claim.sh list`(역할이 있으면 `TICKET_ROLE=<역할>` 붙여서)의 첫 번호 하나만 본다 (없으면 `대기 중`으로 끝).
+2. **새 티켓 선점** — 진행 중인 게 없을 때만. `scripts/ticket-claim.sh list`(역할이 있으면 `TICKET_ROLE=<역할>` 붙여서)의 첫 번호 하나만 본다 (없으면 `대기 중`으로 끝). 스크립트는 선행 Issue가 "닫혔는지"만 본다 — 선점 뒤 본문 `- 선행:` 줄의 Issue를 `gh issue view <N> --json stateReason`으로 확인해 `COMPLETED`가 아니면(not planned·중복) 구현하지 말고 이유를 댓글로 남긴 뒤 `release <번호> needs-human`.
    - `scripts/ticket-claim.sh claim <번호>` — 성공하면 Issue에 `in-progress`(실행중) 라벨과 세션 표식 댓글이 붙는다. 종료코드 0이면 선점 성공, 1이면 졌거나 대상 아님(조용히 다음 틱), 2면 오류(그대로 보고).
 3. **명세 검사** (선점 성공 직후 — 질문 댓글이 중복되지 않게 반드시 선점 뒤에)
    - `gh issue view <번호> --json title,body`로 본문을, `scripts/ticket-claim.sh comments <번호> 1970-01-01T00:00:00Z`로 **선점 전에 달린 댓글까지 전부** 읽는다. 본문과 댓글을 합친 것이 명세다 (충돌하면 나중 댓글이 이긴다). 목표와 완료 조건이 있고 구현 방향을 정할 수 있어야 한다.
