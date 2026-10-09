@@ -10,6 +10,16 @@ import re
 import sys
 
 SHIP = re.compile(r"<!-- ship:start -->.*?<!-- ship:end -->", re.S)
+# GitHub이 PR 본문 어디에서든 읽는 닫기 키워드 (코드 예시 안이어도 Issue와 연결된다)
+CLOSING = re.compile(
+    r"(?i)\b(close[sd]?|fix(?:e[sd])?|resolve[sd]?)(:?\s+)((?:[\w.-]+/[\w.-]+)?)#(\d+)"
+)
+
+
+def defuse(text: str) -> str:
+    """AI 리뷰 같은 생성 글의 'Closes #12'를 'Closes \\#12'로 — 화면에는 그대로 #12로 보이지만
+    GitHub이 Issue 연결로 읽지 않는다. 연결되면 칸반 'PR 연결' 자동화가 닫힌 카드를 되돌린다 (#12)."""
+    return CLOSING.sub(lambda m: f"{m[1]}{m[2]}{m[3]}\\#{m[4]}", text)
 
 
 def update(body: str, block: str, issue: str, link: str) -> str:

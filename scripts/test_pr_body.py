@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from pr_body import update
+from pr_body import defuse, update
 
 BLOCK = "<!-- ship:start -->새 결과<!-- ship:end -->"
 
@@ -29,6 +29,17 @@ class UpdateTest(unittest.TestCase):
 
     def test_no_issue(self):
         self.assertEqual(update("x", BLOCK, "", "Closes"), f"x\n\n{BLOCK}")
+
+
+class DefuseTest(unittest.TestCase):
+    def test_closing_keywords_are_escaped(self):
+        text = "예: `update(\"Closes #12\")`, fixes: #3, Resolved owner/repo#4"
+        self.assertEqual(
+            defuse(text), "예: `update(\"Closes \\#12\")`, fixes: \\#3, Resolved owner/repo\\#4"
+        )
+
+    def test_plain_references_untouched(self):
+        self.assertEqual(defuse("#12 참고, PR #122"), "#12 참고, PR #122")
 
 
 if __name__ == "__main__":

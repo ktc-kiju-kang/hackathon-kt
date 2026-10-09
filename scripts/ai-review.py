@@ -15,6 +15,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from pr_body import defuse  # noqa: E402 — 같은 폴더의 스크립트 모듈
+
 ROOT = Path(__file__).resolve().parents[1]
 ITEMS = {  # pr_review_score.py AI_ITEMS와 같아야 한다
     "정확성": 15,
@@ -186,7 +189,7 @@ def render(r: dict, commit: str) -> tuple[str, int, int, str]:
 ### 확인하지 못한 것
 {r["unverified"].strip()}
 {END}"""
-    return block, total, blocking, verdict
+    return defuse(block), total, blocking, verdict
 
 
 def put_block(pr: str, block: str) -> None:
