@@ -17,7 +17,7 @@
 | 문서 | 내용 |
 |---|---|
 | [project-brief.md](docs/project-brief.md) | 문제·사용자·목표·범위 |
-| [prd.md](docs/prd.md) | 요구사항(REQ)·확인 조건(AC) |
+| [prd.md](docs/prd.md) | 요구사항(REQ) 인덱스 → REQ별 확인 조건(AC) `docs/prd/` |
 | [arch.md](docs/arch.md) | 구조·기술 선택·REQ별 코드 위치 |
 | [experience.md](docs/experience.md) | 화면 흐름·UX·KDS 적용 |
 | [development.md](docs/development.md) | 개발 과정·AI 활용과 검증 기록 |

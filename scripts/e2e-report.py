@@ -161,13 +161,24 @@ def tables(text: str) -> list[tuple[list[str], list[list[str]]]]:
     return out
 
 
-def update_prd(text: str, tc_status: dict[str, str]) -> tuple[str, list[str]]:
-    """REQ 상태 = 그 REQ의 AC가 가리키는 TC 결과.
+def prd_children(prd: Path) -> str:
+    """prd.md 요구사항 표가 링크한 REQ별 하위 정의서(docs/prd/REQ-01-….md)의 내용을 이어 붙인 것."""
+    links = dict.fromkeys(re.findall(r"\]\((prd/[^)\s#]+\.md)\)", prd.read_text(encoding="utf-8")))
+    return "\n".join(
+        (prd.parent / rel).read_text(encoding="utf-8")
+        for rel in links
+        if (prd.parent / rel).is_file()
+    )
 
+
+def update_prd(text: str, tc_status: dict[str, str], children: str = "") -> tuple[str, list[str]]:
+    """REQ 상태 = 그 REQ의 AC가 가리키는 TC 결과. 상태는 prd.md 요구사항 표에만 쓴다.
+
+    AC 표는 prd.md와 하위 정의서(children) 어디에 있어도 읽는다.
     전부 PASS → 검증됨, 일부만 실행·실패 → 구현됨-미검증, 실행 안 함 → 그대로.
     """
     req_tcs: dict[str, list[str]] = {}
-    for header, rows in tables(text):
+    for header, rows in tables(text + "\n\n" + children):
         if header[:1] == ["AC"] and "시험" in header:
             for cells in rows:
                 m = re.match(r"AC-(\d+)-", cells[0].strip("*` "))
@@ -180,7 +191,7 @@ def update_prd(text: str, tc_status: dict[str, str]) -> tuple[str, list[str]]:
     changed, lines = [], text.splitlines()
     for n, line in enumerate(lines):
         cells = split_row(line) if line.lstrip().startswith("|") else []
-        req = re.sub(r"[*`\[\]]", "", cells[0]).strip() if cells else ""
+        req = re.sub(r"[*`\[\]]|\(.*?\)$", "", cells[0]).strip() if cells else ""  # [REQ-01](prd/…)
         if not re.fullmatch(r"REQ-\d+", req) or req not in req_tcs or cells[-1].startswith("제외"):
             continue
         sts = [tc_status.get(t, "미실행") for t in req_tcs[req]]
@@ -264,7 +275,9 @@ def main() -> int:
         DOC.write_text(text, encoding="utf-8")
         prd = ROOT / "docs" / "prd.md"
         if prd.exists():
-            new_prd, changed = update_prd(prd.read_text(encoding="utf-8"), doc_tc_status(text))
+            new_prd, changed = update_prd(
+                prd.read_text(encoding="utf-8"), doc_tc_status(text), prd_children(prd)
+            )
             prd.write_text(new_prd, encoding="utf-8")
             for c in changed:
                 print(f"  prd.md: {c}")

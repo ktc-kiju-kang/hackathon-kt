@@ -4,14 +4,14 @@
 > 키·토큰·개인정보는 절대 커밋하지 않는다. 데이터는 합성 데이터만 쓴다.
 
 ## 개요
-- 주제: {{주제 번호·이름}} — 요구사항 원본은 `docs/prd.md` (REQ·AC)
+- 주제: {{주제 번호·이름}} — 요구사항 원본은 `docs/prd.md` (인덱스: 원문 SRC·REQ 표) → `docs/prd/REQ-xx-….md` (REQ별 AC)
 - 개발 마감: **2026-10-15 00:00**. 제출 = 포털에 이 레포의 40자 commit SHA + 발표자료
 - 실행: 로컬 (외부 서비스 없음). 각자 PC의 docker compose — DB는 PostgreSQL(`db` 서비스), LLM은 키가 없으면 mock
 - 상태 확인: `GET /api/health` → `version`(실행 중인 커밋), `db`(ok/error), `llm`(anthropic/gemini/openai/mock)
 
 ## 채점 근거 — 모든 작업이 지키는 규칙
 기술평가는 AI가 **문서·코드·실행/테스트 결과·GitHub 이력·AI 활용 기록**을 보고 매긴다. 분량·Issue 수·토큰 사용량은 점수가 아니다.
-1. **ID 사슬**: REQ(`docs/prd.md`) → AC(`prd.md`) → Issue·코드(`docs/arch.md` "REQ별 코드 위치") → TC(`docs/e2e-test.md`) → 실제 결과. 새 기능은 REQ·AC부터 적는다.
+1. **ID 사슬**: SRC·REQ(`docs/prd.md`) → AC(`docs/prd/REQ-xx-….md`) → Issue·코드(`docs/arch.md` "REQ별 코드 위치") → TC(`docs/e2e-test.md`) → 실제 결과. 새 기능은 REQ·AC부터 적는다.
 2. **실행한 것만 결과로 적는다.** TC의 실제 결과·PASS/FAIL은 명령을 실제로 실행한 출력으로만 채운다. 실행하지 않았으면 `미실행`, 확인 못 했으면 `미검증`. 계획·예시를 완료로 쓰지 않는다.
 3. **보안**: `docs/security-policy.md`(주최 제공)는 **수정하지 않는다**. SEC별 적용·코드 위치·정상/거부 시험 결과를 `docs/security-compliance.md`에 남긴다.
 4. **AI 활용 기록**: AI가 틀린 것을 사람이 잡았거나 고친 사례는 바로 `docs/development.md` "AI 활용 기록"에 한 줄 추가한다 (작업·AI가 한 것·확인 방법·고친 것·커밋).

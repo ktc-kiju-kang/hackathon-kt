@@ -150,12 +150,15 @@ def latest_tests(root: Path) -> Tests:
 
 
 def read_reqs(prd: Path) -> Reqs:
-    """docs/prd.md 요구사항 표: | ID | 출처 | 요구사항 | 우선순위 | Issue | 상태 |."""
+    """docs/prd.md 요구사항 표: | ID | 출처 | 요구사항 | 우선순위 | Issue | (확인 조건) | 상태 |.
+
+    ID 칸은 하위 정의서 링크일 수 있다: [REQ-01](prd/REQ-01-login.md).
+    """
     if not prd.is_file():
         return Reqs(status="none")
     items = []
     for c in _table_rows(prd.read_text(encoding="utf-8", errors="replace"), "ID"):
-        rid = re.sub(r"[*`\[\]]", "", c[0]).strip()
+        rid = re.sub(r"[*`\[\]]|\(.*?\)$", "", c[0]).strip()
         if re.fullmatch(r"REQ-\d+", rid) and len(c) >= 6:
             items.append(Req(id=rid, title=c[2], priority=c[3], issue=c[4], state=c[-1]))
     return Reqs(status="ok", items=items)

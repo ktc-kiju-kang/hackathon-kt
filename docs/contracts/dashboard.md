@@ -36,7 +36,7 @@ Response 200:
 - `tests`: `make e2e` 근거 `docs/evidence/<실행>/summary.md`·`.run/evidence/<실행>/summary.md` 두 곳 중 가장 최근 실행 (폴더 이름이 시각으로 시작)
 - `test_history`: 같은 두 폴더의 실행 전부 중 최근 20개. `total`·`failed` = 묶음 합계, `ran_at` = 폴더 이름의 KST 시각
 - `readiness.checks` (`key`): `committed`(실행 버전에 커밋 안 된 변경 없음) · `evidence`(이 커밋으로 돌린 근거가 `docs/evidence/`에 있고 전체 PASS) · `placeholders`(README·docs/ 제출 문서 7개의 `{{…}}` 남은 수) · `reqs`(제외 빼고 REQ 전부 검증됨). 제출 문서가 없는 레포(키트 원본)는 `na`. "origin/main과 같음"은 GitHub 칸의 `main_sha`로 화면에서 비교한다 (docker 안엔 git이 없음)
-- `reqs`: `docs/prd.md` 요구사항 표 (ID·요구사항·우선순위·Issue·상태). `{{자리표시}}`는 그대로 보인다
+- `reqs`: `docs/prd.md` 요구사항 표 (ID·요구사항·우선순위·Issue·상태). ID 칸의 하위 정의서 링크(`[REQ-01](prd/…)`)는 벗기고 ID만. `{{자리표시}}`는 그대로 보인다
 
 ## GET /api/dashboard/github — v1
 GitHub(또는 사내 GHE) 현황. 60초 캐시 (토큰이 없으면 5분 — API 한도 보호), 한 번 갱신은 15초 상한.
