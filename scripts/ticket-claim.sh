@@ -28,8 +28,12 @@ CLAIM="$HERE/claim.sh"
 
 die() { echo "❌ $*" >&2; exit 2; }
 [ -x "$CLAIM" ] || die "scripts/claim.sh 가 없다 (main 의 시작 키트가 필요)"
-repo=$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null) || die "gh 로그인·저장소 확인 실패"
-me=$(gh api user --jq .login 2>/dev/null) || die "gh api user 실패"
+# 저장소·계정은 필요할 때 확인한다 — merge-wait는 머지 조건 줄이 없으면 묻지 않는다 (make ship이 이 확인 실패로 막히지 않게)
+need_gh() {
+  [ -n "${repo:-}" ] && return 0
+  repo=$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null) || die "gh 로그인·저장소 확인 실패"
+  me=$(gh api user --jq .login 2>/dev/null) || die "gh api user 실패"
+}
 ROOT=$(git -C "$HERE" rev-parse --show-toplevel)
 # 세션 ID: 같은 계정의 다른 세션과 구분한다 (호스트명은 공개 댓글에 쓰지 않고 해시만 쓴다)
 SID=${TICKET_SESSION:-$(printf '%s' "$(hostname)$(git -C "$ROOT" rev-parse --git-common-dir)" | shasum | cut -c1-8)}
@@ -152,7 +156,10 @@ cmd_claim() {
 cmd_merge_wait() {
   local n=$1 body d st ok=1
   num_or_die "$n"
-  body=$(api "repos/$repo/issues/$n" --jq .body) || die "Issue #$n 조회 실패"
+  body=$(gh issue view "$n" --json body --jq '.body // ""') || die "Issue #$n 조회 실패"
+  # 머지 조건 줄 판정은 여기 한 곳 (make ship은 이 명령만 부른다)
+  jq -en --arg b "$body" '$b | test("(?m)^\\s*[-*]\\s*머지\\s*조건\\s*:")' >/dev/null || return 0
+  need_gh
   jq -en --arg b "$body" "\$b | $(bare_jq '머지\\s*조건')" >/dev/null &&
     { echo "머지 조건 줄에 '#' 없는 번호(티켓 초안 NN?) — 사람이 #번호로 고친다"; ok=0; }
   for d in $(jq -rn --arg b "$body" "\$b | $(deps_jq '머지\\s*조건')"); do
@@ -249,6 +256,7 @@ cmd_release() {
 
 case "${TICKET_ROLE:-}" in ""|architect|backend|frontend) ;; *) die "TICKET_ROLE은 architect|backend|frontend 중 하나: $TICKET_ROLE" ;; esac
 
+case "${1:-}" in merge-wait|"") ;; *) need_gh ;; esac
 case "${1:-}" in
   list)        cmd_list ;;
   claim)       [ -n "${2:-}" ] || die "사용법: claim <번호> [--dry-run]"; cmd_claim "$2" "${3:-}" ;;

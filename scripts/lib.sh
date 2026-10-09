@@ -127,3 +127,21 @@ lock_release() {  # 내 잠금일 때만 지운다
   git -C "$ROOT" push -q --force-with-lease="$LOCK_REF:$LOCK_SHA" origin ":$LOCK_REF" 2>/dev/null || true
   LOCK_SHA=
 }
+
+# 머지 조건 (Issue 본문 "- 머지 조건: #N", docs/requirements-flow.md 2절) — make ship이 쓴다
+merge_waiting() {  # merge_waiting <Issue> — 머지하면 안 되는 이유를 한 줄씩 (빈 값 = 머지 가능). 판정 실패도 이유다
+  local out rc
+  out=$("$ROOT/scripts/ticket-claim.sh" merge-wait "$1" 2>&1); rc=$?
+  case $rc in
+    0) ;;
+    1) echo "$out" ;;
+    *) echo "판정 실패: $(echo "$out" | tail -1) — 다시 make ship" ;;
+  esac
+}
+
+merge_gate() {  # merge_gate <이유> <PR> — 이유가 있으면 SHIP_NO_MERGE=1은 경고만, 머지까지 맡긴 실행은 멈춘다
+  [ -n "$1" ] || return 0
+  echo "$1" | sed 's/^/  머지 조건 /'
+  [ "${SHIP_NO_MERGE:-}" = 1 ] || die "머지 조건이 풀리지 않아 머지하지 않습니다 — 풀린 뒤 다시 make ship (PR #$2 은 그대로 둠)"
+  warn "머지 조건이 풀리지 않음 — PR 본문에 적었습니다. 풀린 뒤에 머지하세요"
+}

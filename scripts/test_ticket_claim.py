@@ -21,6 +21,7 @@ expr=.; prev=
 for a in "$@"; do [ "$prev" = --jq ] && expr=$a; prev=$a; done
 case "$1 $2" in
   "repo view") f=repo ;; "api user") f=user ;; "pr list") f=prs ;; "issue list") f=agent_pause ;;
+  "issue view") f=issue_$3; [ -f "$FIX/$f.404" ] && { echo "gh: Not Found (HTTP 404)" >&2; exit 1; } ;;
   *) case "$*" in
        *pulls/*/comments*) f=pr_comments ;; *pulls/*/reviews*) f=pr_reviews ;;
        *issues/*/comments*) f=issue_comments ;; *issues\?*) f=issues ;;
@@ -76,7 +77,7 @@ class TicketScriptTest(unittest.TestCase):
         run(["git", "init", "-q", str(self.repo)])
         run(["git", "-C", str(self.repo), "remote", "add", "origin", str(self.origin)])
         (self.repo / "scripts").mkdir()
-        for name in ("ticket-claim.sh", "ticket-loop-precheck.sh"):
+        for name in ("ticket-claim.sh", "ticket-loop-precheck.sh", "lib.sh"):
             shutil.copy(SCRIPTS / name, self.repo / "scripts" / name)
         claim = self.repo / "scripts" / "claim.sh"  # 선점 쓰기는 이 시험의 대상이 아니다 (존재만 요구)
         claim.write_text("#!/usr/bin/env bash\nexit 0\n")
@@ -259,6 +260,41 @@ class TicketScriptTest(unittest.TestCase):
         self.assertIn("#11 조회 실패", self.sh("ticket-claim.sh", "merge-wait", "12").stdout)
         self.put("issue_12", {"number": 12, "state": "open", "body": None})  # 본문 없음·머지 조건 없음
         self.assertEqual(self.sh("ticket-claim.sh", "merge-wait", "12").returncode, 0)
+
+    def test_merge_wait_without_line_needs_no_repo_lookup(self):
+        """머지 조건 줄이 없는 Issue는 저장소·계정 확인이 실패해도 make ship을 막지 않는다."""
+        (self.fix / "repo.json").unlink()
+        self.put("issue_12", {"number": 12, "state": "open", "body": "- 선행: #10"})
+        self.assertEqual(self.sh("ticket-claim.sh", "merge-wait", "12").returncode, 0)
+        self.put("issue_12", {"number": 12, "state": "open", "body": "- 머지 조건: #11"})
+        self.assertEqual(self.sh("ticket-claim.sh", "merge-wait", "12").returncode, 2)  # 줄이 있으면 확인이 필요하다
+        self.assertEqual(self.sh("ticket-claim.sh", "list").returncode, 2)
+
+    def ship_gate(self, issue, no_merge):
+        """make ship의 머지 조건 분기 (lib.sh merge_waiting → PR 본문 이유, merge_gate → 경고 또는 멈춤)."""
+        env = {**self.env, "SHIP_NO_MERGE": "1" if no_merge else ""}
+        script = f'. scripts/lib.sh; w=$(merge_waiting {issue}); echo "W[$w]"; merge_gate "$w" 99; echo MERGE'
+        return run(["bash", "-c", script], env=env, cwd=self.repo)
+
+    def test_ship_merge_gate_warns_or_stops(self):
+        self.put("issue_12", {"number": 12, "state": "open", "body": "- 머지 조건: #11"})
+        self.put("issue_11", {"number": 11, "state": "open"})
+        r = self.ship_gate(12, no_merge=True)  # 머지는 사람: PR 본문에 적고 경고만
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("W[#11 아직 열림 — 먼저 머지된 뒤]", r.stdout)
+        self.assertIn("머지 조건이 풀리지 않음", r.stdout)
+        self.assertIn("MERGE", r.stdout)
+        r = self.ship_gate(12, no_merge=False)  # 머지까지 맡긴 실행: 멈춘다
+        self.assertEqual(r.returncode, 1)
+        self.assertNotIn("MERGE", r.stdout)
+        self.assertIn("PR #99 은 그대로 둠", r.stderr)
+        self.put("issue_11", {"number": 11, "state": "closed", "state_reason": "completed"})
+        r = self.ship_gate(12, no_merge=False)  # 풀렸으면 그대로 머지로
+        self.assertEqual((r.returncode, r.stdout.split()), (0, ["W[]", "MERGE"]), r.stderr)
+        (self.fix / "issue_12.404").write_text("")  # Issue 조회 실패 = 판정 실패, 머지하지 않는다
+        r = self.ship_gate(12, no_merge=False)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("W[판정 실패: ❌ Issue #12 조회 실패 — 다시 make ship]", r.stdout)
 
     def test_list_filters_by_role(self):
         self.put(
