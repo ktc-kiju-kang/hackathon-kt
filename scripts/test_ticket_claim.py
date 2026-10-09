@@ -615,6 +615,13 @@ class TicketScriptTest(unittest.TestCase):
         self.put("issue_comments", [])
         r = self.tick()
         self.assertIn("BRANCH feat/7-req-02-be (이 폴더)", r.stdout, r.stdout + r.stderr)
+        # 놓은(release) 티켓의 브랜치에 남아 있어도 (Issue는 열림, 선점 ref 없음) 다음 선점은 이 폴더에서
+        self.git("push", "-q", "origin", ":refs/heads/claim/7")
+        self.put("issue_7", {"number": 7, "title": "[REQ-02][BE] 다음", "body": "", "state": "OPEN", "labels": [{"name": "role:backend"}, {"name": "needs-info"}]})
+        self.put("issues", [issue(8, labels=["role:backend"])])
+        self.put("issue_8", {"number": 8, "title": "[REQ-03][BE] 그다음", "body": "", "state": "OPEN", "labels": [{"name": "role:backend"}]})
+        r = self.tick()
+        self.assertIn("BRANCH feat/8-req-03-be (이 폴더)", r.stdout, r.stdout + r.stderr)
 
     def test_tick_other_branches(self):
         """NEEDS-HUMAN(선행에 # 없는 번호) · OTHER-SESSION · PR CLOSED · MERGE_WAIT · 명세 조회 실패."""
@@ -659,6 +666,7 @@ class TicketScriptTest(unittest.TestCase):
         """사람이 이 폴더에서 작업 중(다른 브랜치·미커밋)이면 건드리지 않고 worktree."""
         self.tick_repo()
         self.git("switch", "-q", "-c", "fix/99-mine")
+        self.claim_branch(99, "other")  # 사람이 /start-task로 잡은 티켓의 브랜치
         (self.repo / "README.md").write_text("고치는 중\n")  # 수정된 추적 파일 = 작업 중
         self.put("issues", [issue(5)])
         self.put("issue_5", {"number": 5, "title": "[REQ-02][FE] 화면", "body": "", "state": "OPEN", "labels": [{"name": "feature"}]})
