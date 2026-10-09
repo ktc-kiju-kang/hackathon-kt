@@ -506,7 +506,7 @@ class TicketScriptTest(unittest.TestCase):
             "#!/usr/bin/env bash\nset -e\nr=$(git rev-parse --show-toplevel)\ncase \"$1\" in\n"
             "  take) t=$(git -C \"$r\" hash-object -t tree /dev/null); c=$(git -C \"$r\" commit-tree \"$t\" -m \"me #$2\" </dev/null); git -C \"$r\" push -q origin \"$c:refs/heads/claim/$2\" ;;\n"
             "  done|release) git -C \"$r\" push -q origin \":refs/heads/claim/$2\" ;;\nesac\n")
-        self.write_commit({"README.md": "x\n"}, "base")
+        self.write_commit({"README.md": "x\n", ".gitignore": ".run/\n"}, "base")  # 키트처럼 .run/은 무시
         self.git("branch", "-M", "main")
         self.git("push", "-q", "origin", "main")
         self.git("fetch", "-q", "origin")

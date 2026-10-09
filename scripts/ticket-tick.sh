@@ -33,9 +33,10 @@ checkout_branch() {  # checkout_branch <번호> <브랜치> — 이 폴더 또�
   git -C "$ROOT" fetch -q origin "$b" 2>/dev/null && remote=1  # 다른 PC·세션이 push한 브랜치
   # 미추적 파일은 브랜치를 바꿔도 그대로라 보지 않는다 (.run/ 등). 수정·스테이지된 변경이 있으면 사람이 작업 중
   if [ -z "$(git -C "$ROOT" status --porcelain --untracked-files=no)" ] && { [ "$cur" = main ] || [ "$cur" = "$b" ] || [[ "$cur" == */$n-* ]]; }; then
-    if git -C "$ROOT" show-ref -q --verify "refs/heads/$b"; then git -C "$ROOT" switch -q "$b" || fail "브랜치 $b 로 바꾸지 못함"
-    elif [ -n "$remote" ]; then git -C "$ROOT" switch -q -c "$b" --track "origin/$b" || fail "origin/$b 체크아웃 실패"
-    else git -C "$ROOT" switch -q -c "$b" origin/main || fail "origin/main에서 $b 를 만들지 못함"; fi
+    local err
+    if git -C "$ROOT" show-ref -q --verify "refs/heads/$b"; then err=$(git -C "$ROOT" switch -q "$b" 2>&1) || fail "브랜치 $b 로 바꾸지 못함: $err"
+    elif [ -n "$remote" ]; then err=$(git -C "$ROOT" switch -q -c "$b" --track "origin/$b" 2>&1) || fail "origin/$b 체크아웃 실패: $err"
+    else err=$(git -C "$ROOT" switch -q -c "$b" origin/main 2>&1) || fail "origin/main에서 $b 를 만들지 못함: $err"; fi
     WORK=$ROOT
     echo "BRANCH $b (이 폴더)"
   else
