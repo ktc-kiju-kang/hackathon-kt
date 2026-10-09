@@ -11,6 +11,7 @@
 #   scripts/ticket-claim.sh release <번호> [라벨]       선점 해제 (+ needs-info|needs-human|blocked 라벨), in-progress 라벨 제거
 #   scripts/ticket-claim.sh owns <번호>                 이 세션이 잡은 티켓인가. 종료코드 0=내 세션(또는 세션 표식 없음), 1=같은 계정의 다른 세션
 #   scripts/ticket-claim.sh done <번호>                 구현 완료 표기: impl-done 라벨 (PR 생성 뒤)
+#   scripts/ticket-claim.sh merge-wait <번호>           본문 '- 머지 조건: #N' 중 아직 머지해선 안 되는 이유를 한 줄씩. 종료코드 0=없음, 1=있음 (make ship이 쓴다)
 # claim 은 성공하면 in-progress 라벨과 세션 표식 댓글(<!-- ticket-agent session=ID -->)을 남긴다. 세션 ID 는 TICKET_SESSION, 없으면 호스트·경로 해시.
 #
 # 동시성: claim.sh 가 refs/heads/claim/<번호> 를 "없을 때만" 만든다 → 사람(make claims)과 루프가 같은 기준을 본다.
@@ -61,8 +62,24 @@ pr_covers() { # $PRS 에 열린 PR이 있는지: 브랜치명 `<type>/<번호>-�
   echo "$PRS" | jq -e --arg n "$1" 'map(select((.headRefName|test("/"+$n+"-")) or ((.body // "")|test("(?i)(closes|fixes|resolves)\\s+#"+$n+"\\b")))) | length > 0' >/dev/null
 }
 
-# 본문 '- 선행: #N …' 줄의 Issue 번호들 (jq 식, 입력 = 본문 문자열)
-DEPS_JQ='(. // "") | scan("(?m)^\\s*[-*]\\s*선행\\s*:[^\n]*") | scan("#([0-9]+)") | .[0] | tonumber'
+# 본문 '- 선행: #N …'·'- 머지 조건: #N …' 줄의 Issue 번호들 (jq 식, 입력 = 본문 문자열)
+deps_jq() { echo '(. // "") | scan("(?m)^\\s*[-*]\\s*'"$1"'\\s*:[^\n]*") | scan("#([0-9]+)") | .[0] | tonumber'; }
+DEPS_JQ=$(deps_jq 선행)
+# '# 없는 번호'가 남은 줄 (티켓 초안의 NN이 Issue 번호로 안 바뀜) — 의존이 없는 것으로 통과시키지 않는다.
+# 괄호·대괄호 안 설명([REQ-01] 등)과 #번호를 지운 뒤에도 숫자가 남으면 bare
+bare_jq() { echo '[(. // "") | scan("(?m)^\\s*[-*]\\s*'"$1"'\\s*:([^\n]*)") | .[0]
+  | gsub("\\([^)]*\\)|\\[[^\\]]*\\]"; "") | gsub("#[0-9]+"; "") | select(test("(^|[^0-9A-Za-z-])[0-9]+"))] | length > 0'; }
+
+# 의존 Issue의 상태: open | completed | not_planned | duplicate | "없는 Issue". 그 밖의 조회 실패는 종료코드 1
+# (state_reason이 없는 옛 닫힘은 완료로 본다)
+dep_state() {
+  local out
+  if out=$(api "repos/$repo/issues/$1" --jq 'if .state == "open" then "open" else (.state_reason // "completed") end' 2>&1); then
+    echo "$out"
+  else
+    case "$out" in *"Not Found"*|*404*) echo "없는 Issue" ;; *) return 1 ;; esac
+  fi
+}
 
 eligible_json() { # stdin: 이슈 목록, $1: 열린 Issue 번호 JSON 배열 → 후보(오래된 순)
   jq --argjson blocking "$BLOCKING" --argjson trusted "$TRUSTED" --argjson open "${1:-[]}" --arg role "${TICKET_ROLE:-}" '
@@ -95,12 +112,16 @@ cmd_claim() {
     { echo "SKIP #$n: 담당자·차단 라벨·신뢰할 수 없는 작성자·다른 역할(TICKET_ROLE)·열린 선행 Issue 중 하나로 대상이 아님"; return 1; }
   # 닫힌 선행은 '완료'로 닫혔어야 한다 — not planned·중복이면 계약 없이 시작하게 되므로 사람에게 넘긴다
   local d reason
+  if echo "$issue" | jq -e ".body | $(bare_jq 선행)" >/dev/null; then
+    [ "$dry" = "--dry-run" ] || {
+      gh label create needs-human --color D93F0B >/dev/null 2>&1 || true
+      gh issue edit "$n" --add-label needs-human >/dev/null 2>&1 || echo "⚠️  #$n 에 needs-human을 붙이지 못함" >&2
+    }
+    echo "SKIP #$n: 선행 줄에 '#' 없는 번호(티켓 초안 NN?) — needs-human, 사람이 #번호로 고친다"; return 1
+  fi
   for d in $(echo "$issue" | jq -r ".body | $DEPS_JQ"); do
-    # 거부는 '열림' 또는 'not_planned·duplicate로 닫힘'일 때만 (state_reason이 없는 옛 닫힘은 완료로 본다)
-    if ! reason=$(api "repos/$repo/issues/$d" --jq 'if .state == "open" then "open" else (.state_reason // "completed") end' 2>&1); then
-      case "$reason" in *"Not Found"*|*404*) reason="없는 Issue" ;;  # 선행 줄 오타 — 사람이 고칠 일
-        *) die "선행 #$d 조회 실패 (일시 오류일 수 있음 — 다음 틱에 다시)" ;; esac
-    fi
+    # 거부는 '열림' 또는 'not_planned·duplicate·없는 번호(선행 줄 오타)'일 때만
+    reason=$(dep_state "$d") || die "선행 #$d 조회 실패 (일시 오류일 수 있음 — 다음 틱에 다시)"
     case "$reason" in
       open) echo "SKIP #$n: 선행 #$d 열림 — 대기"; return 1 ;;  # 열린 PR 번호·다시 열린 Issue
       not_planned|duplicate|"없는 Issue")
@@ -125,6 +146,24 @@ cmd_claim() {
   gh issue comment "$n" --body "<!-- ticket-agent session=$SID -->
 작업 시작 (세션 \`$SID\`)" >/dev/null 2>&1 || echo "⚠️ #$n 세션 표식 댓글 실패" >&2
   echo "CLAIMED #$n by $me (session $SID)"; return 0
+}
+
+# FE 티켓의 '- 머지 조건:'(같은 REQ의 BE)이 완료로 닫히기 전에는 머지하지 않는다 — 선행과 같은 기준
+cmd_merge_wait() {
+  local n=$1 body d st ok=1
+  num_or_die "$n"
+  body=$(api "repos/$repo/issues/$n" --jq .body) || die "Issue #$n 조회 실패"
+  jq -en --arg b "$body" "\$b | $(bare_jq '머지\\s*조건')" >/dev/null &&
+    { echo "머지 조건 줄에 '#' 없는 번호(티켓 초안 NN?) — 사람이 #번호로 고친다"; ok=0; }
+  for d in $(jq -rn --arg b "$body" "\$b | $(deps_jq '머지\\s*조건')"); do
+    if ! st=$(dep_state "$d"); then echo "#$d 조회 실패 — 다시 make ship"; ok=0; continue; fi
+    case "$st" in
+      completed) ;;
+      open) echo "#$d 아직 열림 — 먼저 머지된 뒤"; ok=0 ;;
+      *) echo "#$d 이 완료로 닫히지 않음 ($st) — 사람이 머지 조건 줄을 고친다"; ok=0 ;;
+    esac
+  done
+  [ "$ok" = 1 ]
 }
 
 cmd_mine() {
@@ -219,6 +258,7 @@ case "${1:-}" in
   pr-comments) [ -n "${2:-}" ] || die "사용법: pr-comments <PR번호>"; cmd_pr_comments "$2" ;;
   owns)        [ -n "${2:-}" ] || die "사용법: owns <번호>"; cmd_owns "$2" ;;
   done)        [ -n "${2:-}" ] || die "사용법: done <번호>"; cmd_done "$2" ;;
+  merge-wait)  [ -n "${2:-}" ] || die "사용법: merge-wait <번호>"; cmd_merge_wait "$2" ;;
   release)     [ -n "${2:-}" ] || die "사용법: release <번호> [라벨]"; cmd_release "$2" "${3:-}" ;;
-  *) sed -n '2,12p' "$0"; exit 2 ;;
+  *) sed -n '2,14p' "$0"; exit 2 ;;
 esac

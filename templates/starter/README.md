@@ -35,11 +35,14 @@ python3 templates/starter/export.py ~/team-repo
 ```sh
 # 2. 실행 확인
 cd ~/team-repo
-make setup && make verify && make serve   # 브라우저 http://localhost:3000 확인 후 make stop
+make setup && make verify   # 기획 전에는 docs-draft가 "SEC-xx 행 없음"으로 실패할 수 있다 (아래)
+make serve                  # 브라우저 http://localhost:3000 확인 후 make stop
 
 # 3. 첫 커밋 (main 보호가 있으면 브랜치 → PR)
 git switch -c chore/starter-kit && git add -A && git commit -m "chore: 시작 키트" && git push -u origin chore/starter-kit
 ```
+- 주최 측 `docs/security-policy.md`에 키트 양식(`docs/security-compliance.md`)보다 SEC 항목이 많으면, 기획 전 `make verify`는 `docs-draft`만 "SEC-xx 행 없음"으로 실패한다 (2026-10-09 리허설). 기획(`/plan-topic` 5단계)에서 SEC를 옮기면 풀린다 — 그 전에는 나머지 검사가 PASS인지만 본다.
+
 4. 주제가 나오면 `/plan-topic <주제 원문>` → 기획 게이트 통과 후 `/new-issue`. 이후 단계는 `docs/pipeline.md` (개발 → `make e2e` → `/submit`).
 5. 서비스 이름을 바꿀 곳: `frontend/src/app/layout.tsx`(title), `components/app-sidebar.tsx`(배너), `src/app/page.tsx`(홈), `backend/app/agent/prompts.py`(에이전트 역할), `features/chat/ChatView.tsx`(예시 질문).
 6. AI 기능이 필요 없는 주제면 `/agent`를 메뉴(`frontend/src/components/menu-items.ts`)에서 빼면 된다 (코드는 남겨도 무방). 주제에 맞는 기능은 `/add-endpoint`·`/add-page`로 추가.

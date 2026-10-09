@@ -5,6 +5,7 @@
 #   → 8 머지 잠금 → main이 그새 바뀌었으면 다시 sync·verify → CI 대기 → squash 머지 → 잠금 해제
 #   → 9 main에서 make verify (머지 후 깨졌는지)
 # 시작 전 Issue 선점 확인(scripts/claim.sh — 남이 잡은 Issue면 멈춤), 머지 후 선점 해제.
+# Issue 본문 "- 머지 조건: #N"의 Issue가 완료로 닫히지 않았으면 PR 본문에 적고 자동 머지하지 않는다 (docs/requirements-flow.md 2절).
 # 환경변수: SHIP_NO_MERGE=1 (PR·리뷰까지만), SHIP_SKIP_E2E=1, SHIP_KIND=record (make record 전용)
 set -uo pipefail
 . "$(dirname "$0")/lib.sh"
@@ -75,12 +76,25 @@ ship_block="$RUN_DIR/ship-block.md"
 # 닫힌 카드를 In Review로 되돌리고, 다시 닫히지 않아 Done으로 돌아오지 않는다 (#109)
 link=Closes
 [ -n "$issue" ] && [ "$(gh issue view "$issue" --json state -q .state 2>/dev/null)" = CLOSED ] && link=Refs
+# 역할 분담의 FE 티켓은 같은 REQ의 BE가 먼저 머지돼야 한다 — 시작 조건(선행)과 따로 "머지 조건" 줄에 둔다.
+# 판정은 선행과 같은 기준(완료로 닫힘만 통과): scripts/ticket-claim.sh merge-wait
+waiting=""
+# 머지 조건 줄이 있는 Issue만 판정한다 (없는 Issue는 ticket-claim.sh 초기화 실패로 머지가 막히지 않게)
+if [ -n "$issue" ] && [ "$KIND" != record ]; then
+  if ! body=$(gh issue view "$issue" --json body -q .body 2>&1); then
+    waiting="판정 실패: Issue #$issue 조회 실패 — 다시 make ship"
+  elif echo "$body" | grep -qE '^[[:space:]]*[-*][[:space:]]*머지[[:space:]]*조건[[:space:]]*:'; then
+    waiting=$("$ROOT/scripts/ticket-claim.sh" merge-wait "$issue" 2>&1); rc=$?
+    case $rc in 0) waiting="" ;; 1) ;; *) waiting="판정 실패: $(echo "$waiting" | tail -1) — 다시 make ship" ;; esac
+  fi
+fi
 {
   echo "<!-- ship:start -->"
   echo "## 확인 (make ship 자동 기록, \`${head:0:12}\`)"
   echo "- $verify_line"
   echo "- 충돌 검사: $conflict_line"
   echo "$tc_lines"
+  [ -z "$waiting" ] || echo "$waiting" | sed 's/^/- ⚠️ 머지 조건 /'
   echo "<!-- ship:end -->"
 } >"$ship_block"
 if [ -z "$pr" ]; then
@@ -125,6 +139,11 @@ if [ -n "$issue" ]; then
     && ok "댓글 남김" || warn "Issue 댓글 실패 (권한?) — 직접 남기세요"
 fi
 
+if [ -n "$waiting" ]; then
+  echo "$waiting" | sed 's/^/  머지 조건 /'
+  [ "${SHIP_NO_MERGE:-}" = 1 ] || die "머지 조건이 풀리지 않아 머지하지 않습니다 — 풀린 뒤 다시 make ship (PR #$pr 은 그대로 둠)"
+  warn "머지 조건이 풀리지 않음 — PR 본문에 적었습니다. 풀린 뒤에 머지하세요"
+fi
 [ "${SHIP_NO_MERGE:-}" = 1 ] && { ok "PR #$pr 준비 완료 (SHIP_NO_MERGE=1 — 머지 안 함)"; exit 0; }
 
 say "8/9 머지 (잠금 → 최신 main 확인 → CI → squash)"
