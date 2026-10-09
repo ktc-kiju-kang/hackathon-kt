@@ -65,6 +65,8 @@ pr_covers() { # $PRS 에 열린 PR이 있는지: 브랜치명 `<type>/<번호>-�
 # 본문 '- 선행: #N …'·'- 머지 조건: #N …' 줄의 Issue 번호들 (jq 식, 입력 = 본문 문자열)
 deps_jq() { echo '(. // "") | scan("(?m)^\\s*[-*]\\s*'"$1"'\\s*:[^\n]*") | scan("#([0-9]+)") | .[0] | tonumber'; }
 DEPS_JQ=$(deps_jq 선행)
+# '# 없는 번호'로 시작하는 줄 (티켓 초안의 NN이 Issue 번호로 안 바뀐 채 남음) — 의존이 없는 것으로 통과시키지 않는다
+bare_jq() { echo '(. // "") | test("(?m)^\\s*[-*]\\s*'"$1"'\\s*:\\s*[0-9]")'; }
 
 # 의존 Issue의 상태: open | completed | not_planned | duplicate | "없는 Issue". 그 밖의 조회 실패는 종료코드 1
 # (state_reason이 없는 옛 닫힘은 완료로 본다)
@@ -108,6 +110,13 @@ cmd_claim() {
     { echo "SKIP #$n: 담당자·차단 라벨·신뢰할 수 없는 작성자·다른 역할(TICKET_ROLE)·열린 선행 Issue 중 하나로 대상이 아님"; return 1; }
   # 닫힌 선행은 '완료'로 닫혔어야 한다 — not planned·중복이면 계약 없이 시작하게 되므로 사람에게 넘긴다
   local d reason
+  if echo "$issue" | jq -e ".body | $(bare_jq 선행)" >/dev/null; then
+    [ "$dry" = "--dry-run" ] || {
+      gh label create needs-human --color D93F0B >/dev/null 2>&1 || true
+      gh issue edit "$n" --add-label needs-human >/dev/null 2>&1 || echo "⚠️  #$n 에 needs-human을 붙이지 못함" >&2
+    }
+    echo "SKIP #$n: 선행 줄에 '#' 없는 번호(티켓 초안 NN?) — needs-human, 사람이 #번호로 고친다"; return 1
+  fi
   for d in $(echo "$issue" | jq -r ".body | $DEPS_JQ"); do
     # 거부는 '열림' 또는 'not_planned·duplicate·없는 번호(선행 줄 오타)'일 때만
     reason=$(dep_state "$d") || die "선행 #$d 조회 실패 (일시 오류일 수 있음 — 다음 틱에 다시)"
@@ -142,6 +151,8 @@ cmd_merge_wait() {
   local n=$1 body d st ok=1
   num_or_die "$n"
   body=$(api "repos/$repo/issues/$n" --jq .body) || die "Issue #$n 조회 실패"
+  jq -en --arg b "$body" "\$b | $(bare_jq '머지 조건')" >/dev/null &&
+    { echo "머지 조건 줄에 '#' 없는 번호(티켓 초안 NN?) — 사람이 #번호로 고친다"; ok=0; }
   for d in $(jq -rn --arg b "$body" "\$b | $(deps_jq '머지 조건')"); do
     if ! st=$(dep_state "$d"); then echo "#$d 조회 실패 — 다시 make ship"; ok=0; continue; fi
     case "$st" in

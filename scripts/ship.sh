@@ -80,7 +80,8 @@ link=Closes
 # 판정은 선행과 같은 기준(완료로 닫힘만 통과): scripts/ticket-claim.sh merge-wait
 waiting=""
 if [ -n "$issue" ] && [ "$KIND" != record ]; then
-  waiting=$("$ROOT/scripts/ticket-claim.sh" merge-wait "$issue" 2>&1) && waiting=""
+  waiting=$("$ROOT/scripts/ticket-claim.sh" merge-wait "$issue" 2>&1); rc=$?
+  case $rc in 0) waiting="" ;; 1) ;; *) waiting="판정 실패: $(echo "$waiting" | tail -1)" ;; esac
 fi
 {
   echo "<!-- ship:start -->"
