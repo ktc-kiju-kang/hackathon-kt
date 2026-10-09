@@ -325,6 +325,23 @@ class TicketScriptTest(unittest.TestCase):
         (self.repo / "scripts" / "ticket-claim.sh").write_text("exit 2\n")  # 진단 없이 죽어도 원인 칸을 비우지 않는다
         self.assertIn("W[판정 실패: 종료코드 2 — 다시 make ship]", self.ship_gate(12, no_merge=True).stdout)
 
+    def test_mine_filters_by_role(self):
+        """한 계정에서 역할 루프를 여럿 돌려도 다른 역할의 선점을 '내 진행 중'으로 보고 멈추지 않는다."""
+        self.claim_branch(3, "me")
+        self.claim_branch(5, "me")
+        self.claim_branch(7, "other")
+        self.put("issue_3", {"number": 3, "state": "OPEN", "labels": [{"name": "role:backend"}]})
+        self.put("issue_5", {"number": 5, "state": "OPEN", "labels": [{"name": "feature"}, {"name": "role:frontend"}]})
+        self.put("issue_7", {"number": 7, "state": "OPEN", "labels": [{"name": "role:backend"}]})
+        self.assertEqual(self.sh("ticket-claim.sh", "mine").stdout.split(), ["3", "5"])
+        self.env["TICKET_ROLE"] = "frontend"
+        self.assertEqual(self.sh("ticket-claim.sh", "mine").stdout.split(), ["5"])
+        self.env["TICKET_ROLE"] = "architect"
+        self.assertEqual(self.sh("ticket-claim.sh", "mine").stdout.split(), [])
+        self.put("issue_3", {"number": 3, "state": "CLOSED", "labels": [{"name": "role:backend"}]})
+        self.env["TICKET_ROLE"] = "backend"
+        self.assertEqual(self.sh("ticket-claim.sh", "mine").stdout.split(), [])
+
     def test_list_filters_by_role(self):
         self.put(
             "issues",

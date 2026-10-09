@@ -6,7 +6,7 @@ description: GitHub Issue(티켓) 큐를 한 번 점검한다 — 열린 Issue�
 GitHub Issue = 티켓. **한 번 실행 = 한 틱**이다. 반복은 `/loop 5m /ticket-loop`가 맡고, 이 스킬은 스스로 예약하지 않는다.
 상태는 전부 GitHub(선점 ref `claim/<번호>`·담당자·PR)에 둔다. 세션이 바뀌어도 이어진다.
 **역할:** 인자로 역할(`architect`·`backend`·`frontend`)이 오면 이번 틱의 모든 `scripts/ticket-claim.sh list`·`claim` 앞에 `TICKET_ROLE=<역할>`을 붙인다 — `role:<역할>` 라벨 Issue만 후보가 된다 (`docs/requirements-flow.md` 2절). 인자가 없으면 모든 Issue. 어느 쪽이든 본문 `- 선행: #N` 줄의 Issue가 열려 있으면 스크립트가 후보에서 뺀다.
-큐 조작은 `scripts/ticket-claim.sh`로 한다 (`list` · `claim` · `mine` · `owns` · `done` · `comments` · `pr-comments` · `release`). 선점은 `scripts/claim.sh`가 기준이라 사람(`make claims`)과 같은 기준을 본다. **GitHub 계정당 루프 하나**만 돌린다.
+큐 조작은 `scripts/ticket-claim.sh`로 한다 (`list` · `claim` · `mine` · `owns` · `done` · `comments` · `pr-comments` · `release`). 선점은 `scripts/claim.sh`가 기준이라 사람(`make claims`)과 같은 기준을 본다. **GitHub 계정당 루프 하나**만 돌린다 — 역할을 준 루프는 역할마다 하나 (`mine`도 그 역할 티켓만 보므로 한 계정에서 architect·backend·frontend 루프를 함께 돌릴 수 있다).
 
 ## 사전 승인과 금지
 - 이 루프를 시작한 것이 **"ship" 요청**이다 (CLAUDE.md 예외). **기본은 `SHIP_NO_MERGE=1`** — PR·AI 리뷰까지 하고 머지는 사람이 한다. 사용자가 `TICKET_LOOP_MERGE=1`을 주고 시작했을 때만 `make ship`을 머지까지 맡긴다.

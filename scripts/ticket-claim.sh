@@ -4,7 +4,7 @@
 #     TICKET_ROLE=architect|backend|frontend 이면 그 role:<역할> 라벨 Issue만 (역할 분담 방식, docs/requirements-flow.md)
 #     본문 '- 선행: #N …' 줄(글머리 -·*, 공백 무관)의 Issue가 아직 열려 있으면 후보가 아니다 (list·claim 공통)
 #   scripts/ticket-claim.sh claim <번호> [--dry-run]   선점. 종료코드 0=내가 선점, 1=대상 아님·남이 선점, 2=오류
-#   scripts/ticket-claim.sh mine                      내가 선점한 열린 Issue 번호
+#   scripts/ticket-claim.sh mine                      내가 선점한 열린 Issue 번호 (TICKET_ROLE 이면 그 역할 Issue만)
 #   scripts/ticket-claim.sh cleanup                   내 선점 중 이슈가 닫힌 것의 선점 ref 를 정리 (머지 후 남은 claim/<번호>)
 #   scripts/ticket-claim.sh comments <번호> [ISO시각]   신뢰 작성자의 Issue 댓글만 JSON 한 줄씩 (시각 생략 시 내 마지막 에이전트 댓글 이후)
 #   scripts/ticket-claim.sh pr-comments <PR번호>       신뢰 작성자의 PR 댓글·리뷰 코멘트만 JSON 한 줄씩
@@ -181,7 +181,11 @@ cmd_mine() {
   local n owner
   claims | while read -r n owner; do
     [ "$owner" = "$me" ] || continue
-    gh issue view "$n" --json state --jq '.state' 2>/dev/null | grep -q OPEN && echo "$n"
+    # 역할 루프(TICKET_ROLE)는 자기 역할 티켓만 이어간다 — 다른 역할의 선점을 "진행 중"으로 보고 멈추지 않게
+    # (TICKET_ROLE은 맨 아래에서 architect|backend|frontend로 검사한 값이라 식에 그대로 넣는다 — gh --jq는 --arg가 없다)
+    gh issue view "$n" --json state,labels \
+      --jq 'select(.state == "OPEN" and ("'"${TICKET_ROLE:-}"'" == "" or ([.labels[].name] | index("role:'"${TICKET_ROLE:-}"'")))) | "y"' 2>/dev/null |
+      grep -q y && echo "$n"
   done
 }
 
