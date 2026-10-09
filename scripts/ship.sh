@@ -71,6 +71,10 @@ pr=$(gh pr view "$branch" --json number,state -q 'select(.state=="OPEN") | .numb
 commits=$(git log --reverse --format='- %s' origin/main..HEAD | grep -v '^- Merge ' || true)
 title=$(git log --reverse --format='%s' origin/main..HEAD | grep -v '^Merge ' | head -1)
 ship_block="$RUN_DIR/ship-block.md"
+# 이미 닫힌 Issue의 후속 PR은 Refs로 잇는다 — Closes로 이으면 칸반의 "PR 연결" 자동화가
+# 닫힌 카드를 In Review로 되돌리고, 다시 닫히지 않아 Done으로 돌아오지 않는다 (#109)
+link=Closes
+[ -n "$issue" ] && [ "$(gh issue view "$issue" --json state -q .state 2>/dev/null)" = CLOSED ] && link=Refs
 {
   echo "<!-- ship:start -->"
   echo "## 확인 (make ship 자동 기록, \`${head:0:12}\`)"
@@ -80,7 +84,7 @@ ship_block="$RUN_DIR/ship-block.md"
   echo "<!-- ship:end -->"
 } >"$ship_block"
 if [ -z "$pr" ]; then
-  { [ -n "$issue" ] && printf 'Closes #%s\n\n' "$issue"
+  { [ -n "$issue" ] && printf '%s #%s\n\n' "$link" "$issue"
     printf '## 변경 내용\n%s\n\n' "$commits"
     cat "$ship_block"
     printf '\n<!-- ai-review:start -->\n(AI 리뷰 대기)\n<!-- ai-review:end -->\n'
@@ -91,15 +95,9 @@ if [ -z "$pr" ]; then
 else
   # 사람이 쓴 본문은 그대로 두고 <!-- ship:start/end --> 구역만 바꾼다
   gh pr view "$pr" --json body -q .body >"$RUN_DIR/pr-body.old"
-  "$PY" - "$RUN_DIR/pr-body.old" "$ship_block" "$issue" >"$RUN_DIR/pr-body.md" <<'PY'
-import re, sys
-body, block, issue = open(sys.argv[1]).read(), open(sys.argv[2]).read().strip(), sys.argv[3]
-pat = re.compile(r"<!-- ship:start -->.*?<!-- ship:end -->", re.S)
-body = pat.sub(lambda _: block, body) if pat.search(body) else body.rstrip() + "\n\n" + block
-if issue and not re.search(rf"(?im)^(closes|fixes|resolves) #{issue}\b", body):
-    body = f"Closes #{issue}\n\n" + body
-print(body)
-PY
+  "$PY" scripts/pr_body.py "$RUN_DIR/pr-body.old" "$ship_block" "$issue" "$link" >"$RUN_DIR/pr-body.md"
+  [ "$link" = Refs ] && grep -qiE "^(closes|fixes|resolves) #$issue\b" "$RUN_DIR/pr-body.md" &&
+    warn "PR 본문에 사람이 쓴 'Closes #$issue'가 있음 — Issue가 이미 닫혀 칸반 카드가 In Review로 돌아갈 수 있으니 Refs로 고치세요"
   gh pr edit "$pr" --body-file "$RUN_DIR/pr-body.md" >/dev/null || die "PR 본문 갱신 실패"
   ok "PR #$pr 갱신"
 fi
