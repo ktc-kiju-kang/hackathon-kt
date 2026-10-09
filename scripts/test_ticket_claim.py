@@ -22,7 +22,7 @@ for a in "$@"; do { [ "$prev" = --jq ] || [ "$prev" = -q ]; } && expr=$a; prev=$
 case "$1 $2" in
   "repo view") f=repo ;; "api user") f=user ;; "pr list") f=prs ;; "issue list") f=agent_pause ;;
   "pr view") f=pr_view ;;
-  "pr checks") f=pr_checks  # $FIX/seq 가 있으면 한 줄씩 꺼내 쓴다 (pending → pass 같은 흐름)
+  "pr checks") f=pr_checks; [ -f "$FIX/pr_checks.nochecks" ] && { echo "no checks reported on the 'x' branch" >&2; exit 1; }  # $FIX/seq 가 있으면 한 줄씩 꺼내 쓴다 (pending → pass 같은 흐름)
     if [ -s "$FIX/seq" ]; then f=$(head -1 "$FIX/seq"); tail -n +2 "$FIX/seq" >"$FIX/seq.tmp"; mv "$FIX/seq.tmp" "$FIX/seq"; fi ;;
   "issue view") f=issue_$3; [ -f "$FIX/$f.404" ] && { echo "gh: Not Found (HTTP 404)" >&2; exit 1; }
     # REAL_GH: --jq 식을 진짜 gh 내장 jq(gojq)로 평가한다 — 픽스처를 jq 리터럴로 넣고 가벼운 API 응답은 버린다
@@ -456,6 +456,9 @@ class TicketScriptTest(unittest.TestCase):
         r = self.lib("ci_wait 7; echo rc=$?", CI_APPEAR_MAX="1")
         self.assertIn("조회 실패", r.stdout)
         self.assertIn("rc=2", r.stdout)
+        (self.fix / "pr_checks.nochecks").write_text("")  # gh 판에 따라 체크 0개를 오류로 내는 경우 → CI 없음
+        self.assertIn("CI가 없어", self.lib("ci_wait 7; echo rc=$?").stdout)
+        (self.fix / "pr_checks.nochecks").unlink()
         self.put("pr_checks", [])  # 워크플로가 있는 레포(CI_SEEN 미리 설정)에서 체크가 끝내 없으면 2, SHIP_NO_CI=1이면 통과
         r = self.lib("CI_SEEN=1 ci_wait 7; echo rc=$?", CI_APPEAR_MAX="1")
         self.assertIn("rc=2", r.stdout)

@@ -46,8 +46,12 @@ title=$(git log --reverse --format='%s' origin/main..HEAD | grep -v '^Merge ' | 
 link=Closes
 [ -n "$issue" ] && [ "$(gh issue view "$issue" --json state -q .state 2>/dev/null)" = CLOSED ] && link=Refs
 # 공개 레포에 올리기 전 비밀값 검사 — verify(2단계)보다 push가 먼저이므로 여기서 한 번 (gitleaks가 없으면 CI Security가 잡는다)
+envs=$(git diff --name-only origin/main...HEAD | grep -E '(^|/)\.env(\.|$)' | grep -v '\.env\.example$' || true)
+[ -z "$envs" ] || die "환경 파일이 커밋에 들어 있습니다 — push하지 않음: $envs (git rm --cached 후 .gitignore 확인)"
 if command -v gitleaks >/dev/null; then
   gitleaks git . --redact --no-banner >"$RUN_DIR/ship-gitleaks.log" 2>&1 || { tail -n 20 "$RUN_DIR/ship-gitleaks.log"; die "비밀값이 커밋 이력에 있습니다 — push하지 않음 (.run/ship-gitleaks.log)"; }
+else
+  warn "gitleaks 미설치 — push 전 비밀값 검사 없이 올라갑니다 (CI Security가 잡음). 설치: brew install gitleaks"
 fi
 out=$(git push -q -u origin "$branch" 2>&1) || { echo "$out"; die "push 실패"; }  # GitHub의 "Create a pull request" 안내는 숨긴다
 pr=$(gh pr view "$branch" --json number,state -q 'select(.state=="OPEN") | .number' 2>/dev/null || true)
@@ -60,7 +64,7 @@ if [ -z "$pr" ]; then
   echo "  초안 PR #$pr 생성 — CI 시작"
 fi
 # 워크플로가 있으면 체크가 생길 것으로 보고 기다린다 (조회 오류·등록 전을 'CI 없음'으로 오판하지 않게). Actions가 안 도는 GHE면 SHIP_NO_CI=1
-ls "$ROOT"/.github/workflows/*.yml >/dev/null 2>&1 && CI_SEEN=1
+ls "$ROOT"/.github/workflows/*.yml "$ROOT"/.github/workflows/*.yaml >/dev/null 2>&1 && CI_SEEN=1
 
 say "2/9 검사 (make verify)"
 "$ROOT/scripts/verify.sh" >"$RUN_DIR/ship-verify.log" 2>&1 || { grep -E "FAIL" "$RUN_DIR/ship-verify.log"; die "verify 실패 → .run/ship-verify.log"; }

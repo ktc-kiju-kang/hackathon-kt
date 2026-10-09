@@ -187,7 +187,11 @@ ci_wait() {  # ci_wait <PR> [head SHA] — PR 체크가 끝날 때까지 기다�
     done
   fi
   [ "${SHIP_NO_CI:-}" = 1 ] && { echo "  SHIP_NO_CI=1 — CI 대기 생략, 로컬 verify 결과로 진행"; return 0; }
-  count_checks() { gh pr checks "$pr" --json name,bucket -q 'length' 2>/dev/null || echo ERR; }  # 조회 오류(ERR)는 '없음'이 아니다
+  count_checks() {  # 체크 개수. 조회 오류는 ERR — '없음'이 아니다 (gh가 체크 0개를 "no checks reported" 오류로 내는 판도 0으로)
+    local out
+    if out=$(gh pr checks "$pr" --json name,bucket -q 'length' 2>&1); then echo "$out"
+    else case "$out" in *"no checks"*) echo 0 ;; *) echo ERR ;; esac; fi
+  }
   checks=$(count_checks)
   # 오류이거나, CI가 있는 레포인데 아직 0개(push 직후 등록 전)면 생길 때까지 잠시 기다린다
   for i in $(seq 1 "${CI_APPEAR_MAX:-12}"); do

@@ -36,7 +36,7 @@ step vitest "$F" npm test
 step next-build "$F" env NEXT_DIST_DIR=.next-e2e npm run build  # make serve 중인 .next를 덮지 않게
 say "문서·보안·PR 점수"
 # 키트 스크립트 자체 시험은 ship마다 30초쯤 든다 — scripts/를 안 고친 브랜치에서는 건너뛰고 CI가 돈다 (lib.sh scripts_tests_needed)
-if scripts_tests_needed; then
+if [ "$strict" = 1 ] || scripts_tests_needed; then  # 제출 직전(--strict)은 항상 전부
   [ -f "$ROOT/scripts/test_pr_review_score.py" ] && step pr-score-test "$ROOT" python3 scripts/test_pr_review_score.py
   [ -f "$ROOT/scripts/test_issue_monitor.py" ] && step issue-monitor-test "$ROOT" python3 scripts/test_issue_monitor.py
   [ -f "$ROOT/scripts/test_ticket_claim.py" ] && step ticket-claim-test "$ROOT" python3 scripts/test_ticket_claim.py
