@@ -105,12 +105,13 @@ PR #$prn 은 이미 머지됐습니다 — 추가 요청은 후속 Issue로 받�
       CLOSED)  # 체크아웃 불필요 — 댓글과 release만 한다
         echo "STATE CONTINUE"; echo "NEXT PR #$prn 이 머지 없이 닫혔다 — 사람이 접은 것. 이유를 묻는 댓글(마커 포함) 후 scripts/ticket-claim.sh release $n blocked. 다시 구현하지 않는다"; exit 0 ;;
       *)
+        write_spec "$n"  # 세션이 바뀌어도 원 명세(본문·이전 댓글)를 같은 곳에서 읽게
         checkout_branch "$n" "$prb"
         wait_msg=$("$T" merge-wait "$n" 2>/dev/null); wrc=$?
         echo "STATE CONTINUE"
         [ $wrc = 1 ] && echo "MERGE_WAIT $(echo "$wait_msg" | paste -sd';' -)"
-        case "$checks" in
-          *fail*|*cancel*) echo "NEXT PR #$prn 체크 실패·취소 — 실패한 체크(gh pr checks $prn)와 PR_COMMENTS를 읽고 같은 브랜치에서 고친 뒤 make ship (같은 체크가 3번 연속 실패하면 댓글 후 release $n blocked)" ;;
+        case "$checks" in  # lib.sh ci_wait와 같은 기준: fail, 또는 전부 취소(통과한 체크 없음)만 실패
+          *fail*|cancel) echo "NEXT PR #$prn 체크 실패·취소 — 실패한 체크(gh pr checks $prn)와 PR_COMMENTS를 읽고 같은 브랜치에서 고친 뒤 make ship (같은 체크가 3번 연속 실패하면 댓글 후 release $n blocked)" ;;
           *) if [ "$nc" != 0 ] || [ "$npc" != 0 ]; then echo "NEXT 새 댓글·리뷰 피드백을 명세 변경으로 읽어 코드·테스트에 반영하고 make ship (답할 게 있으면 마커 댓글)"
              elif [ $wrc = 1 ]; then echo "NEXT 머지 조건 대기 중 — 코드를 바꾸지 않는다. 머지 조건 Issue가 완료로 닫혔으면 make ship만 다시, 아니면 끝낸다"
              else echo "NEXT 새 댓글·실패 없음 — PR #$prn 은 리뷰·머지 대기. 할 일 없으면 끝낸다"; fi ;;

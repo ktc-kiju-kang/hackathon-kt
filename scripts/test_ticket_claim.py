@@ -22,6 +22,7 @@ for a in "$@"; do { [ "$prev" = --jq ] || [ "$prev" = -q ]; } && expr=$a; prev=$
 case "$1 $2" in
   "repo view") f=repo ;; "api user") f=user ;; "pr list") f=prs ;; "issue list") f=agent_pause ;;
   "pr view") f=pr_view ;;
+  "issue comment"|"issue edit"|"label create") exit 0 ;;  # 쓰기 명령은 성공한 것으로
   "pr checks") f=pr_checks; [ -f "$FIX/pr_checks.nochecks" ] && { echo "no checks reported on the 'x' branch" >&2; exit 1; }  # $FIX/seq 가 있으면 한 줄씩 꺼내 쓴다 (pending → pass 같은 흐름)
     if [ -s "$FIX/seq" ]; then f=$(head -1 "$FIX/seq"); tail -n +2 "$FIX/seq" >"$FIX/seq.tmp"; mv "$FIX/seq.tmp" "$FIX/seq"; fi ;;
   "issue view") f=issue_$3; [ -f "$FIX/$f.404" ] && { echo "gh: Not Found (HTTP 404)" >&2; exit 1; }
@@ -574,13 +575,22 @@ class TicketScriptTest(unittest.TestCase):
         self.assertIn("새 댓글", r.stdout)
         self.assertEqual(run(["git", "-C", str(self.repo), "branch", "--show-current"]).stdout.strip(), "feat/5-req-01-be")
         self.assertNotIn("claim/7", run(["git", "-C", str(self.repo), "ls-remote", "origin", "refs/heads/claim/*"]).stdout)
+        self.assertIn("SPEC ", r.stdout)  # 열린 PR이 있어도 원 명세는 같은 파일로
         self.put("pr_checks", [{"name": "ci", "bucket": "fail"}])
         self.put("issue_comments", [])
+        self.assertIn("체크 실패", self.tick().stdout)
+        self.put("pr_checks", [{"name": "ci", "bucket": "pass"}, {"name": "old", "bucket": "cancel"}])  # 대체 실행으로 취소된 것은 실패가 아니다
+        self.assertNotIn("체크 실패", self.tick().stdout)
+        self.put("pr_checks", [{"name": "ci", "bucket": "cancel"}])  # 전부 취소 = 통과한 체크 없음
         self.assertIn("체크 실패", self.tick().stdout)
         self.put("prs", [{"number": 9, "state": "MERGED", "headRefName": "feat/5-req-01-be", "body": "Closes #5", "isDraft": False}])
         r = self.tick()
         self.assertEqual(r.returncode, 1)
         self.assertIn("머지됨", r.stdout)
+        self.put("issue_comments", [comment(2, "kim", "OWNER", "2026-10-03T00:00:00Z", "하나만 더")])  # 머지 뒤 새 댓글 → 안내 댓글
+        r = self.tick()
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("'후속 Issue로' 안내 댓글을 남겼다", r.stdout)
 
     def test_tick_other_branches(self):
         """NEEDS-HUMAN(선행에 # 없는 번호) · OTHER-SESSION · PR CLOSED · MERGE_WAIT · 명세 조회 실패."""
