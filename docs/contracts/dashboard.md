@@ -50,7 +50,9 @@ Response 200:
   "fetched_at": string | null,
   "issues": [{ "number": int, "title": string, "assignees": [string], "labels": [string], "url": string }],
   "pulls": [{ "number": int, "title": string, "author": string, "branch": string, "draft": bool,
-              "checks": "pass" | "fail" | "pending" | "none", "url": string }],
+              "checks": "pass" | "fail" | "pending" | "none", "url": string,
+              "opened_at": string,                // PR이 열린 시각 — GitHub PR의 created_at 그대로, ISO 8601 (REQ-01)
+              "updated_at": string }],            // 마지막 업데이트 시각 — GitHub PR의 updated_at 그대로, ISO 8601 (REQ-01)
   "main_runs": [{ "name": string, "status": string, "conclusion": string | null, "sha": string, "url": string, "created_at": string }],
   "claims": [{ "issue": int, "owner": string | null, "claimed_at": string | null }],  // scripts/claim.sh의 claim/<번호> 브랜치
   "main_sha": string | null,                      // main 최신 커밋 (#101)
@@ -59,6 +61,9 @@ Response 200:
 ```
 - 설정 (`backend/.env`): `GITHUB_REPO=owner/name`(비우면 git origin 주소에서), `GITHUB_TOKEN`(읽기 전용 토큰 — 공개 github.com 레포는 없어도 됨, 시간당 60회), `GITHUB_API_URL`(비우면 github.com, origin이 다른 호스트면 그 호스트의 `/api/v3` — 이때 토큰은 보내지 않으므로 사내 GHE에 토큰을 쓰려면 직접 적는다)
 - `unconfigured` = 레포를 알 수 없음, `error` = 인증 실패·한도 초과·네트워크 (그 칸만 표시, 나머지 화면은 정상)
+- `pulls[].opened_at`·`updated_at` (REQ-01): 초안 PR 포함 목록의 **모든** PR에 항상 들어 있다 (null 없음). 값은 GitHub이 기록한 `created_at`·`updated_at`을 가공 없이 그대로 보낸다 (UTC `Z` 형식). 경과 시간("n분"/"n시간"/"n일 n시간")과 한국 시간 "MM-DD HH:mm" 표기는 **화면이 계산한다** — 서버는 현재 시각에 의존하는 값을 만들지 않는다 (캐시 60초와 맞물려 어긋나지 않게). 새 필드에 비밀값은 없다.
+- 요구사항 받침 (REQ-01): AC-01-1 ← `opened_at`·`updated_at` 필드(API) · AC-01-2 ← `opened_at`과 화면의 현재 시각으로 경과 표기 · AC-01-3 ← `updated_at`을 KST "MM-DD HH:mm"로 표기 · AC-01-4 ← 위 응답이 `status: "error"`일 때 PR 칸이 시각 대신 `message` 안내를 보이고 다른 칸은 그대로 (기존 칸별 실패 규칙)
+- 화면 확장 지점 (REQ-01·REQ-02): "열린 PR" 줄을 `frontend/src/features/dashboard/PullRow.tsx`로 뺀다. 경과·시각 계산은 같은 폴더의 `prAge.ts` — `elapsedMs(openedAt, now)`(REQ-02가 24시간 비교에 재사용), `formatElapsed(ms)`("n분"/"n시간"/"n일 n시간"), `formatKst(iso)`("MM-DD HH:mm", KST). 모두 `features/dashboard/` 안이라 공용 파일(`lib/`·`components/`)은 건드리지 않는다.
 - 개수 상한: Issue 50 · PR 10(PR마다 check-run 조회) · main 실행 20 · claim 10 · 최근 닫힌 PR 30
 - 팀원별 보기(담당·선점·열린 PR·CI 실패·24시간 머지, 24시간 넘은 선점 경고)는 이 응답으로 화면에서 집계한다
 
@@ -89,3 +94,4 @@ Response 200:
 | 2026-10-08 | 추가 (#99) | ktc-kiju-kang |
 | 2026-10-08 | `test_history`·`readiness`, GitHub `main_sha`·`recent_merges`·`claims[].claimed_at`, main 실행 20개 (v1 호환, #101) | ktc-kiju-kang |
 | 2026-10-09 | `GET /api/dashboard/leadtime` 추가 — 이슈·PR 리드타임 중앙값·구간 분포 (v1 호환, #107) | ktc-jehyuk-kim |
+| 2026-10-09 | GitHub 응답 `pulls[]`에 `opened_at`·`updated_at` 추가 (v1 호환, REQ-01 #125) | ktc-jehyuk-kim |
