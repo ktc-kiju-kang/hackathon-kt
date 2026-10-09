@@ -203,6 +203,10 @@ class TicketScriptTest(unittest.TestCase):
         self.put("issue_125", {"number": 125, "state": "closed", "state_reason": "completed"})
         r = self.sh("ticket-claim.sh", "claim", "126", "--dry-run")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        (self.fix / "issue_125.json").unlink()  # 조회 실패는 needs-human이 아니라 오류(2)
+        r = self.sh("ticket-claim.sh", "claim", "126", "--dry-run")
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("조회 실패", r.stderr)
 
     def test_list_filters_by_role(self):
         self.put(

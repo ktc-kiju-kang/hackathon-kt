@@ -96,7 +96,7 @@ cmd_claim() {
   # 닫힌 선행은 '완료'로 닫혔어야 한다 — not planned·중복이면 계약 없이 시작하게 되므로 사람에게 넘긴다
   local d reason
   for d in $(echo "$issue" | jq -r ".body | $DEPS_JQ"); do
-    reason=$(api "repos/$repo/issues/$d" --jq '.state_reason // "open"' 2>/dev/null) || reason="조회 실패"
+    reason=$(api "repos/$repo/issues/$d" --jq '.state_reason // "open"' 2>/dev/null) || die "선행 #$d 조회 실패 (일시 오류일 수 있음 — 다음 틱에 다시)"
     [ "$reason" = completed ] ||
       { echo "SKIP #$n: 선행 #$d 이 완료로 닫히지 않음 ($reason) — 사람이 본문 선행 줄을 고쳐야 함 (needs-human)"; return 1; }
   done
