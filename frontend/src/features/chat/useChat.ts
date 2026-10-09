@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useRef, useState } from 'react'
-import { createConversation, sendMessage, type ChatEvent, type ChatMessage } from './api'
+import { createConversation, regenerate as regenerateApi, sendMessage, type ChatEvent, type ChatMessage } from './api'
 
 export type ToolActivity = {
   id: string
@@ -135,6 +135,33 @@ export function useChat() {
     [busy, conversationId, onEvent],
   )
 
+  const regenerate = useCallback(async () => {
+    if (!conversationId || busy) return
+    setBusy(true)
+    // 마지막 사용자 말풍선 뒤의 에이전트 말풍선을 비우고 새로 받는다
+    setItems((prev) => {
+      const lastUser = prev.findLastIndex((x) => x.kind === 'user')
+      return [...prev.slice(0, lastUser + 1), { kind: 'agent', text: '', tools: [], streaming: true }]
+    })
+    abortRef.current = new AbortController()
+    try {
+      await regenerateApi(conversationId, onEvent, abortRef.current.signal)
+    } catch (e) {
+      if ((e as Error).name === 'AbortError') {
+        updateAgent((a) => {
+          a.stopped = true
+          a.status = undefined
+        })
+      } else {
+        const message = (e as Error).message
+        updateAgent((a) => void (a.error = message))
+      }
+    } finally {
+      updateAgent((a) => void (a.streaming = false))
+      setBusy(false)
+    }
+  }, [busy, conversationId, onEvent])
+
   const stop = () => abortRef.current?.abort()
   const reset = () => {
     stop()
@@ -146,5 +173,5 @@ export function useChat() {
     setItems(toItems(messages))
   }
 
-  return { conversationId, items, busy, send, stop, reset, load }
+  return { conversationId, items, busy, send, regenerate, stop, reset, load }
 }
