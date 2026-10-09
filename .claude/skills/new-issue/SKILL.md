@@ -6,11 +6,11 @@ argument-hint: <REQ-ID 또는 기능 설명>
 Issue를 만든다: $ARGUMENTS
 
 1. `docs/prd.md` 인덱스에서 해당 REQ를, 그 ID 칸이 링크한 하위 정의서(`docs/prd/REQ-01-….md`)에서 근거 원문(SRC)과 AC를 찾는다. **REQ가 없으면 먼저 인덱스 한 줄 + 하위 정의서를 추가하자고 제안**한다 (출처: 주최/팀 구분).
-2. `.github/ISSUE_TEMPLATE/`의 주최 측 양식(`development-task.md`, 없으면 있는 양식)을 읽고 그 형식으로 본문을 쓴다:
+2. `.github/ISSUE_TEMPLATE/`의 주최 측 양식(`development-task.md`, 없으면 있는 양식)을 읽고 그 형식으로 본문을 쓴다 (폴더가 없으면 `docs/requirements-flow.md` 3절 예시가 양식):
    - 제목: 기본 방식은 `[REQ-01] <사용자 관점 요약>`. 역할 분담 방식(`docs/requirements-flow.md` 2절)은 `[REQ-01][plan|BE|FE] <요약>`
    - 요구사항 근거(정의서 경로 @ 커밋 SHA, REQ 문장, SRC 인용 — `docs/requirements-flow.md` 3절) / 목적 / 완료 조건 = AC 체크리스트 (`- [ ] AC-01-1 …`, 하위 정의서 문장 그대로) / 담당자 / 연결 문서(`docs/prd/REQ-01-….md`, 시험 TC-01-*) / 구현·검증 근거(작업 후 추가)
    - **역할 분담 방식**이면 본문을 새로 쓰지 않고 `pm` 에이전트가 만든 `.run/tickets/NN-….md` 초안(첫 줄 제목, 둘째 줄 `labels:`)을 쓴다. 사람이 `distribution.md`(분배표·AC 대조표)를 승인(G2)한 경우에만. 초안의 근거 SHA가 지금 정의서와 다르면(`git diff <SHA> -- docs/prd.md docs/prd/`) 멈추고 PM에게 다시 맡긴다.
 3. 하루 안에 끝나지 않을 크기면 독립적으로 머지 가능한 REQ 여러 개로 쪼개자고 제안한다.
 4. `gh issue list --state open`으로 중복·의존 관계를 확인한다.
-5. 초안을 사용자에게 보여주고 확인받은 뒤 생성한다: `gh issue create --title "..." --body "..." --label ...` (담당자가 정해졌으면 `--assignee <id>`). 양식·초안에 라벨이 있으면 같이 붙인다. 역할 라벨(`plan`·`role:architect`·`role:backend`·`role:frontend`)이 레포에 없으면 같은 확인에서 `gh label create`로 먼저 만든다. 여러 개면 목록으로 한 번에 확인받고, 초안은 파일 번호 `NN` 순서로 만들고, `- 선행:`·`- 머지 조건:` 줄의 `NN`을 만든 번호(`04` → `#12`)로 바꾼다 (`/ticket-loop`는 선행 Issue가 모두 닫힐 때까지 기다리고, `make ship`은 머지 조건 Issue가 열려 있으면 자동 머지하지 않는다). 본문의 상대 링크(`../../docs/…`)는 승인 SHA의 GitHub 주소(`https://github.com/<owner>/<repo>/blob/<SHA>/docs/…`)로 바꾼다. 분배표에서 "필수 머지 후"로 표시한 `선택` REQ 티켓은 지금 만들지 않는다.
+5. 초안을 사용자에게 보여주고 확인받은 뒤 생성한다: `gh issue create --title "..." --body "..." --label ...` (담당자가 정해졌으면 `--assignee <id>`). 양식·초안에 라벨이 있으면 같이 붙인다. 역할 라벨(`plan`·`role:architect`·`role:backend`·`role:frontend`)이 레포에 없으면 같은 확인에서 `gh label create`로 먼저 만든다. 여러 개면 목록으로 한 번에 확인받고, 초안은 파일 번호 `NN` 순서로 만들고, `- 선행:`·`- 머지 조건:` 줄을 포함해 본문에서 티켓을 가리키는 `NN`(참고 줄, 플랜의 개발 티켓 목록, 분배 이유)을 모두 만든 번호(`04` → `#12`)로 바꾼다 (`/ticket-loop`는 선행 Issue가 모두 닫힐 때까지 기다리고, `make ship`은 머지 조건 Issue가 열려 있으면 자동 머지하지 않는다). 본문의 상대 링크(`../../docs/…`)는 승인 SHA의 GitHub 주소(`https://github.com/<owner>/<repo>/blob/<SHA>/docs/…`)로 바꾼다. 분배표에서 "필수 머지 후"로 표시한 `선택` REQ 티켓은 지금 만들지 않는다.
 6. Issue 번호를 `docs/prd.md` 요구사항 표의 Issue 칸(역할 분담이면 플랜 티켓, 플랜이 없으면 첫 개발 티켓)에 적자고 안내하고, 바로 시작하려면 `/start-task <번호>`.
