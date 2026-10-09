@@ -154,16 +154,19 @@ cmd_claim() {
 
 # FE 티켓의 '- 머지 조건:'(같은 REQ의 BE)이 완료로 닫히기 전에는 머지하지 않는다 — 선행과 같은 기준
 cmd_merge_wait() {
-  local n=$1 has body d st ok=1
+  local n=$1 out d st ok=1
   num_or_die "$n"
-  # 머지 조건 줄 판정은 여기 한 곳 (make ship은 이 명령만 부른다). gh 내장 jq라 줄이 없으면 jq 설치도 묻지 않는다
-  has=$(gh issue view "$n" --json body --jq '.body // "" | test("(?m)^\\s*[-*]\\s*머지\\s*조건\\s*:")') || die "Issue #$n 조회 실패"
-  [ "$has" = true ] || return 0
+  # 머지 조건 줄 판정은 여기 한 곳 (make ship은 이 명령만 부른다). 본문 해석은 gh 내장 jq 한 번 —
+  # 시스템 jq가 없어도 판정이 비지 않고(줄이 있는데 통과 방지), 줄이 없으면 저장소·계정·선점 도구를 묻지 않는다.
+  # 출력: 줄 없음 → none / '#' 없는 번호 → bare / 그 밖에 머지 조건 Issue 번호를 한 줄씩
+  out=$(gh issue view "$n" --json body --jq '(.body // "") as $b
+    | if ($b | test("(?m)^\\s*[-*]\\s*머지\\s*조건\\s*:") | not) then "none"
+      else (if ($b | '"$(bare_jq '머지\\s*조건')"') then "bare" else empty end), ($b | '"$(deps_jq '머지\\s*조건')"' | tostring) end') ||
+    die "Issue #$n 조회 실패"
+  [ "$out" = none ] || [ -z "$out" ] && return 0  # 빈 값 = 줄은 있으나 번호 없음 (예: '- 머지 조건: 없음')
   need_gh
-  body=$(api "repos/$repo/issues/$n" --jq '.body // ""') || die "Issue #$n 조회 실패"
-  jq -en --arg b "$body" "\$b | $(bare_jq '머지\\s*조건')" >/dev/null &&
-    { echo "머지 조건 줄에 '#' 없는 번호(티켓 초안 NN?) — 사람이 #번호로 고친다"; ok=0; }
-  for d in $(jq -rn --arg b "$body" "\$b | $(deps_jq '머지\\s*조건')"); do
+  for d in $out; do
+    [ "$d" = bare ] && { echo "머지 조건 줄에 '#' 없는 번호(티켓 초안 NN?) — 사람이 #번호로 고친다"; ok=0; continue; }
     if ! st=$(dep_state "$d"); then echo "#$d 조회 실패 — 다시 make ship"; ok=0; continue; fi
     case "$st" in
       completed) ;;

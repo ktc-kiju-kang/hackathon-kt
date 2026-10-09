@@ -130,12 +130,12 @@ lock_release() {  # 내 잠금일 때만 지운다
 
 # 머지 조건 (Issue 본문 "- 머지 조건: #N", docs/requirements-flow.md 2절) — make ship이 쓴다
 merge_waiting() {  # merge_waiting <Issue> — 머지하면 안 되는 이유를 한 줄씩 (빈 값 = 머지 가능). 판정 실패도 이유다
-  local out rc
-  out=$("$ROOT/scripts/ticket-claim.sh" merge-wait "$1" 2>&1); rc=$?
+  local out rc err="$RUN_DIR/merge-wait.err"  # 이유(stdout)만 PR 본문에, 진단(stderr)은 판정 실패 때만
+  out=$("$ROOT/scripts/ticket-claim.sh" merge-wait "$1" 2>"$err"); rc=$?
   case $rc in
     0) ;;
     1) echo "$out" ;;
-    *) echo "판정 실패: $(echo "$out" | tail -1) — 다시 make ship" ;;
+    *) echo "판정 실패: $(tail -1 "$err") — 다시 make ship" ;;
   esac
 }
 
