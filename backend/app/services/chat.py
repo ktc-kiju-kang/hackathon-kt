@@ -107,7 +107,7 @@ async def send_message(
 
 
 def _drop_unanswered_tool_calls(msgs: list[Message]) -> list[Message]:
-    """도구 결과가 없는 tool_call 메시지부터 뒤를 버린다 (짝 없는 호출이 저장돼 다음 요청이 깨지지 않게)."""
+    """결과 없는 tool_call 메시지부터 뒤를 버린다 (짝 없는 호출이 저장되면 다음 요청이 깨진다)."""
     answered = {m.tool_call_id for m in msgs if m.role == "tool"}
     for i, m in enumerate(msgs):
         if m.role == "assistant" and any(c.id not in answered for c in m.tool_calls):
