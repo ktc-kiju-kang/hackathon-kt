@@ -6,7 +6,10 @@
 #   scripts/ticket-claim.sh cleanup                   내 선점 중 이슈가 닫힌 것의 선점 ref 를 정리 (머지 후 남은 claim/<번호>)
 #   scripts/ticket-claim.sh comments <번호> [ISO시각]   신뢰 작성자의 Issue 댓글만 JSON 한 줄씩 (시각 생략 시 내 마지막 에이전트 댓글 이후)
 #   scripts/ticket-claim.sh pr-comments <PR번호>       신뢰 작성자의 PR 댓글·리뷰 코멘트만 JSON 한 줄씩
-#   scripts/ticket-claim.sh release <번호> [라벨]       선점 해제 (+ needs-info|needs-human|blocked 라벨)
+#   scripts/ticket-claim.sh release <번호> [라벨]       선점 해제 (+ needs-info|needs-human|blocked 라벨), in-progress 라벨 제거
+#   scripts/ticket-claim.sh owns <번호>                 이 세션이 잡은 티켓인가. 종료코드 0=내 세션(또는 세션 표식 없음), 1=같은 계정의 다른 세션
+#   scripts/ticket-claim.sh done <번호>                 구현 완료 표기: impl-done 라벨 (PR 생성 뒤)
+# claim 은 성공하면 in-progress 라벨과 세션 표식 댓글(<!-- ticket-agent session=ID -->)을 남긴다. 세션 ID 는 TICKET_SESSION, 없으면 호스트·경로 해시.
 #
 # 동시성: claim.sh 가 refs/heads/claim/<번호> 를 "없을 때만" 만든다 → 사람(make claims)과 루프가 같은 기준을 본다.
 #   한계: 선점 주인은 **GitHub 계정** 단위다. 같은 계정으로 루프를 둘 돌리면 서로를 구분하지 못한다 (계정당 루프 하나).
@@ -25,6 +28,8 @@ die() { echo "❌ $*" >&2; exit 2; }
 repo=$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null) || die "gh 로그인·저장소 확인 실패"
 me=$(gh api user --jq .login 2>/dev/null) || die "gh api user 실패"
 ROOT=$(git -C "$HERE" rev-parse --show-toplevel)
+# 세션 ID: 같은 계정의 다른 세션과 구분한다 (호스트명은 공개 댓글에 쓰지 않고 해시만 쓴다)
+SID=${TICKET_SESSION:-$(printf '%s' "$(hostname)$(git -C "$ROOT" rev-parse --git-common-dir)" | shasum | cut -c1-8)}
 
 api() { gh api "$@"; }
 num_or_die() { [[ "$1" =~ ^[0-9]+$ ]] || die "번호가 숫자가 아님: $1"; }
@@ -88,7 +93,10 @@ cmd_claim() {
   if [ $rc -ne 0 ]; then echo "LOST #$n: $(echo "$out" | tail -1)"; return 1; fi
   # 확인: 선점 주인이 나인가 (claim.sh 는 같은 계정이면 통과시키므로 주인이 나인지만 본다)
   [ "$(claims | grep "^$n " | cut -d' ' -f2)" = "$me" ] || { echo "LOST #$n: 선점 주인이 내가 아님"; return 1; }
-  echo "CLAIMED #$n by $me"; return 0
+  gh issue edit "$n" --add-label in-progress >/dev/null 2>&1 || echo "⚠️ #$n in-progress 라벨 실패" >&2
+  gh issue comment "$n" --body "<!-- ticket-agent session=$SID -->
+작업 시작 (세션 \`$SID\`)" >/dev/null 2>&1 || echo "⚠️ #$n 세션 표식 댓글 실패" >&2
+  echo "CLAIMED #$n by $me (session $SID)"; return 0
 }
 
 cmd_mine() {
@@ -97,6 +105,23 @@ cmd_mine() {
     [ "$owner" = "$me" ] || continue
     gh issue view "$n" --json state --jq '.state' 2>/dev/null | grep -q OPEN && echo "$n"
   done
+}
+
+cmd_owns() {
+  local n=$1 last
+  num_or_die "$n"
+  last=$(api --paginate "repos/$repo/issues/$n/comments?per_page=100" --jq '.[] | {login:.user.login,body}' |
+    jq -rs --arg me "$me" 'map(select(.login==$me) | .body | capture("<!-- ticket-agent session=(?<s>[0-9A-Za-z_-]+) -->").s?) | map(select(.!=null)) | last // ""')
+  [ -z "$last" ] || [ "$last" = "$SID" ] && { echo "OWNED #$n (session $SID)"; return 0; }
+  echo "OTHER-SESSION #$n (session $last)"; return 1
+}
+
+cmd_done() {
+  local n=$1
+  num_or_die "$n"
+  gh label create impl-done --color 0E8A16 --description "구현 완료, PR 리뷰 대기" >/dev/null 2>&1 || true
+  gh issue edit "$n" --add-label impl-done >/dev/null || die "#$n impl-done 라벨 실패"
+  echo "DONE #$n → impl-done"
 }
 
 cmd_cleanup() {
@@ -150,6 +175,7 @@ cmd_release() {
     gh label create "$state" --color D93F0B >/dev/null 2>&1 || true
     gh issue edit "$n" --add-label "$state" >/dev/null || die "#$n 에 $state 라벨을 붙이지 못함 (큐에 남을 수 있음)"
   fi
+  gh issue edit "$n" --remove-label in-progress >/dev/null 2>&1 || true
   claims | grep -q "^$n " && die "#$n 선점이 남아 있음"
   echo "RELEASED #$n${state:+ → $state}"
 }
@@ -161,6 +187,8 @@ case "${1:-}" in
   cleanup)     cmd_cleanup ;;
   comments)    [ -n "${2:-}" ] || die "사용법: comments <번호> [ISO시각]"; cmd_comments "$2" "${3:-}" ;;
   pr-comments) [ -n "${2:-}" ] || die "사용법: pr-comments <PR번호>"; cmd_pr_comments "$2" ;;
+  owns)        [ -n "${2:-}" ] || die "사용법: owns <번호>"; cmd_owns "$2" ;;
+  done)        [ -n "${2:-}" ] || die "사용법: done <번호>"; cmd_done "$2" ;;
   release)     [ -n "${2:-}" ] || die "사용법: release <번호> [라벨]"; cmd_release "$2" "${3:-}" ;;
-  *) sed -n '2,10p' "$0"; exit 2 ;;
+  *) sed -n '2,12p' "$0"; exit 2 ;;
 esac
