@@ -233,6 +233,23 @@ def test_tc_01_1_pulls_carry_github_times_as_is(monkeypatch):
     assert TOKEN not in r.text
 
 
+def test_tc_01_1_missing_pr_time_becomes_error_status(monkeypatch):
+    """TC-01-1(오류): GitHub이 시각 없는 PR을 돌려주면 500이 아니라 error 칸으로 보인다."""
+    monkeypatch.setattr(settings, "github_repo", "team/app")
+    monkeypatch.setattr(settings, "github_token", TOKEN)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        r = _ok_handler(request)
+        if request.url.path.endswith("/pulls") and request.url.params.get("state") == "open":
+            return httpx.Response(200, json=[{**p, "created_at": None} for p in r.json()])
+        return r
+
+    _fake_github(monkeypatch, handler)
+    r = client.get("/api/dashboard/github")
+    assert r.status_code == 200 and r.json()["status"] == "error"
+    assert TOKEN not in r.text
+
+
 def test_github_auth_failure_is_shown_without_token(monkeypatch):
     monkeypatch.setattr(settings, "github_repo", "team/app")
     monkeypatch.setattr(settings, "github_token", TOKEN)
