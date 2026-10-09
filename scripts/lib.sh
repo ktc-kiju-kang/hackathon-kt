@@ -158,7 +158,7 @@ schema_contracts() {  # origin/main...HEAD에서 바뀐 계약 중 바뀌기 전
 
 schema_gate() {  # schema_gate <PR> — 해당 계약이 있으면 SHIP_NO_MERGE=1은 경고, 루프 자동 머지는 멈춘다
   local found
-  [ "${TICKET_LOOP_MERGE:-}" = 1 ] || return 0
+  [ "${TICKET_LOOP_MERGE:-}" = 1 ] && [ "${SHIP_KIND:-}" != record ] || return 0  # 기록 PR은 계약을 못 바꾼다
   found=$(schema_contracts)
   [ -n "$found" ] || return 0
   [ "${SHIP_NO_MERGE:-}" = 1 ] || die "테이블 SQL 초안이 있는 계약이 바뀜 ($found) — 사람이 스키마를 확인하고 GitHub에서 머지합니다 (G3, PR #$1)"

@@ -1,4 +1,4 @@
-"""ticket-claim.sh · ticket-loop-precheck.sh 시험 — 가짜 gh 를 PATH 에 끼우고 실제 셸 스크립트를 돌린다.
+"""ticket-claim.sh · ticket-loop-precheck.sh · lib.sh 머지 게이트(머지 조건·스키마 G3) 시험 — 가짜 gh 를 PATH 에 끼우고 실제 셸 스크립트를 돌린다.
 
 핵심은 jq 필터에 몰린 권한·인젝션 방어(신뢰 작성자만 명세로 인정)와 선점·사전 점검 판정이다.
 """
@@ -398,6 +398,9 @@ class TicketScriptTest(unittest.TestCase):
         self.assertIn("스키마를 확인하고 머지하세요", r.stdout)
         self.assertIn("MERGE", r.stdout)
         self.assertEqual(self.schema_gate(loop=False).returncode, 0)  # 사람이 직접 ship → 걸지 않는다
+        self.env["SHIP_KIND"] = "record"
+        self.assertEqual(self.schema_gate().returncode, 0)  # 기록 PR(make record)도 걸지 않는다
+        del self.env["SHIP_KIND"]
 
         self.git("reset", "-q", "--hard", "origin/main")
         self.write_commit({"docs/contracts/todo.md": "# todo\n- 사용처: 목록\n", "docs/contracts/README.md": "# 계약\n## 테이블 (SQL 초안)\n"}, "no-table")

@@ -135,7 +135,7 @@ if [ -n "$issue" ]; then
 fi
 
 merge_gate "$waiting" "$pr"
-[ "$KIND" = record ] || schema_gate "$pr"
+schema_gate "$pr"
 [ "${SHIP_NO_MERGE:-}" = 1 ] && { ok "PR #$pr 준비 완료 (SHIP_NO_MERGE=1 — 머지 안 함)"; exit 0; }
 
 say "8/9 머지 (잠금 → 최신 main 확인 → CI → squash)"
