@@ -170,7 +170,6 @@ migration_gate() {  # migration_gate <PR> — 루프 자동 머지에서 새 마
   [ "${TICKET_LOOP_MERGE:-}" = 1 ] && [ "${SHIP_KIND:-}" != record ] || return 0
   out=$(python3 "$ROOT/scripts/migration_draft.py" 2>&1); rc=$?
   [ $rc = 0 ] && return 0
-  [ $rc = 1 ] || out="대조 실패: $out"
   echo "$out" | sed 's/^/  마이그레이션 /'
   [ "${SHIP_NO_MERGE:-}" = 1 ] || die "마이그레이션이 계약의 테이블 SQL 초안과 다름 — 사람이 확인하고 GitHub에서 머지합니다 (PR #$1)"
   warn "마이그레이션이 계약의 테이블 SQL 초안과 다름 — 확인하고 머지하세요"

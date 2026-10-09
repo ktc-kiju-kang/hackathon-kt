@@ -2,7 +2,7 @@
 
     python3 scripts/migration_draft.py [--base origin/main]
 
-base...HEAD에서 추가된 `database/migrations/*.sql`의 문장마다, `docs/contracts/*.md`(README 제외)의
+base...HEAD에서 추가된 `database/migrations/*.sql`의 문장마다, base의 `docs/contracts/*.md`(README 제외)의
 `## 테이블` 절 SQL 초안에 같은 문장이 있는지 본다. 비교는 주석·대소문자·공백을 빼고 한다.
 기존 마이그레이션을 고치거나 지웠거나, CREATE TABLE·CREATE INDEX 말고 다른 문장이 있으면 그것도 이유로 적는다.
 출력: 이유 한 줄씩. 종료코드 0=초안 그대로(또는 새 마이그레이션 없음), 1=다름, 2=오류. make ship(lib.sh migration_gate)이 쓴다.
@@ -49,10 +49,11 @@ def check(base: str, root: Path = ROOT) -> list[str]:
     def git(*args: str) -> str:
         return subprocess.run(["git", "-C", str(root), *args], capture_output=True, text=True, check=True).stdout
 
+    # 초안은 base(머지된 계약 = 사람이 G3에서 본 것)에서 읽는다 — 같은 PR에서 초안과 마이그레이션을 함께 바꿔도 통과하지 않게
     reasons, drafts = [], set()
-    for f in sorted((root / "docs" / "contracts").glob("*.md")):
-        if f.name != "README.md":
-            drafts.update(normalize(draft_sql(f.read_text(encoding="utf-8"))))
+    for f in git("ls-tree", "--name-only", base, "docs/contracts/").split():
+        if f.endswith(".md") and not f.endswith("/README.md"):
+            drafts.update(normalize(draft_sql(git("show", f"{base}:{f}"))))
     for row in git("diff", "--name-status", f"{base}...HEAD", "--", "database/migrations/").splitlines():
         status, path = row.split("\t")[0], row.split("\t")[-1]
         if not status.startswith("A"):
@@ -74,7 +75,7 @@ def main() -> int:
     try:
         reasons = check(args.base)
     except (subprocess.CalledProcessError, OSError, UnicodeDecodeError) as e:
-        print(f"대조 실패: {e}", file=sys.stderr)
+        print(f"대조 실패: {e}", file=sys.stderr)  # lib.sh migration_gate가 이 줄을 그대로 보인다
         return 2
     for r in reasons:
         print(r)

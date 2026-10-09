@@ -113,6 +113,18 @@ class CheckTest(unittest.TestCase):
         self.commit({"database/migrations/0001_chat.sql": "create table chat (id int, x int);\n"})
         self.assertIn("기존 마이그레이션을 고치거나 지움 (M)", self.check()[0])
 
+    def test_draft_changed_in_same_pr_does_not_count(self):
+        """초안은 base(사람이 G3에서 본 계약)에서 읽는다 — PR이 초안과 마이그레이션을 함께 바꾸면 다르다고 본다."""
+        changed = SAME.replace("content text not null", "content text not null, owner text")
+        self.commit({"docs/contracts/memo.md": CONTRACT.replace("content text not null,", "content text not null, owner text,"),
+                     "database/migrations/202610092054_add_memos.sql": changed})
+        self.assertIn("초안에 없는 문장", self.check()[0])
+
+    def test_renamed_or_deleted_migration_is_reported(self):
+        self.git("mv", "database/migrations/0001_chat.sql", "database/migrations/0002_chat.sql")
+        self.git("commit", "-q", "-m", "mv")
+        self.assertTrue(any("기존 마이그레이션을 고치거나 지움 (R" in r for r in self.check()), self.check())
+
     def gate(self, loop=True, no_merge=False):
         env = {**self.env, "TICKET_LOOP_MERGE": "1" if loop else "", "SHIP_NO_MERGE": "1" if no_merge else ""}
         return run(["bash", "-c", ". scripts/lib.sh; migration_gate 99; echo MERGE"], env=env, cwd=self.repo)
@@ -132,6 +144,11 @@ class CheckTest(unittest.TestCase):
         self.commit({"database/migrations/202610092054_add_memos.sql": SAME})
         r = self.gate()
         self.assertEqual((r.returncode, r.stdout.strip()), (0, "MERGE"), r.stderr)
+        self.git("update-ref", "-d", "refs/remotes/origin/main")  # 대조 실패(base 없음)도 머지하지 않는다
+        r = self.gate()
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("대조 실패", r.stdout)
+        self.assertEqual(r.stdout.count("대조 실패"), 1)
 
 
 if __name__ == "__main__":
