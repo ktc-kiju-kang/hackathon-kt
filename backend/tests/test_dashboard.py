@@ -163,13 +163,17 @@ def _ok_handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json={"commit": {"sha": "abcdef1234567890"}})
     if p.endswith("/pulls"):
         pr = {"title": "기능", "user": {"login": "lee"}, "draft": False}
+        t9 = {"created_at": "2026-10-08T01:00:00Z", "updated_at": "2026-10-08T07:30:00Z"}
+        t10 = {"created_at": "2026-10-07T23:15:30Z", "updated_at": "2026-10-09T00:00:01Z"}
         return httpx.Response(
             200,
             json=[
-                {**pr, "number": 9, "head": {"ref": "feat/9-a", "sha": "s9"}, "html_url": "p9"},
-                {**pr, "number": 10, "head": {"ref": "f/10", "sha": "s10"}, "html_url": "p10"},
+                {**pr, **t9, "number": 9, "html_url": "p9",
+                 "head": {"ref": "feat/9-a", "sha": "s9"}},
+                {**pr, **t10, "number": 10, "draft": True, "html_url": "p10",
+                 "head": {"ref": "f/10", "sha": "s10"}},
             ],
-        )
+        )  # fmt: skip
     if p.endswith("/commits/s9/check-runs"):
         runs = [{"status": "completed", "conclusion": "success"},
                 {"status": "completed", "conclusion": "failure"}]  # fmt: skip
@@ -207,6 +211,42 @@ def test_github_ok_and_token_never_in_response(monkeypatch):
     assert [(m["number"], m["author"]) for m in body["recent_merges"]] == [
         (5, "kim")
     ]  # 닫히기만 한 PR 제외
+    assert TOKEN not in r.text
+
+
+def test_tc_01_1_pulls_carry_github_times_as_is(monkeypatch):
+    """TC-01-1: 열린 PR(초안 포함)마다 열린 시각·마지막 업데이트 시각이 GitHub 값 그대로 온다."""
+    monkeypatch.setattr(settings, "github_repo", "team/app")
+    monkeypatch.setattr(settings, "github_token", TOKEN)
+    _fake_github(monkeypatch, _ok_handler)
+    r = client.get("/api/dashboard/github")
+    pulls = {p["number"]: p for p in r.json()["pulls"]}
+    assert set(pulls) == {9, 10} and pulls[10]["draft"] is True  # 초안도 목록에 있다
+    assert (pulls[9]["opened_at"], pulls[9]["updated_at"]) == (
+        "2026-10-08T01:00:00Z",
+        "2026-10-08T07:30:00Z",
+    )
+    assert (pulls[10]["opened_at"], pulls[10]["updated_at"]) == (
+        "2026-10-07T23:15:30Z",
+        "2026-10-09T00:00:01Z",
+    )  # 가공 없이 그대로 — 현재 시각에 의존하는 값은 서버가 만들지 않는다
+    assert TOKEN not in r.text
+
+
+def test_tc_01_1_missing_pr_time_becomes_error_status(monkeypatch):
+    """TC-01-1(오류): GitHub이 시각 없는 PR을 돌려주면 500이 아니라 error 칸으로 보인다."""
+    monkeypatch.setattr(settings, "github_repo", "team/app")
+    monkeypatch.setattr(settings, "github_token", TOKEN)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        r = _ok_handler(request)
+        if request.url.path.endswith("/pulls") and request.url.params.get("state") == "open":
+            return httpx.Response(200, json=[{**p, "created_at": None} for p in r.json()])
+        return r
+
+    _fake_github(monkeypatch, handler)
+    r = client.get("/api/dashboard/github")
+    assert r.status_code == 200 and r.json()["status"] == "error"
     assert TOKEN not in r.text
 
 
