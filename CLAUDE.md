@@ -81,5 +81,5 @@
 ## Claude 작업 방식
 - 스킬 흐름: `/new-issue` → `/start-task` → (`/add-endpoint`·`/add-page`·`/add-agent-tool`) → `/handoff`(= `make ship`). 보조: `/sync`·`/pr-check`·`/team-status`. 이슈 현황: `/issue-monitor`(Slack 알림 + 로컬 대시보드). 본선용: `/plan-topic`·`/submit`.
 - Issue 생성은 사용자 확인 후. **`make ship`(push·PR·자동 머지 포함)은 사용자가 "ship"·"진행"으로 요청했을 때 실행한다.** ship이 멈추면 원인을 설명하고 고칠 방법을 제안한다.
-- **자동 큐 `/ticket-loop`**(`/loop 5m /ticket-loop`): 루프를 시작한 것을 "ship" 요청으로 본다. 열린 Issue를 `scripts/claim.sh`로 선점하고 명세·댓글대로 구현해 `make ship`까지 한다. **기본은 `SHIP_NO_MERGE=1`(PR·AI 리뷰까지, 머지는 사람)** 이고, 머지까지 맡기려면 사용자가 `TICKET_LOOP_MERGE=1`로 시작한다 — 그래도 테이블 SQL 초안이 든 계약을 바꾼 PR과 계약 초안과 다른 마이그레이션은 사람이 머지한다(G3, `make ship`이 멈춤). 역할 루프(`/ticket-loop backend` 등)는 계정당 역할마다 하나. main 직접 push·force push·남의 브랜치·Issue 생성은 제외.
+- **자동 큐 `/ticket-loop`**(`/loop 5m /ticket-loop`): 루프를 시작한 것을 "ship" 요청으로 본다. 열린 Issue를 `scripts/claim.sh`로 선점하고 명세·댓글대로 구현해 `make ship`까지 한다. **기본은 `SHIP_NO_MERGE=1`(PR·AI 리뷰까지, 머지는 사람)** 이고, 머지까지 맡기려면 사용자가 `TICKET_LOOP_MERGE=1`로 시작한다 — 그래도 테이블 SQL 초안이 든 계약을 바꾼 PR과 계약 초안과 다른 마이그레이션은 사람이 머지한다(G3, `make ship`이 멈춤). 역할 루프(`/ticket-loop backend` 등)는 계정당 역할마다 하나. 틱의 앞부분(선점·브랜치·새 댓글)은 `scripts/ticket-tick.sh`가 결정적으로 하고, 루프는 자기 체크아웃에서 브랜치만 바꿔 일한다(티켓마다 worktree 없음). main 직접 push·force push·남의 브랜치·Issue 생성은 제외.
 - 같은 작업 폴더에서 다른 Claude 세션이 일하고 있을 수 있다. 큰 작업은 `scripts/new-worktree.sh`로 분리한다.
