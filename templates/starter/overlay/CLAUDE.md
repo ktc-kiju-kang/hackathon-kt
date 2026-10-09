@@ -47,6 +47,7 @@
 | backend 코드·테스트·DB | `.claude/rules/backend.md`, `database/README.md` | `backend/**`를 다룰 때 자동 |
 | AI 에이전트·LLM | `.claude/rules/agent.md` | 자동 |
 | **파이프라인 (단계·게이트·시간표·장애 대응)** | `docs/pipeline.md` | 링크 |
+| 요구사항 → 정의서 → 티켓 (PO·PM·역할 에이전트, 티켓의 요구사항 근거) | `docs/requirements-flow.md` | 링크 |
 | 제출 문서 8개 | `README.md`, `docs/{project-brief,prd,arch,experience,development,security-compliance,e2e-test}.md`, 사용법 `docs/submission-guide.md` | 링크 |
 | API 계약 | `docs/contracts/` | 링크 |
 | 결정 기록 (왜 docker compose·PostgreSQL인가 등) | `docs/decisions/` (ADR) | 링크 |
