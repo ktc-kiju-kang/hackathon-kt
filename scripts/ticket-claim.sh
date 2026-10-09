@@ -154,14 +154,13 @@ cmd_claim() {
 
 # FE 티켓의 '- 머지 조건:'(같은 REQ의 BE)이 완료로 닫히기 전에는 머지하지 않는다 — 선행과 같은 기준
 cmd_merge_wait() {
-  local n=$1 body d st ok=1
+  local n=$1 has body d st ok=1
   num_or_die "$n"
-  body=$(gh issue view "$n" --json body --jq '.body // ""') || die "Issue #$n 조회 실패"
-  # 머지 조건 줄 판정은 여기 한 곳 (make ship은 이 명령만 부른다)
-  local has
-  jq -en --arg b "$body" '$b | test("(?m)^\\s*[-*]\\s*머지\\s*조건\\s*:")' >/dev/null; has=$?
-  case $has in 0) ;; 1) return 0 ;; *) die "머지 조건 줄 판정 실패 (jq 종료코드 $has)" ;; esac
+  # 머지 조건 줄 판정은 여기 한 곳 (make ship은 이 명령만 부른다). gh 내장 jq라 줄이 없으면 jq 설치도 묻지 않는다
+  has=$(gh issue view "$n" --json body --jq '.body // "" | test("(?m)^\\s*[-*]\\s*머지\\s*조건\\s*:")') || die "Issue #$n 조회 실패"
+  [ "$has" = true ] || return 0
   need_gh
+  body=$(api "repos/$repo/issues/$n" --jq '.body // ""') || die "Issue #$n 조회 실패"
   jq -en --arg b "$body" "\$b | $(bare_jq '머지\\s*조건')" >/dev/null &&
     { echo "머지 조건 줄에 '#' 없는 번호(티켓 초안 NN?) — 사람이 #번호로 고친다"; ok=0; }
   for d in $(jq -rn --arg b "$body" "\$b | $(deps_jq '머지\\s*조건')"); do
@@ -256,7 +255,7 @@ cmd_release() {
   echo "RELEASED #$n${state:+ → $state}"
 }
 
-case "${TICKET_ROLE:-}" in ""|architect|backend|frontend) ;; *) die "TICKET_ROLE은 architect|backend|frontend 중 하나: $TICKET_ROLE" ;; esac
+[ "${1:-}" = merge-wait ] || case "${TICKET_ROLE:-}" in ""|architect|backend|frontend) ;; *) die "TICKET_ROLE은 architect|backend|frontend 중 하나: $TICKET_ROLE" ;; esac
 
 case "${1:-}" in merge-wait|"") ;; *) need_gh ;; esac
 case "${1:-}" in

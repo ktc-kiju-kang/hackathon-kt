@@ -265,6 +265,7 @@ class TicketScriptTest(unittest.TestCase):
         """머지 조건 줄이 없는 Issue는 저장소·계정 확인이 실패해도 make ship을 막지 않는다."""
         (self.fix / "repo.json").unlink()
         (self.repo / "scripts" / "claim.sh").unlink()  # 선점 도구도 묻지 않는다
+        self.env["TICKET_ROLE"] = "designer"  # 루프용 역할 값이 셸에 남아 있어도
         self.put("issue_12", {"number": 12, "state": "open", "body": "- 선행: #10"})
         self.assertEqual(self.sh("ticket-claim.sh", "merge-wait", "12").returncode, 0)
         self.put("issue_12", {"number": 12, "state": "open", "body": "- 머지 조건: #11"})
