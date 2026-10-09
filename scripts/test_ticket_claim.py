@@ -331,6 +331,11 @@ class TicketScriptTest(unittest.TestCase):
         (self.repo / "scripts" / "ticket-claim.sh").write_text("exit 2\n")  # 진단 없이 죽어도 원인 칸을 비우지 않는다
         self.assertIn("W[판정 실패: 종료코드 2 — 다시 make ship]", self.ship_gate(12, no_merge=True).stdout)
 
+    def test_mine_fails_when_claim_list_fails(self):
+        """선점 목록(ls-remote) 조회 실패는 '내 티켓 없음'이 아니다 — 틱이 새 티켓을 잡지 않게."""
+        self.git("remote", "set-url", "origin", str(self.tmp / "no-such.git"))
+        self.assertNotEqual(self.sh("ticket-claim.sh", "mine").returncode, 0)
+
     def test_claim_checks_see_claims_that_are_not_last(self):
         """선점 확인이 뒤에 다른 선점이 있어도 보인다 (pipefail + grep -q SIGPIPE로 '없음'이 되던 회귀)."""
         for n in (2, 3, 4, 5):
@@ -566,11 +571,13 @@ class TicketScriptTest(unittest.TestCase):
         self.put("issue_comments", [comment(1, "kim", "OWNER", "2026-10-02T00:00:00Z", "필드 하나 더")])
         self.put("prs", [{"number": 9, "state": "OPEN", "headRefName": "feat/5-req-01-be", "body": "Closes #5", "isDraft": False}])
         self.put("pr_checks", [{"name": "ci", "bucket": "pass"}])
+        self.put("pr_view", {"commits": [{"committedDate": "2026-10-02T12:00:00Z"}]})  # PR 댓글은 마지막 커밋 이후만 '새 것'
         r = self.tick()
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertIn("STATE CONTINUE", r.stdout)
         self.assertIn("PR 9 OPEN checks=pass", r.stdout)
         self.assertIn("NEW_COMMENTS 1 ", r.stdout)
+        self.assertIn("PR_COMMENTS 0 ", r.stdout)  # 2026-10-02T00:00 댓글은 마지막 커밋(12:00) 전
         self.assertIn("BRANCH feat/5-req-01-be (이 폴더)", r.stdout)
         self.assertIn("새 댓글", r.stdout)
         self.assertEqual(run(["git", "-C", str(self.repo), "branch", "--show-current"]).stdout.strip(), "feat/5-req-01-be")
@@ -591,6 +598,16 @@ class TicketScriptTest(unittest.TestCase):
         r = self.tick()
         self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
         self.assertIn("'후속 Issue로' 안내 댓글을 남겼다", r.stdout)
+        self.assertEqual(run(["git", "-C", str(self.repo), "branch", "--show-current"]).stdout.strip(), "main")  # 끝난 티켓 → main으로
+        # 끝난(닫힌) 티켓 브랜치에 남아 있어도 다음 선점은 이 폴더에서
+        self.git("push", "-q", "origin", ":refs/heads/claim/5")
+        self.git("switch", "-q", "feat/5-req-01-be")
+        self.put("issue_5", {"number": 5, "title": "[REQ-01][BE] 메모 API", "body": "", "state": "CLOSED", "labels": [{"name": "role:backend"}]})
+        self.put("issues", [issue(7, labels=["role:backend"])])
+        self.put("issue_7", {"number": 7, "title": "[REQ-02][BE] 다음", "body": "", "state": "OPEN", "labels": [{"name": "role:backend"}]})
+        self.put("issue_comments", [])
+        r = self.tick()
+        self.assertIn("BRANCH feat/7-req-02-be (이 폴더)", r.stdout, r.stdout + r.stderr)
 
     def test_tick_other_branches(self):
         """NEEDS-HUMAN(선행에 # 없는 번호) · OTHER-SESSION · PR CLOSED · MERGE_WAIT · 명세 조회 실패."""

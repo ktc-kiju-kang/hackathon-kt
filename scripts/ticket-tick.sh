@@ -27,12 +27,17 @@ slug_of() {  # 제목의 [REQ-01][BE] 같은 태그 → req-01-be (없으면 tic
   s=$(printf '%s' "$1" | grep -o '\[[^]]*\]' | tr -d '[]' | tr 'A-Z' 'a-z' | tr -c 'a-z0-9\n' '-' | paste -sd- - | sed 's/-\{2,\}/-/g; s/^-//; s/-$//')
   echo "${s:-ticket}"
 }
+cur_is_done_ticket() {  # <브랜치> 가 <type>/<번호>-… 이고 그 Issue가 닫혔으면 0 (루프가 끝낸 티켓의 브랜치 — 사람의 작업 브랜치가 아니다)
+  [[ "$1" =~ ^[a-z]+/([0-9]+)- ]] || return 1
+  [ "$(gh issue view "${BASH_REMATCH[1]}" --json state -q .state 2>/dev/null)" = CLOSED ]
+}
 checkout_branch() {  # checkout_branch <번호> <브랜치> — 이 폴더 또는 worktree. BRANCH·WORKDIR 줄을 출력하고 WORK를 정한다
   local n=$1 b=$2 cur dir remote=""
   cur=$(git -C "$ROOT" branch --show-current)
   git -C "$ROOT" fetch -q origin "$b" 2>/dev/null && remote=1  # 다른 PC·세션이 push한 브랜치
-  # 미추적 파일은 브랜치를 바꿔도 그대로라 보지 않는다 (.run/ 등). 수정·스테이지된 변경이 있으면 사람이 작업 중
-  if [ -z "$(git -C "$ROOT" status --porcelain --untracked-files=no)" ] && { [ "$cur" = main ] || [ "$cur" = "$b" ] || [[ "$cur" == */$n-* ]]; }; then
+  # 미추적 파일은 브랜치를 바꿔도 그대로라 보지 않는다 (.run/ 등). 수정·스테이지된 변경이 있으면 사람이 작업 중.
+  # 끝난(닫힌) 티켓의 브랜치에 남아 있는 것은 루프 자신이라 '이 폴더'로 본다
+  if [ -z "$(git -C "$ROOT" status --porcelain --untracked-files=no)" ] && { [ "$cur" = main ] || [ "$cur" = "$b" ] || [[ "$cur" == */$n-* ]] || cur_is_done_ticket "$cur"; }; then
     local err
     if git -C "$ROOT" show-ref -q --verify "refs/heads/$b"; then err=$(git -C "$ROOT" switch -q "$b" 2>&1) || fail "브랜치 $b 로 바꾸지 못함: $err"
     elif [ -n "$remote" ]; then err=$(git -C "$ROOT" switch -q -c "$b" --track "origin/$b" 2>&1) || fail "origin/$b 체크아웃 실패: $err"
@@ -96,6 +101,9 @@ if [ -n "$n" ]; then
     echo "PR_COMMENTS $npc $OUT/pr-comments.jsonl"
     case "$prs_state" in
       MERGED)
+        # 끝난 티켓 브랜치에서 main으로 (깨끗하고 그 티켓 브랜치일 때만 — 다음 선점이 이 폴더에서 바로 시작하게)
+        cur=$(git -C "$ROOT" branch --show-current)
+        [[ "$cur" == */$n-* ]] && [ -z "$(git -C "$ROOT" status --porcelain --untracked-files=no)" ] && git -C "$ROOT" switch -q main 2>/dev/null
         if [ "$nc" != 0 ]; then
           gh issue comment "$n" --body "<!-- ticket-agent -->
 PR #$prn 은 이미 머지됐습니다 — 추가 요청은 후속 Issue로 받아야 합니다 (Issue 생성은 사람 몫)." >/dev/null 2>&1 ||

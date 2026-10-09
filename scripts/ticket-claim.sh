@@ -7,7 +7,7 @@
 #   scripts/ticket-claim.sh mine                      내가 선점한 열린 Issue 번호 (TICKET_ROLE 이면 그 역할 Issue만)
 #   scripts/ticket-claim.sh cleanup                   내 선점 중 이슈가 닫힌 것의 선점 ref 를 정리 (머지 후 남은 claim/<번호>)
 #   scripts/ticket-claim.sh comments <번호> [ISO시각]   신뢰 작성자의 Issue 댓글만 JSON 한 줄씩 (시각 생략 시 내 마지막 에이전트 댓글 이후)
-#   scripts/ticket-claim.sh pr-comments <PR번호>       신뢰 작성자의 PR 댓글·리뷰 코멘트만 JSON 한 줄씩
+#   scripts/ticket-claim.sh pr-comments <PR번호> [ISO시각]  신뢰 작성자의 PR 댓글·리뷰 코멘트만 JSON 한 줄씩 (시각 생략 시 PR의 마지막 커밋 이후)
 #   scripts/ticket-claim.sh release <번호> [라벨]       선점 해제 (+ needs-info|needs-human|blocked 라벨), in-progress 라벨 제거
 #   scripts/ticket-claim.sh owns <번호>                 이 세션이 잡은 티켓인가. 종료코드 0=내 세션(또는 세션 표식 없음), 1=같은 계정의 다른 세션
 #   scripts/ticket-claim.sh done <번호>                 구현 완료 표기: impl-done 라벨 (PR 생성 뒤)
@@ -191,8 +191,10 @@ cmd_merge_wait() {
 }
 
 cmd_mine() {
-  local n owner
-  claims | while read -r n owner; do
+  local n owner all
+  all=$(claims) || return 1  # 선점 목록 조회 실패는 '없음'이 아니다
+  echo "$all" | while read -r n owner; do
+    [ -n "$n" ] || continue
     [ "$owner" = "$me" ] || continue
     # 역할 루프(TICKET_ROLE)는 자기 역할 티켓만 이어간다 — 다른 역할의 선점을 "진행 중"으로 보고 멈추지 않게
     # (TICKET_ROLE은 맨 아래에서 architect|backend|frontend로 검사한 값이라 식에 그대로 넣는다 — gh --jq는 --arg가 없다)
@@ -247,14 +249,19 @@ cmd_comments() {
 }
 
 cmd_pr_comments() {
-  local n=$1
+  local n=$1 since=${2:-}
   num_or_die "$n"
+  if [ -z "$since" ]; then  # 마지막 커밋 전의 리뷰는 그 커밋에 반영된 것으로 본다 (매 틱 같은 피드백을 '새 것'으로 주지 않게)
+    since=$(gh pr view "$n" --json commits --jq '[.commits[].committedDate] | max // ""' 2>/dev/null)
+    since=${since:-1970-01-01T00:00:00Z}
+  fi
   {
     api --paginate "repos/$repo/issues/$n/comments?per_page=100" --jq '.[] | {id,kind:"conversation",user:.user.login,type:.user.type,assoc:.author_association,created_at,body}'
     api --paginate "repos/$repo/pulls/$n/comments?per_page=100" --jq '.[] | {id,kind:"review-comment",path,user:.user.login,type:.user.type,assoc:.author_association,created_at,body}'
     api --paginate "repos/$repo/pulls/$n/reviews?per_page=100" --jq '.[] | select(.body != "") | {id,kind:"review",state,user:.user.login,type:.user.type,assoc:.author_association,created_at:.submitted_at,body}'
-  } | jq -c --argjson trusted "$TRUSTED" '
-      select((.assoc as $a | $trusted|index($a)) and .type != "Bot")
+  } | jq -c --argjson trusted "$TRUSTED" --arg since "$since" '
+      select(.created_at > $since)
+      | select((.assoc as $a | $trusted|index($a)) and .type != "Bot")
       | select((.body|contains("<!-- ticket-agent -->")|not) and (.body|startswith("구현·검증 근거 (make ship)")|not))
       | del(.type,.assoc)'
 }
@@ -286,7 +293,7 @@ case "${1:-}" in
   mine)        cmd_mine ;;
   cleanup)     cmd_cleanup ;;
   comments)    [ -n "${2:-}" ] || die "사용법: comments <번호> [ISO시각]"; cmd_comments "$2" "${3:-}" ;;
-  pr-comments) [ -n "${2:-}" ] || die "사용법: pr-comments <PR번호>"; cmd_pr_comments "$2" ;;
+  pr-comments) [ -n "${2:-}" ] || die "사용법: pr-comments <PR번호> [ISO시각]"; cmd_pr_comments "$2" "${3:-}" ;;
   owns)        [ -n "${2:-}" ] || die "사용법: owns <번호>"; cmd_owns "$2" ;;
   done)        [ -n "${2:-}" ] || die "사용법: done <번호>"; cmd_done "$2" ;;
   merge-wait)  [ -n "${2:-}" ] || die "사용법: merge-wait <번호>"; cmd_merge_wait "$2" ;;
