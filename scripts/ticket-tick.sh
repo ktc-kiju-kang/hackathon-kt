@@ -40,7 +40,9 @@ checkout_branch() {  # checkout_branch <번호> <브랜치> — 이 폴더 또�
     echo "BRANCH $b (이 폴더)"
   else
     dir="$(dirname "$ROOT")/$(basename "$ROOT")-wt-$n"
-    if [ ! -d "$dir" ]; then
+    if [ -d "$dir" ]; then  # 사람이 new-worktree.sh로 같은 번호의 다른 브랜치를 만들었을 수 있다
+      [ "$(git -C "$dir" branch --show-current 2>/dev/null)" = "$b" ] || fail "worktree $dir 가 다른 브랜치($(git -C "$dir" branch --show-current 2>/dev/null))에 있다 — 사람이 정리"
+    else
       if git -C "$ROOT" show-ref -q --verify "refs/heads/$b"; then git -C "$ROOT" worktree add -q "$dir" "$b"
       elif [ -n "$remote" ]; then git -C "$ROOT" worktree add -q --track -b "$b" "$dir" "origin/$b"
       else git -C "$ROOT" worktree add -q -b "$b" "$dir" origin/main; fi || fail "worktree 생성 실패: $dir"
@@ -49,7 +51,9 @@ checkout_branch() {  # checkout_branch <번호> <브랜치> — 이 폴더 또�
     WORK=$dir
     echo "BRANCH $b (worktree $dir — 이 폴더는 사람이 작업 중(브랜치 ${cur}·미커밋 변경). 그 안에서 make setup 후 작업, DB가 겹치면 DB_PORT=55433)"
   fi
-  [ -n "$remote" ] && git -C "$WORK" pull -q --ff-only origin "$b" 2>/dev/null  # 남이 올린 커밋이 있으면 작업 폴더에 받는다 (갈라졌으면 그대로 — 에이전트가 본다)
+  if [ -n "$remote" ] && ! git -C "$WORK" pull -q --ff-only origin "$b" 2>/dev/null; then  # 남이 올린 커밋이 있으면 작업 폴더에 받는다
+    echo "DIVERGED origin/$b — 로컬과 갈라짐. 구현 전에 git -C $WORK merge origin/$b (충돌이면 사람에게)"
+  fi
   echo "WORKDIR $WORK"
 }
 write_spec() {  # write_spec <번호> — 본문 + 선점 전 것까지 모든 신뢰 댓글 → SPEC 파일
@@ -93,12 +97,12 @@ if [ -n "$n" ]; then
       MERGED)
         if [ "$nc" != 0 ]; then
           gh issue comment "$n" --body "<!-- ticket-agent -->
-PR #$prn 은 이미 머지됐습니다 — 추가 요청은 후속 Issue로 받아야 합니다 (Issue 생성은 사람 몫)." >/dev/null 2>&1 || true
+PR #$prn 은 이미 머지됐습니다 — 추가 요청은 후속 Issue로 받아야 합니다 (Issue 생성은 사람 몫)." >/dev/null 2>&1 ||
+            fail "PR #$prn 은 머지됨 — 새 댓글 ${nc}건에 안내 댓글을 남기지 못함 (다음 틱에 다시)"
           end WAIT "PR #$prn 은 머지됨 — 새 댓글 ${nc}건에 '후속 Issue로' 안내 댓글을 남겼다. 코드는 더 바꾸지 않는다"
         fi
         end WAIT "PR #$prn 은 머지됨 — Issue #$n 이 닫히면 cleanup이 선점을 정리한다" ;;
-      CLOSED)
-        checkout_branch "$n" "$prb"
+      CLOSED)  # 체크아웃 불필요 — 댓글과 release만 한다
         echo "STATE CONTINUE"; echo "NEXT PR #$prn 이 머지 없이 닫혔다 — 사람이 접은 것. 이유를 묻는 댓글(마커 포함) 후 scripts/ticket-claim.sh release $n blocked. 다시 구현하지 않는다"; exit 0 ;;
       *)
         checkout_branch "$n" "$prb"

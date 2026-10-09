@@ -653,6 +653,15 @@ class TicketScriptTest(unittest.TestCase):
         self.assertEqual(run(["git", "-C", str(self.repo), "branch", "--show-current"]).stdout.strip(), "fix/99-mine")
         self.assertEqual(run(["git", "-C", str(self.repo), "rev-parse", "fix/99-mine"]).stdout, before)
         self.assertTrue((self.tmp / "repo-wt-6" / "y.txt").exists())
+        # 깨끗한 main 체크아웃이면 origin에만 있는 PR 브랜치를 이 폴더에 --track으로 받는다
+        self.git("switch", "-q", "main")
+        self.git("checkout", "-q", "--", "README.md")
+        run(["git", "-C", str(self.repo), "worktree", "remove", "--force", str(self.tmp / "repo-wt-6")])
+        self.git("branch", "-D", "feat/6-req-02-fe")
+        r = self.tick()
+        self.assertIn("BRANCH feat/6-req-02-fe (이 폴더)", r.stdout, r.stdout + r.stderr)
+        self.assertTrue((self.repo / "y.txt").exists())
+        self.assertNotIn("DIVERGED", r.stdout)
 
     def test_list_filters_by_role(self):
         self.put(
