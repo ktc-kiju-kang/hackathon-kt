@@ -436,10 +436,20 @@ class TicketScriptTest(unittest.TestCase):
         r = self.lib("ci_wait 7; echo rc=$?")
         self.assertIn("CI가 없어", r.stdout)
         self.assertIn("rc=0", r.stdout)
-        (self.fix / "seq").write_text("checks_none\n" + "checks_pending\n" * 10)  # 첫 조회(개수)만 있고 계속 pending
-        self.put("pr_checks", checks("pending"))
         (self.fix / "seq").unlink()
+        self.put("pr_checks", checks("pending"))  # seq 없음 → 계속 pending
         self.assertIn("rc=2", self.lib("ci_wait 7; echo rc=$?").stdout)  # CI_WAIT_MAX=3 번 뒤 시간 초과
+        # 같은 실행의 두 번째 호출(main 재반영 후 push 직후): 체크가 아직 0이어도 'CI 없음'이 아니라 생길 때까지 기다린다
+        # gh 호출마다 seq 한 줄: 1차 [개수, 상태] → 2차 [개수=0, 생길 때까지 2번, 상태]
+        (self.fix / "seq").write_text("checks_pass\nchecks_pass\nchecks_none\nchecks_none\nchecks_pass\nchecks_pass\n")
+        r = self.lib("ci_wait 7 && ci_wait 7; echo rc=$?", CI_APPEAR_MAX="3")
+        self.assertEqual(r.stdout.count("CI 통과"), 2, r.stdout)
+        self.assertNotIn("CI가 없어", r.stdout)
+        (self.fix / "seq").write_text("checks_pass\nchecks_pass\n")
+        self.put("pr_checks", [])  # 끝내 안 생기면 2
+        r = self.lib("ci_wait 7; ci_wait 7; echo rc=$?", CI_APPEAR_MAX="2")
+        self.assertIn("체크가 생기지 않음", r.stdout)
+        self.assertIn("rc=2", r.stdout)
 
     def test_scripts_tests_needed_only_when_scripts_changed(self):
         """verify: 키트 스크립트 자체 시험은 CI·키트 원본 레포·scripts/가 바뀐 브랜치에서만 돈다."""

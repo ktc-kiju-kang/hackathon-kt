@@ -45,7 +45,7 @@ title=$(git log --reverse --format='%s' origin/main..HEAD | grep -v '^Merge ' | 
 # 닫힌 카드를 In Review로 되돌리고, 다시 닫히지 않아 Done으로 돌아오지 않는다 (#109)
 link=Closes
 [ -n "$issue" ] && [ "$(gh issue view "$issue" --json state -q .state 2>/dev/null)" = CLOSED ] && link=Refs
-git push -q -u origin "$branch" || die "push 실패"
+out=$(git push -q -u origin "$branch" 2>&1) || { echo "$out"; die "push 실패"; }  # GitHub의 "Create a pull request" 안내는 숨긴다
 pr=$(gh pr view "$branch" --json number,state -q 'select(.state=="OPEN") | .number' 2>/dev/null || true)
 if [ -z "$pr" ]; then
   { [ -n "$issue" ] && printf '%s #%s\n\n' "$link" "$issue"
@@ -106,7 +106,7 @@ gh pr view "$pr" --json body -q .body >"$RUN_DIR/pr-body.old"
   warn "PR 본문에 사람이 쓴 'Closes #$issue'가 있음 — Issue가 이미 닫혀 칸반 카드가 In Review로 돌아갈 수 있으니 Refs로 고치세요"
 gh pr edit "$pr" --body-file "$RUN_DIR/pr-body.md" >/dev/null || die "PR 본문 갱신 실패"
 if [ "$(gh pr view "$pr" --json isDraft -q .isDraft 2>/dev/null)" = true ]; then
-  gh pr ready "$pr" >/dev/null 2>&1 || warn "초안 해제 실패 — gh pr ready $pr"
+  gh pr ready "$pr" >/dev/null 2>&1 || { [ "${SHIP_NO_MERGE:-}" = 1 ] && warn "초안 해제 실패 — gh pr ready $pr" || die "초안 해제 실패 — gh pr ready $pr 뒤 make ship"; }
 fi
 ok "PR #$pr 갱신 (검사 통과, 초안 해제)"
 
@@ -143,7 +143,7 @@ migration_gate "$pr"
 
 say "8/9 머지 (CI → 잠금 → 최신 main 확인 → squash)"
 # CI는 잠금 밖에서 기다린다 — 잠금을 잡은 채 기다리면 다른 사람의 ship이 내 CI까지 기다린다
-ci_check() { ci_wait "$pr"; case $? in 1) die "CI 실패 — 고친 뒤 make ship";; 2) die "CI가 20분 안에 끝나지 않음";; esac; }
+ci_check() { ci_wait "$pr"; case $? in 1) die "CI 실패 — 고친 뒤 make ship";; 2) die "CI가 끝나지 않음 — GitHub Actions 확인 후 make ship";; esac; }
 ci_check
 lock_acquire "PR #$pr $branch" || die "10분 동안 머지 잠금을 못 잡았습니다 — make lock-status"
 git fetch -q origin main
@@ -156,7 +156,7 @@ if ! git merge-base --is-ancestor origin/main HEAD; then
 fi
 head=$(git rev-parse HEAD)
 gh pr merge "$pr" --squash --delete-branch --match-head-commit "$head" >/dev/null 2>"$RUN_DIR/ship-merge.err" \
-  || { cat "$RUN_DIR/ship-merge.err"; die "머지 실패 — 보호 규칙(승인 필수 등)이면 팀원 승인 후 다시"; }
+  || { cat "$RUN_DIR/ship-merge.err"; die "머지 실패 — 보호 규칙(승인 필수 등)이면 팀원 승인 후 다시, 초안 상태면 gh pr ready $pr"; }
 lock_release
 ok "PR #$pr 머지"
 [ -n "$issue" ] && { "$ROOT/scripts/claim.sh" done "$issue" >/dev/null 2>&1 || warn "Issue #$issue 선점 해제 실패 — scripts/claim.sh done $issue"; }

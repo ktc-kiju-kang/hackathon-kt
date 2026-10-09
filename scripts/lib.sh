@@ -176,16 +176,26 @@ migration_gate() {  # migration_gate <PR> — 루프 자동 머지에서 새 마
 }
 
 # ---- ship 보조 -------------------------------------------------------------------------
-ci_wait() {  # ci_wait <PR> — PR 체크가 끝날 때까지 기다린다 (최대 20분). 0=통과(CI 없음 포함), 1=실패, 2=시간 초과
-  local pr=$1 checks states i
+CI_SEEN=""  # 이 실행에서 PR 체크를 한 번이라도 봤는가 — 두 번째 ci_wait(main 재반영 후 push 직후)가 "CI 없음"으로 오판하지 않게
+ci_wait() {  # ci_wait <PR> — PR 체크가 끝날 때까지 기다린다. 0=통과(CI 없음 포함), 1=실패, 2=시간 초과
+  local pr=$1 checks states i max=${CI_WAIT_MAX:-120} poll=${CI_POLL_SEC:-10}
   checks=$(gh pr checks "$pr" --json name,bucket -q 'length' 2>/dev/null || echo 0)
+  if [ "${checks:-0}" -eq 0 ] 2>/dev/null && [ -n "$CI_SEEN" ]; then  # push 직후엔 새 커밋의 체크가 아직 등록 전일 수 있다
+    for i in $(seq 1 "${CI_APPEAR_MAX:-12}"); do
+      sleep "$poll"; checks=$(gh pr checks "$pr" --json name,bucket -q 'length' 2>/dev/null || echo 0)
+      [ "${checks:-0}" -gt 0 ] 2>/dev/null && break
+    done
+    [ "${checks:-0}" -gt 0 ] 2>/dev/null || { warn "새 커밋의 CI 체크가 생기지 않음 — GitHub Actions 확인 후 make ship"; return 2; }
+  fi
   [ "${checks:-0}" -gt 0 ] 2>/dev/null || { echo "  이 레포에 CI가 없어 로컬 verify 결과로 진행"; return 0; }
-  echo "  CI 대기 (최대 20분)…"
-  for i in $(seq 1 "${CI_WAIT_MAX:-120}"); do
+  CI_SEEN=1
+  echo "  CI 대기 (최대 $((max * poll / 60))분)…"
+  for i in $(seq 1 "$max"); do
     states=$(gh pr checks "$pr" --json bucket -q '[.[].bucket] | unique | join(",")' 2>/dev/null)
+    [ -n "$states" ] || { sleep "$poll"; continue; }  # 조회 실패·빈 결과는 통과가 아니다 — 다시 본다
     # cancel은 새 실행으로 대체된 것(PR 본문 수정 → PR Review 재실행)이라 실패로 보지 않는다
     case "$states" in *fail*) gh pr checks "$pr" 2>/dev/null | grep -i "fail"; return 1;; esac
-    case "$states" in *pending*) sleep "${CI_POLL_SEC:-10}";; *) ok "CI 통과 ($states)"; return 0;; esac
+    case "$states" in *pending*) sleep "$poll";; *) ok "CI 통과 ($states)"; return 0;; esac
   done
   return 2
 }

@@ -51,6 +51,8 @@ jobs:
       - uses: actions/checkout@v7
       # 제출 문서 ID 사슬 검사 (작성 중 기준). 제출 직전에는 로컬에서 --draft 없이 실행한다.
       - run: python3 scripts/check-docs.py --draft
+      # 키트 스크립트 자체 시험 — 로컬 make verify는 scripts/를 고친 브랜치에서만 돌리고, 여기서는 항상 (lib.sh scripts_tests_needed)
+      - run: for t in scripts/test_*.py; do python3 "$t" || exit 1; done
   # 로컬 배포 파이프라인 그대로: 설치 → 격리 배포 → E2E (docs/pipeline.md). 결과 기록은 로컬 make e2e로 커밋한다.
   e2e:
     runs-on: ubuntu-latest

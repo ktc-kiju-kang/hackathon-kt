@@ -44,7 +44,7 @@ if scripts_tests_needed; then
   [ -f "$ROOT/scripts/test_migration_draft.py" ] && step migration-draft-test "$ROOT" python3 scripts/test_migration_draft.py
   [ -f "$ROOT/scripts/test_pr_body.py" ] && step pr-body-test "$ROOT" python3 scripts/test_pr_body.py
 else
-  printf '  %-22s \033[33mSKIP\033[0m (scripts/ 변경 없음 — CI가 검사)\n' scripts-tests
+  printf '  %-22s \033[33mSKIP\033[0m (scripts/ 변경 없음 — 팀 레포 CI docs 잡·키트 레포가 검사)\n' scripts-tests
 fi
 if [ ! -f "$ROOT/docs/prd.md" ]; then
   printf '  %-22s \033[33mSKIP\033[0m (제출 문서 없음 — 키트 원본 레포)\n' docs
