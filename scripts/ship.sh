@@ -143,17 +143,19 @@ migration_gate "$pr"
 
 say "8/9 머지 (CI → 잠금 → 최신 main 확인 → squash)"
 # CI는 잠금 밖에서 기다린다 — 잠금을 잡은 채 기다리면 다른 사람의 ship이 내 CI까지 기다린다
-ci_check() { ci_wait "$pr"; case $? in 1) die "CI 실패 — 고친 뒤 make ship";; 2) die "CI가 끝나지 않음 — GitHub Actions 확인 후 make ship";; esac; }
-ci_check
-lock_acquire "PR #$pr $branch" || die "10분 동안 머지 잠금을 못 잡았습니다 — make lock-status"
-git fetch -q origin main
-if ! git merge-base --is-ancestor origin/main HEAD; then
-  warn "그새 main이 바뀌었습니다 → 다시 반영·검사"
+ci_check() { ci_wait "$pr" "$(git rev-parse HEAD)"; case $? in 1) die "CI 실패 — 고친 뒤 make ship";; 2) die "CI가 끝나지 않음 — GitHub Actions 확인 후 make ship";; esac; }
+for attempt in 1 2 3; do
+  ci_check
+  lock_acquire "PR #$pr $branch" || die "10분 동안 머지 잠금을 못 잡았습니다 — make lock-status"
+  git fetch -q origin main
+  git merge-base --is-ancestor origin/main HEAD && break
+  lock_release  # 재반영·검사·CI는 잠금 밖에서 — 잠금을 쥔 채 20분 기다리면 남의 ship이 잠금 대기에서 실패한다
+  [ "$attempt" -lt 3 ] || die "main이 계속 바뀝니다 — 잠시 뒤 make ship"
+  warn "그새 main이 바뀌었습니다 → 다시 반영·검사 ($attempt/3)"
   "$ROOT/scripts/sync.sh" || die "main 반영 중 충돌 — 해결 후 make ship"
   "$ROOT/scripts/verify.sh" >"$RUN_DIR/ship-verify2.log" 2>&1 || die "main 반영 후 verify 실패 → .run/ship-verify2.log"
   git push -q origin "$branch" || die "push 실패"
-  ci_check
-fi
+done
 head=$(git rev-parse HEAD)
 gh pr merge "$pr" --squash --delete-branch --match-head-commit "$head" >/dev/null 2>"$RUN_DIR/ship-merge.err" \
   || { cat "$RUN_DIR/ship-merge.err"; die "머지 실패 — 보호 규칙(승인 필수 등)이면 팀원 승인 후 다시, 초안 상태면 gh pr ready $pr"; }

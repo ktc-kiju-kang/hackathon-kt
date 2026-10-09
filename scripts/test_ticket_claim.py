@@ -21,6 +21,7 @@ expr=.; prev=
 for a in "$@"; do { [ "$prev" = --jq ] || [ "$prev" = -q ]; } && expr=$a; prev=$a; done
 case "$1 $2" in
   "repo view") f=repo ;; "api user") f=user ;; "pr list") f=prs ;; "issue list") f=agent_pause ;;
+  "pr view") f=pr_view ;;
   "pr checks") f=pr_checks  # $FIX/seq 가 있으면 한 줄씩 꺼내 쓴다 (pending → pass 같은 흐름)
     if [ -s "$FIX/seq" ]; then f=$(head -1 "$FIX/seq"); tail -n +2 "$FIX/seq" >"$FIX/seq.tmp"; mv "$FIX/seq.tmp" "$FIX/seq"; fi ;;
   "issue view") f=issue_$3; [ -f "$FIX/$f.404" ] && { echo "gh: Not Found (HTTP 404)" >&2; exit 1; }
@@ -449,6 +450,13 @@ class TicketScriptTest(unittest.TestCase):
         self.put("pr_checks", [])  # 끝내 안 생기면 2
         r = self.lib("ci_wait 7; ci_wait 7; echo rc=$?", CI_APPEAR_MAX="2")
         self.assertIn("체크가 생기지 않음", r.stdout)
+        self.assertIn("rc=2", r.stdout)
+        # head SHA를 주면 PR head가 그 커밋이 될 때까지 기다린 뒤에 체크를 본다 (이전 커밋의 통과를 새 커밋 것으로 오인하지 않게)
+        self.put("pr_view", {"headRefOid": "abc123"})
+        self.put("pr_checks", checks("pass"))
+        self.assertIn("rc=0", self.lib("ci_wait 7 abc123; echo rc=$?").stdout)
+        r = self.lib("ci_wait 7 fff999; echo rc=$?", CI_APPEAR_MAX="1")
+        self.assertIn("head가 push한 커밋", r.stdout)
         self.assertIn("rc=2", r.stdout)
 
     def test_scripts_tests_needed_only_when_scripts_changed(self):

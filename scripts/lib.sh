@@ -177,8 +177,15 @@ migration_gate() {  # migration_gate <PR> — 루프 자동 머지에서 새 마
 
 # ---- ship 보조 -------------------------------------------------------------------------
 CI_SEEN=""  # 이 실행에서 PR 체크를 한 번이라도 봤는가 — 두 번째 ci_wait(main 재반영 후 push 직후)가 "CI 없음"으로 오판하지 않게
-ci_wait() {  # ci_wait <PR> — PR 체크가 끝날 때까지 기다린다. 0=통과(CI 없음 포함), 1=실패, 2=시간 초과
-  local pr=$1 checks states i max=${CI_WAIT_MAX:-120} poll=${CI_POLL_SEC:-10}
+ci_wait() {  # ci_wait <PR> [head SHA] — PR 체크가 끝날 때까지 기다린다. 0=통과(CI 없음 포함), 1=실패, 2=시간 초과
+  local pr=$1 want=${2:-} checks states i max=${CI_WAIT_MAX:-120} poll=${CI_POLL_SEC:-10}
+  if [ -n "$want" ]; then  # push 직후 GitHub이 아직 이전 커밋을 PR head로 보고 그 체크(통과)를 돌려주는 창을 막는다
+    for i in $(seq 0 "${CI_APPEAR_MAX:-12}"); do
+      [ "$(gh pr view "$pr" --json headRefOid -q .headRefOid 2>/dev/null)" = "$want" ] && break
+      [ "$i" -lt "${CI_APPEAR_MAX:-12}" ] || { warn "PR #$pr head가 push한 커밋(${want:0:7})으로 바뀌지 않음"; return 2; }
+      sleep "$poll"
+    done
+  fi
   checks=$(gh pr checks "$pr" --json name,bucket -q 'length' 2>/dev/null || echo 0)
   if [ "${checks:-0}" -eq 0 ] 2>/dev/null && [ -n "$CI_SEEN" ]; then  # push 직후엔 새 커밋의 체크가 아직 등록 전일 수 있다
     for i in $(seq 1 "${CI_APPEAR_MAX:-12}"); do
