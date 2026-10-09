@@ -200,6 +200,7 @@ cmd_mine() {
       --jq 'select(.state == "OPEN" and ("'"${TICKET_ROLE:-}"'" == "" or ([.labels[].name] | index("role:'"${TICKET_ROLE:-}"'")))) | "y"' 2>/dev/null |
       grep -q y && echo "$n"
   done
+  return 0  # 마지막 선점이 내 것·내 역할이 아니어도 '조회 실패'가 아니다 (while의 종료코드를 그대로 돌려주지 않는다)
 }
 
 cmd_owns() {

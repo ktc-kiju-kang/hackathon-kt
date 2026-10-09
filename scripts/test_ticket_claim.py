@@ -82,7 +82,7 @@ class TicketScriptTest(unittest.TestCase):
         run(["git", "init", "-q", str(self.repo)])
         run(["git", "-C", str(self.repo), "remote", "add", "origin", str(self.origin)])
         (self.repo / "scripts").mkdir()
-        for name in ("ticket-claim.sh", "ticket-loop-precheck.sh", "lib.sh"):
+        for name in ("ticket-claim.sh", "ticket-loop-precheck.sh", "lib.sh", "ticket-tick.sh"):
             shutil.copy(SCRIPTS / name, self.repo / "scripts" / name)
         claim = self.repo / "scripts" / "claim.sh"  # 선점 쓰기는 이 시험의 대상이 아니다 (존재만 요구)
         claim.write_text("#!/usr/bin/env bash\nexit 0\n")
@@ -496,6 +496,104 @@ class TicketScriptTest(unittest.TestCase):
         (self.repo / "templates" / "starter").mkdir(parents=True)
         (self.repo / "templates" / "starter" / "export.py").write_text("")  # 키트 원본 레포는 항상
         self.assertEqual(self.lib("scripts_tests_needed").returncode, 0)
+
+    # ── ticket-tick.sh: 틱의 결정적인 앞부분 ──
+    def tick_repo(self):
+        """origin/main이 있는 main 체크아웃 + 실제로 선점 ref를 만드는 claim.sh 대역."""
+        self.env.update({"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"})
+        (self.repo / "scripts" / "claim.sh").write_text(
+            "#!/usr/bin/env bash\nset -e\nr=$(git rev-parse --show-toplevel)\ncase \"$1\" in\n"
+            "  take) t=$(git -C \"$r\" hash-object -t tree /dev/null); c=$(git -C \"$r\" commit-tree \"$t\" -m \"me #$2\" </dev/null); git -C \"$r\" push -q origin \"$c:refs/heads/claim/$2\" ;;\n"
+            "  done|release) git -C \"$r\" push -q origin \":refs/heads/claim/$2\" ;;\nesac\n")
+        self.write_commit({"README.md": "x\n"}, "base")
+        self.git("branch", "-M", "main")
+        self.git("push", "-q", "origin", "main")
+        self.git("fetch", "-q", "origin")
+        self.put("prs", [])
+        self.put("pr_checks", [])
+
+    def tick(self, **env):
+        return run(["bash", str(self.repo / "scripts" / "ticket-tick.sh")], env={**self.env, **env}, cwd=self.repo)
+
+    def test_tick_paused_or_idle(self):
+        self.tick_repo()
+        self.put("agent_pause", [{"number": 1}])
+        r = self.tick()
+        self.assertEqual((r.returncode, r.stdout.splitlines()[0]), (1, "STATE PAUSED"), r.stderr)
+        self.put("agent_pause", [])
+        r = self.tick()
+        self.assertEqual(r.returncode, 1, r.stderr)
+        self.assertIn("STATE WAIT", r.stdout)
+        self.assertIn("후보 없음", r.stdout)
+
+    def test_tick_claims_and_prepares_branch_and_spec(self):
+        """새 티켓: 선점 → 이 폴더에서 origin/main 기준 브랜치 → 본문+댓글을 spec 파일로 → 에이전트는 명세 검사부터."""
+        self.tick_repo()
+        self.put("issues", [issue(5, labels=["feature", "role:backend"])])
+        self.put("issue_5", {"number": 5, "title": "[REQ-01][BE] 메모 API", "body": "- 선행: 없음\n완료 조건", "state": "OPEN",
+                             "labels": [{"name": "feature"}, {"name": "role:backend"}]})
+        self.put("issue_comments", [comment(1, "kim", "OWNER", "2026-10-02T00:00:00Z", "200자 제한")])
+        r = self.tick(TICKET_ROLE="backend")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        out = dict(l.split(" ", 1) for l in r.stdout.splitlines() if " " in l)
+        self.assertEqual(out["STATE"], "CLAIMED")
+        self.assertTrue(out["ISSUE"].startswith("5 [REQ-01][BE]"))
+        self.assertEqual(out["BRANCH"], "feat/5-req-01-be (이 폴더)")
+        self.assertEqual(run(["git", "-C", str(self.repo), "branch", "--show-current"]).stdout.strip(), "feat/5-req-01-be")
+        spec = Path(out["SPEC"].split()[0]).read_text()
+        self.assertIn("# [REQ-01][BE] 메모 API", spec)
+        self.assertIn("완료 조건", spec)
+        self.assertIn("kim (2026-10-02T00:00:00Z): 200자 제한", spec)
+        self.assertIn("명세 검사", out["NEXT"])
+        self.assertIn("claim/5", run(["git", "-C", str(self.repo), "ls-remote", "origin", "refs/heads/claim/*"]).stdout)
+        # 플랜 티켓은 docs/ 브랜치
+        self.git("switch", "-q", "main")
+        self.put("issues", [issue(6, labels=["plan", "role:architect"])])
+        self.put("issue_6", {"number": 6, "title": "[REQ-01][plan] 계약", "body": "", "state": "OPEN", "labels": [{"name": "plan"}, {"name": "role:architect"}]})
+        r = self.tick(TICKET_ROLE="architect")
+        self.assertIn("BRANCH docs/6-req-01-plan (이 폴더)", r.stdout, r.stdout + r.stderr)
+
+    def test_tick_continues_my_ticket_with_open_pr(self):
+        """내 진행 중 티켓: PR 브랜치로 바꾸고 새 댓글·PR 상태를 파일과 한 줄로 — 새 티켓은 잡지 않는다."""
+        self.tick_repo()
+        self.git("switch", "-q", "-c", "feat/5-req-01-be")
+        self.write_commit({"x.txt": "1\n"}, "wip")
+        self.git("switch", "-q", "main")
+        self.claim_branch(5, "me")
+        self.put("issues", [issue(5), issue(7)])  # 7은 후보지만 진행 중이 있어 잡지 않는다
+        self.put("issue_5", {"number": 5, "title": "[REQ-01][BE] 메모 API", "body": "", "state": "OPEN", "labels": [{"name": "role:backend"}]})
+        self.put("issue_comments", [comment(1, "kim", "OWNER", "2026-10-02T00:00:00Z", "필드 하나 더")])
+        self.put("prs", [{"number": 9, "state": "OPEN", "headRefName": "feat/5-req-01-be", "body": "Closes #5", "isDraft": False}])
+        self.put("pr_checks", [{"name": "ci", "bucket": "pass"}])
+        r = self.tick()
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("STATE CONTINUE", r.stdout)
+        self.assertIn("PR 9 OPEN checks=pass", r.stdout)
+        self.assertIn("NEW_COMMENTS 1 ", r.stdout)
+        self.assertIn("BRANCH feat/5-req-01-be (이 폴더)", r.stdout)
+        self.assertIn("새 댓글", r.stdout)
+        self.assertEqual(run(["git", "-C", str(self.repo), "branch", "--show-current"]).stdout.strip(), "feat/5-req-01-be")
+        self.assertNotIn("claim/7", run(["git", "-C", str(self.repo), "ls-remote", "origin", "refs/heads/claim/*"]).stdout)
+        self.put("pr_checks", [{"name": "ci", "bucket": "fail"}])
+        self.put("issue_comments", [])
+        self.assertIn("체크 실패", self.tick().stdout)
+        self.put("prs", [{"number": 9, "state": "MERGED", "headRefName": "feat/5-req-01-be", "body": "Closes #5", "isDraft": False}])
+        r = self.tick()
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("머지됨", r.stdout)
+
+    def test_tick_uses_worktree_when_human_is_working_here(self):
+        """사람이 이 폴더에서 작업 중(다른 브랜치·미커밋)이면 건드리지 않고 worktree."""
+        self.tick_repo()
+        self.git("switch", "-q", "-c", "fix/99-mine")
+        (self.repo / "README.md").write_text("고치는 중\n")  # 수정된 추적 파일 = 작업 중
+        self.put("issues", [issue(5)])
+        self.put("issue_5", {"number": 5, "title": "[REQ-02][FE] 화면", "body": "", "state": "OPEN", "labels": [{"name": "feature"}]})
+        r = self.tick()
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("BRANCH feat/5-req-02-fe (worktree ", r.stdout)
+        self.assertEqual(run(["git", "-C", str(self.repo), "branch", "--show-current"]).stdout.strip(), "fix/99-mine")
+        self.assertTrue((self.tmp / "repo-wt-5").is_dir())
 
     def test_list_filters_by_role(self):
         self.put(
