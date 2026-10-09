@@ -264,6 +264,7 @@ class TicketScriptTest(unittest.TestCase):
     def test_merge_wait_without_line_needs_no_repo_lookup(self):
         """머지 조건 줄이 없는 Issue는 저장소·계정 확인이 실패해도 make ship을 막지 않는다."""
         (self.fix / "repo.json").unlink()
+        (self.repo / "scripts" / "claim.sh").unlink()  # 선점 도구도 묻지 않는다
         self.put("issue_12", {"number": 12, "state": "open", "body": "- 선행: #10"})
         self.assertEqual(self.sh("ticket-claim.sh", "merge-wait", "12").returncode, 0)
         self.put("issue_12", {"number": 12, "state": "open", "body": "- 머지 조건: #11"})
