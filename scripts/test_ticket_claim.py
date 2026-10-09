@@ -21,7 +21,9 @@ expr=.; prev=
 for a in "$@"; do [ "$prev" = --jq ] && expr=$a; prev=$a; done
 case "$1 $2" in
   "repo view") f=repo ;; "api user") f=user ;; "pr list") f=prs ;; "issue list") f=agent_pause ;;
-  "issue view") f=issue_$3; [ -f "$FIX/$f.404" ] && { echo "gh: Not Found (HTTP 404)" >&2; exit 1; } ;;
+  "issue view") f=issue_$3; [ -f "$FIX/$f.404" ] && { echo "gh: Not Found (HTTP 404)" >&2; exit 1; }
+    # REAL_GH: --jq 식을 진짜 gh 내장 jq(gojq)로 평가한다 — 픽스처를 jq 리터럴로 넣고 가벼운 API 응답은 버린다
+    [ -n "${REAL_GH:-}" ] && exec "$REAL_GH" api rate_limit --jq "$(cat "$FIX/$f.json") | $expr" ;;
   *) case "$*" in
        *pulls/*/comments*) f=pr_comments ;; *pulls/*/reviews*) f=pr_reviews ;;
        *issues/*/comments*) f=issue_comments ;; *issues\?*) f=issues ;;
@@ -272,6 +274,29 @@ class TicketScriptTest(unittest.TestCase):
         self.assertEqual(self.sh("ticket-claim.sh", "merge-wait", "12").returncode, 2)  # 줄이 있으면 확인이 필요하다
         self.assertEqual(self.sh("ticket-claim.sh", "list").returncode, 2)
 
+    def test_merge_wait_same_under_gh_builtin_jq(self):
+        """merge-wait의 본문 해석은 실제로 gh 내장 jq(gojq, RE2)에서 돈다 — 시스템 jq(oniguruma)와 결과가 같아야 한다."""
+        real_gh = shutil.which("gh")  # 로그인된 gh가 GitHub에 닿을 때만 (로컬 make verify·make ship). 오프라인·CI는 건너뛴다
+        if not real_gh or run([real_gh, "api", "rate_limit", "--jq", ".rate.limit"]).returncode != 0:
+            self.skipTest("GitHub에 닿는 로그인된 gh 필요")
+        self.put("issue_11", {"number": 11, "state": "open"})
+        bodies = [
+            "- 선행: #10\n- 머지 조건: #11 (같은 REQ의 BE)\n  * 머지조건 : #13",
+            "- 머지 조건: 11 [REQ-01][BE]",
+            "- 머지 조건: #11, 04",
+            "\t-\t머지 조건\t: #11",
+            "- 머지 조건: 없음",
+            "본문 - 머지 조건: #11 (줄 머리 아님)",
+            None,
+        ]
+        for body in bodies:
+            self.put("issue_12", {"number": 12, "state": "open", "body": body})
+            plain = self.sh("ticket-claim.sh", "merge-wait", "12")
+            real = run(["bash", str(self.repo / "scripts" / "ticket-claim.sh"), "merge-wait", "12"],
+                       env={**self.env, "REAL_GH": real_gh}, cwd=self.repo)
+            self.assertEqual((real.returncode, real.stdout), (plain.returncode, plain.stdout), f"{body!r}: {real.stderr}")
+            self.assertIn(plain.returncode, (0, 1), plain.stderr)
+
     def ship_gate(self, issue, no_merge):
         """make ship의 머지 조건 분기 (lib.sh merge_waiting → PR 본문 이유, merge_gate → 경고 또는 멈춤)."""
         env = {**self.env, "SHIP_NO_MERGE": "1" if no_merge else ""}
@@ -297,6 +322,8 @@ class TicketScriptTest(unittest.TestCase):
         r = self.ship_gate(12, no_merge=False)
         self.assertEqual(r.returncode, 1)
         self.assertIn("W[판정 실패: ❌ Issue #12 조회 실패 — 다시 make ship]", r.stdout)
+        (self.repo / "scripts" / "ticket-claim.sh").write_text("exit 2\n")  # 진단 없이 죽어도 원인 칸을 비우지 않는다
+        self.assertIn("W[판정 실패: 종료코드 2 — 다시 make ship]", self.ship_gate(12, no_merge=True).stdout)
 
     def test_list_filters_by_role(self):
         self.put(
