@@ -3,6 +3,8 @@ import {
   countdown,
   failureAlerts,
   formatUptime,
+  leadTimeBars,
+  leadTimeState,
   memberStats,
   parseSuite,
   reqProgress,
@@ -11,6 +13,7 @@ import {
   testTotals,
   type Dashboard,
   type GithubStatus,
+  type LeadTime,
 } from './api'
 
 describe('formatUptime', () => {
@@ -163,5 +166,39 @@ describe('failureAlerts', () => {
     const after = gh({ main_runs: [run('CI', 'b', 'failure'), run('CI', 'a', 'success')], pulls: [pr(9, 'lee', 'fail')] })
     expect(failureAlerts({ data: null, gh: before }, { data: null, gh: after })).toEqual(['main CI 실패 (b)', 'PR #9 CI 실패'])
     expect(failureAlerts({ data: null, gh: after }, { data: null, gh: after })).toEqual([])
+  })
+})
+
+describe('leadTimeState·leadTimeBars (#107)', () => {
+  const lead = (over: Partial<LeadTime> = {}): LeadTime => ({
+    status: 'ok',
+    message: null,
+    repo: 'team/app',
+    fetched_at: NOW.toISOString(),
+    count: 2,
+    median_seconds: 57600,
+    buckets: [
+      { label: '1시간 미만', min_seconds: 0, max_seconds: 3600, count: 0 },
+      { label: '3일 이상', min_seconds: 259200, max_seconds: null, count: 2 },
+    ],
+    ...over,
+  })
+  it('아직 안 왔으면 loading, 머지된 PR이 없으면 오류가 아니라 empty', () => {
+    expect(leadTimeState(null)).toBe('loading')
+    expect(leadTimeState(lead({ count: 0, median_seconds: null }))).toBe('empty')
+    expect(leadTimeState(lead())).toBe('ok')
+  })
+  it('GitHub 조회 실패·설정 없음은 그 칸만 error·unconfigured', () => {
+    expect(leadTimeState(lead({ status: 'error', message: '인증 실패', count: 0, buckets: [] }))).toBe('error')
+    expect(leadTimeState(lead({ status: 'unconfigured', count: 0, buckets: [] }))).toBe('unconfigured')
+  })
+  it('구간별 건수를 차트 행으로 바꾼다 (순서 유지)', () => {
+    expect(leadTimeBars(lead())).toEqual([
+      { label: '1시간 미만', count: 0 },
+      { label: '3일 이상', count: 2 },
+    ])
+  })
+  it('중앙값은 formatUptime으로 읽기 쉽게', () => {
+    expect(formatUptime(57600)).toBe('16시간')
   })
 })
