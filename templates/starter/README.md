@@ -75,6 +75,8 @@ git switch -c chore/starter-kit && git add -A && git commit -m "chore: 시작 �
 - **격리 E2E 포트 충돌**(한 PC에서 두 ship) → 빈 포트 자동 선택
 - 제외한 REQ의 TC는 `SKIP(REQ-11 제외)`로 적어야 strict 검사를 통과한다
 
+역할별 `/ticket-loop` 실주행(2026-10-09, 한 계정 architect·backend·frontend, 머지까지 루프): plan → BE·FE 병렬 → FE는 머지 조건으로 BE를 기다려 머지까지 확인. 선점 확인 SIGPIPE·역할 `mine`·머지 조건 대기 중 AI 리뷰·worktree ship 등을 고쳤고(#140), 스키마는 사람이 두 번 본다 — 테이블 초안 계약 PR(#141·#142), 초안과 다른 마이그레이션(#143·#144). 상세 `docs/requirements-flow.md` 5절.
+
 ## 관리
 - 공용 코드·스크립트·스킬은 **이 레포에서 고치면 그대로 키트가 된다**. 팀 레포용으로 달라야 하는 파일만 `overlay/`에, 이 레포 전용 파일은 `export.py`의 `EXCLUDE`에.
 - CI `starter-kit` 잡이 PR마다 키트를 내보내 `make setup·verify·e2e`를 돌린다. `PATCHES`(README 실행 구역)의 원본 문자열이 바뀌면 내보내기가 실패해서 알 수 있다.

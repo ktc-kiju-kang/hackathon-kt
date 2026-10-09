@@ -24,5 +24,5 @@ migrations/YYYYMMDDHHMM_<설명>.sql   스키마 변경 (이름순으로 한 번
 - 한 파일은 한 트랜잭션으로 적용된다. 파일 안에 `begin;`/`commit;`을 쓰지 않는다.
 - 형식이 다르거나 SQL이 틀리면 서버가 시작하지 않는다 (`main.py` lifespan에서 적용).
 - 각자 PC의 DB는 따로다 (docker volume `pgdata`). main에서 다른 사람의 마이그레이션이 들어오면 서버를 다시 켤 때 자동 적용된다 (`make sync`가 알려 준다).
-- 기능별 테이블 스키마는 해당 기능 계약(`docs/contracts/<feature>.md`)과 `docs/arch.md` "데이터 모델"에도 적는다.
+- 기능별 테이블 스키마는 해당 기능 계약(`docs/contracts/<feature>.md`)의 `## 테이블 (SQL 초안)` 절과 `docs/arch.md` "데이터 모델"에도 적는다. 역할 분담이면 아키텍트가 계약에 초안을 쓰고 BE가 그 SQL 그대로 마이그레이션을 만든다 (다르게 하려면 계약부터).
 - 시험 데이터는 **합성 데이터**만 쓴다. 실제 개인정보를 넣지 않는다.
