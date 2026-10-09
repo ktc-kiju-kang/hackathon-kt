@@ -211,3 +211,14 @@ def test_stop_saves_partial_text_tc_chat_stop(monkeypatch):  # TC-CHAT-STOP
     rows = [r["data"] for r in store.list_messages(conv["id"])]
     assert [r["role"] for r in rows] == ["user", "assistant"]
     assert rows[1]["content"] == "절반만 나온 답"
+
+
+def test_stop_during_tool_call_drops_unanswered_call_tc_chat_stop():  # TC-CHAT-STOP-2
+    from app.agent.types import Message, ToolCall
+    from app.services.chat import _drop_unanswered_tool_calls
+
+    call = ToolCall(id="t1", name="calculator", input={})
+    pending = Message(role="assistant", content="계산할게요", tool_calls=[call])
+    done = Message(role="tool", tool_call_id="t1", content="14")
+    assert _drop_unanswered_tool_calls([pending]) == []
+    assert _drop_unanswered_tool_calls([pending, done]) == [pending, done]

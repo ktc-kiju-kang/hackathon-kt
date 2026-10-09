@@ -106,6 +106,15 @@ async def send_message(
     return _stream(conversation_id, history)
 
 
+def _drop_unanswered_tool_calls(msgs: list[Message]) -> list[Message]:
+    """도구 결과가 없는 tool_call 메시지부터 뒤를 버린다 (짝 없는 호출이 저장돼 다음 요청이 깨지지 않게)."""
+    answered = {m.tool_call_id for m in msgs if m.role == "tool"}
+    for i, m in enumerate(msgs):
+        if m.role == "assistant" and any(c.id not in answered for c in m.tool_calls):
+            return msgs[:i]
+    return msgs
+
+
 def _stream(conversation_id: str, history: list[Message]) -> AsyncGenerator[str, None]:
     """history를 에이전트에 넣어 SSE 문자열을 스트리밍하고, 새 메시지를 턴마다 저장한다."""
     store = get_chat_store()
@@ -129,7 +138,7 @@ def _stream(conversation_id: str, history: list[Message]) -> AsyncGenerator[str,
                     await queue.put(ev)
             except asyncio.CancelledError:
                 # 사용자가 중단: 그때까지 만든 텍스트도 남긴다
-                new = history[saved:]
+                new = _drop_unanswered_tool_calls(history[saved:])
                 if text := "".join(partial).strip():
                     new = [*new, Message(role="assistant", content=text)]
                 await asyncio.shield(
