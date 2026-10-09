@@ -14,7 +14,7 @@
 |---|---|---|---|
 | 0. 준비 | 키트가 깔린 배정 레포, 의존성 | `export.py`(이 레포 밖에서) → `make setup` | `make verify` 전부 PASS |
 | 1. 기획 | `project-brief.md`, `prd.md`(REQ·AC), TC 시나리오, SEC 매핑, Issue 분할안 | `/plan-topic` (역할 분담: [requirements-flow.md](requirements-flow.md)) | `make docs` 오류 0 · 모든 REQ에 AC, 모든 AC에 TC · **팀 합의** |
-| 2. 설계 | `docs/contracts/<feature>.md`, `arch.md`(구성·데이터·API), 마이그레이션 초안 | `/add-endpoint` 1단계(계약), ADR(`docs/decisions/`) | 화면·API 담당이 계약에 동의 |
+| 2. 설계 | `docs/contracts/<feature>.md`, `arch.md`(구성·데이터·API), 계약의 테이블 SQL 초안 | `/add-endpoint` 1단계(계약), ADR(`docs/decisions/`) | 화면·API 담당이 계약에 동의 |
 | 3. 개발·자동 머지 | 브랜치·코드·테스트(이름에 TC ID), 문서 갱신 → PR·AI 리뷰·머지 | `/start-task` → 구현 → `/handoff` = **`make ship`** | ship이 전부 확인: verify PASS · 충돌 ❌ 없음 · e2e 전체 PASS · AI 리뷰 차단 0·높음 0·42/60 이상 · CI 통과 → squash 머지 |
 | 4. 통합·로컬 배포 | main 최신 코드가 프로덕션 빌드로 떠 있음 | `make serve` / `make status` / `make stop` | 스모크 PASS (health ok·db ok·**버전 = HEAD**·주요 화면 200) |
 | 5. 시험 기록 | `e2e-test.md` 상태·근거, `prd.md` REQ 상태, `docs/evidence/<실행>/` | 기록 담당이 **`make record`** (main에서 e2e → 기록 파일만 담은 PR 자동 머지) | 전체 PASS, 커밋된 코드로 실행. 기능 PR에는 기록을 넣지 않는다 (충돌 방지) |
