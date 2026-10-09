@@ -55,6 +55,7 @@ claims() {
 }
 
 pr_covers() { # $PRS 에 열린 PR이 있는지: 브랜치명 `<type>/<번호>-…` 또는 본문 Closes #번호
+  # (Refs #번호는 이미 닫힌 Issue의 후속 PR에만 쓰므로 후보 판정에 넣지 않는다 — 닫힌 Issue는 후보가 아니다)
   echo "$PRS" | jq -e --arg n "$1" 'map(select((.headRefName|test("/"+$n+"-")) or ((.body // "")|test("(?i)(closes|fixes|resolves)\\s+#"+$n+"\\b")))) | length > 0' >/dev/null
 }
 

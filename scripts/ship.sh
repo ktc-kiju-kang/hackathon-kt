@@ -95,15 +95,7 @@ if [ -z "$pr" ]; then
 else
   # 사람이 쓴 본문은 그대로 두고 <!-- ship:start/end --> 구역만 바꾼다
   gh pr view "$pr" --json body -q .body >"$RUN_DIR/pr-body.old"
-  "$PY" - "$RUN_DIR/pr-body.old" "$ship_block" "$issue" "$link" >"$RUN_DIR/pr-body.md" <<'PY'
-import re, sys
-body, block, issue, link = open(sys.argv[1]).read(), open(sys.argv[2]).read().strip(), *sys.argv[3:5]
-pat = re.compile(r"<!-- ship:start -->.*?<!-- ship:end -->", re.S)
-body = pat.sub(lambda _: block, body) if pat.search(body) else body.rstrip() + "\n\n" + block
-if issue and not re.search(rf"(?im)^(closes|fixes|resolves|refs) #{issue}\b", body):
-    body = f"{link} #{issue}\n\n" + body
-print(body)
-PY
+  "$PY" scripts/pr_body.py "$RUN_DIR/pr-body.old" "$ship_block" "$issue" "$link" >"$RUN_DIR/pr-body.md"
   gh pr edit "$pr" --body-file "$RUN_DIR/pr-body.md" >/dev/null || die "PR 본문 갱신 실패"
   ok "PR #$pr 갱신"
 fi
