@@ -135,18 +135,7 @@ if [ -n "$issue" ]; then
 fi
 
 merge_gate "$waiting" "$pr"
-# 루프 자동 머지(TICKET_LOOP_MERGE=1)에서 테이블 SQL 초안이 있는 계약을 바꾼 PR은 사람이 머지한다 (G3)
-# — BE 루프가 그 초안으로 마이그레이션을 만들기 때문. 사람이 직접 ship하면 그 사람이 확인한 것으로 본다
-schema_contracts=""
-if [ "${TICKET_LOOP_MERGE:-}" = 1 ] && [ "$KIND" != record ]; then
-  for f in $(git diff --name-only origin/main...HEAD -- 'docs/contracts/*.md' ':!docs/contracts/README.md'); do
-    [ -f "$f" ] && grep -q '^## 테이블' "$f" && schema_contracts="$schema_contracts $f"
-  done
-fi
-if [ -n "$schema_contracts" ]; then
-  [ "${SHIP_NO_MERGE:-}" = 1 ] || die "테이블 SQL 초안이 있는 계약이 바뀜 ($schema_contracts) — 사람이 스키마를 확인하고 GitHub에서 머지합니다 (G3, PR #$pr)"
-  warn "테이블 SQL 초안이 있는 계약이 바뀜 ($schema_contracts) — 스키마를 확인하고 머지하세요 (G3)"
-fi
+[ "$KIND" = record ] || schema_gate "$pr"
 [ "${SHIP_NO_MERGE:-}" = 1 ] && { ok "PR #$pr 준비 완료 (SHIP_NO_MERGE=1 — 머지 안 함)"; exit 0; }
 
 say "8/9 머지 (잠금 → 최신 main 확인 → CI → squash)"

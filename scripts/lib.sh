@@ -145,3 +145,22 @@ merge_gate() {  # merge_gate <이유> <PR> — 이유가 있으면 SHIP_NO_MERGE
   [ "${SHIP_NO_MERGE:-}" = 1 ] || die "머지 조건이 풀리지 않아 머지하지 않습니다 — 풀린 뒤 다시 make ship (PR #$2 은 그대로 둠)"
   warn "머지 조건이 풀리지 않음 — PR 본문에 적었습니다. 풀린 뒤에 머지하세요"
 }
+
+# 스키마 게이트 (G3) — 루프 자동 머지(TICKET_LOOP_MERGE=1)에서 테이블 SQL 초안이 있는 계약을 바꾼 PR은 사람이 머지한다.
+# BE 루프가 그 초안으로 마이그레이션을 만들기 때문. 사람이 직접 ship하면 그 사람이 확인한 것으로 본다
+schema_contracts() {  # origin/main...HEAD에서 바뀐 계약 중 바뀌기 전이나 후에 '## 테이블' 절이 있는 것 (공백 구분)
+  local f out=""
+  for f in $(git -C "$ROOT" diff --name-only origin/main...HEAD -- 'docs/contracts/*.md' ':!docs/contracts/README.md'); do
+    { git -C "$ROOT" show "HEAD:$f"; git -C "$ROOT" show "origin/main:$f"; } 2>/dev/null | grep -q '^## 테이블' && out="$out $f"
+  done
+  echo "${out# }"
+}
+
+schema_gate() {  # schema_gate <PR> — 해당 계약이 있으면 SHIP_NO_MERGE=1은 경고, 루프 자동 머지는 멈춘다
+  local found
+  [ "${TICKET_LOOP_MERGE:-}" = 1 ] || return 0
+  found=$(schema_contracts)
+  [ -n "$found" ] || return 0
+  [ "${SHIP_NO_MERGE:-}" = 1 ] || die "테이블 SQL 초안이 있는 계약이 바뀜 ($found) — 사람이 스키마를 확인하고 GitHub에서 머지합니다 (G3, PR #$1)"
+  warn "테이블 SQL 초안이 있는 계약이 바뀜 ($found) — 스키마를 확인하고 머지하세요 (G3)"
+}

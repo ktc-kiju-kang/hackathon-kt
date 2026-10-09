@@ -357,6 +357,60 @@ class TicketScriptTest(unittest.TestCase):
         self.env["TICKET_ROLE"] = "backend"
         self.assertEqual(self.sh("ticket-claim.sh", "mine").stdout.split(), [])
 
+    def git(self, *args):
+        env = {**self.env, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+        r = run(["git", "-C", str(self.repo), *args], env=env)
+        self.assertEqual(r.returncode, 0, r.stderr)
+
+    def write_commit(self, files, msg):
+        for path, text in files.items():
+            f = self.repo / path
+            if text is None:
+                f.unlink()
+                continue
+            f.parent.mkdir(parents=True, exist_ok=True)
+            f.write_text(text)
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", msg)
+
+    def schema_gate(self, loop=True, no_merge=False):
+        env = {**self.env, "TICKET_LOOP_MERGE": "1" if loop else "", "SHIP_NO_MERGE": "1" if no_merge else ""}
+        return run(["bash", "-c", ". scripts/lib.sh; schema_gate 99; echo MERGE"], env=env, cwd=self.repo)
+
+    def test_schema_gate_stops_loop_merge_on_table_contracts(self):
+        """G3: 루프 자동 머지에서 '## 테이블' 절이 있는 계약을 바꾸면 사람이 머지한다 (컬럼 한 줄만 바뀌어도)."""
+        table = "# memo\n\n## 테이블 (SQL 초안)\n    CREATE TABLE memos (\n      id bigserial primary key\n    );\n"
+        self.write_commit({"docs/contracts/memo.md": table, "docs/contracts/todo.md": "# todo\n", "docs/contracts/README.md": "# 계약\n"}, "base")
+        self.git("push", "-q", "origin", "HEAD:refs/heads/main")
+        self.git("fetch", "-q", "origin")
+        self.git("switch", "-q", "-c", "feat/1-x")
+        base = self.schema_gate()
+        self.assertEqual((base.returncode, base.stdout.strip()), (0, "MERGE"), base.stderr)  # 계약 변경 없음
+
+        self.write_commit({"docs/contracts/memo.md": table.replace("primary key", "primary key,\n      body text")}, "column")
+        r = self.schema_gate()  # 루프 자동 머지 → 멈춘다
+        self.assertEqual(r.returncode, 1)
+        self.assertNotIn("MERGE", r.stdout)
+        self.assertIn("docs/contracts/memo.md", r.stderr)
+        self.assertIn("PR #99", r.stderr)
+        r = self.schema_gate(no_merge=True)  # 머지는 사람 → 경고만
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("스키마를 확인하고 머지하세요", r.stdout)
+        self.assertIn("MERGE", r.stdout)
+        self.assertEqual(self.schema_gate(loop=False).returncode, 0)  # 사람이 직접 ship → 걸지 않는다
+
+        self.git("reset", "-q", "--hard", "origin/main")
+        self.write_commit({"docs/contracts/todo.md": "# todo\n- 사용처: 목록\n", "docs/contracts/README.md": "# 계약\n## 테이블 (SQL 초안)\n"}, "no-table")
+        self.assertEqual(self.schema_gate().returncode, 0)  # 테이블 절 없는 계약·README 템플릿은 걸지 않는다
+
+        self.git("reset", "-q", "--hard", "origin/main")
+        self.write_commit({"docs/contracts/memo.md": None}, "delete")
+        self.assertEqual(self.schema_gate().returncode, 1)  # 테이블 초안이 든 계약을 지워도 사람이 본다
+
+        self.git("reset", "-q", "--hard", "origin/main")
+        self.write_commit({"docs/contracts/todo.md": "# todo\n\n## 테이블 (SQL 초안)\n    CREATE TABLE todos (id int);\n"}, "add-table")
+        self.assertEqual(self.schema_gate().returncode, 1)  # 새로 넣어도
+
     def test_list_filters_by_role(self):
         self.put(
             "issues",
