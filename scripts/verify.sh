@@ -35,12 +35,17 @@ step eslint "$F" npm run lint
 step vitest "$F" npm test
 step next-build "$F" env NEXT_DIST_DIR=.next-e2e npm run build  # make serve 중인 .next를 덮지 않게
 say "문서·보안·PR 점수"
-[ -f "$ROOT/scripts/test_pr_review_score.py" ] && step pr-score-test "$ROOT" python3 scripts/test_pr_review_score.py
-[ -f "$ROOT/scripts/test_issue_monitor.py" ] && step issue-monitor-test "$ROOT" python3 scripts/test_issue_monitor.py
-[ -f "$ROOT/scripts/test_ticket_claim.py" ] && step ticket-claim-test "$ROOT" python3 scripts/test_ticket_claim.py
-[ -f "$ROOT/scripts/test_prd_docs.py" ] && step prd-docs-test "$ROOT" python3 scripts/test_prd_docs.py
-[ -f "$ROOT/scripts/test_migration_draft.py" ] && step migration-draft-test "$ROOT" python3 scripts/test_migration_draft.py
-[ -f "$ROOT/scripts/test_pr_body.py" ] && step pr-body-test "$ROOT" python3 scripts/test_pr_body.py
+# 키트 스크립트 자체 시험은 ship마다 30초쯤 든다 — scripts/를 안 고친 브랜치에서는 건너뛰고 CI가 돈다 (lib.sh scripts_tests_needed)
+if scripts_tests_needed; then
+  [ -f "$ROOT/scripts/test_pr_review_score.py" ] && step pr-score-test "$ROOT" python3 scripts/test_pr_review_score.py
+  [ -f "$ROOT/scripts/test_issue_monitor.py" ] && step issue-monitor-test "$ROOT" python3 scripts/test_issue_monitor.py
+  [ -f "$ROOT/scripts/test_ticket_claim.py" ] && step ticket-claim-test "$ROOT" python3 scripts/test_ticket_claim.py
+  [ -f "$ROOT/scripts/test_prd_docs.py" ] && step prd-docs-test "$ROOT" python3 scripts/test_prd_docs.py
+  [ -f "$ROOT/scripts/test_migration_draft.py" ] && step migration-draft-test "$ROOT" python3 scripts/test_migration_draft.py
+  [ -f "$ROOT/scripts/test_pr_body.py" ] && step pr-body-test "$ROOT" python3 scripts/test_pr_body.py
+else
+  printf '  %-22s \033[33mSKIP\033[0m (scripts/ 변경 없음 — CI가 검사)\n' scripts-tests
+fi
 if [ ! -f "$ROOT/docs/prd.md" ]; then
   printf '  %-22s \033[33mSKIP\033[0m (제출 문서 없음 — 키트 원본 레포)\n' docs
 elif [ "$strict" = 1 ]; then

@@ -174,3 +174,27 @@ migration_gate() {  # migration_gate <PR> — 루프 자동 머지에서 새 마
   [ "${SHIP_NO_MERGE:-}" = 1 ] || die "마이그레이션이 계약의 테이블 SQL 초안과 다름 — 사람이 확인하고 GitHub에서 머지합니다 (PR #$1)"
   warn "마이그레이션이 계약의 테이블 SQL 초안과 다름 — 확인하고 머지하세요"
 }
+
+# ---- ship 보조 -------------------------------------------------------------------------
+ci_wait() {  # ci_wait <PR> — PR 체크가 끝날 때까지 기다린다 (최대 20분). 0=통과(CI 없음 포함), 1=실패, 2=시간 초과
+  local pr=$1 checks states i
+  checks=$(gh pr checks "$pr" --json name,bucket -q 'length' 2>/dev/null || echo 0)
+  [ "${checks:-0}" -gt 0 ] 2>/dev/null || { echo "  이 레포에 CI가 없어 로컬 verify 결과로 진행"; return 0; }
+  echo "  CI 대기 (최대 20분)…"
+  for i in $(seq 1 "${CI_WAIT_MAX:-120}"); do
+    states=$(gh pr checks "$pr" --json bucket -q '[.[].bucket] | unique | join(",")' 2>/dev/null)
+    # cancel은 새 실행으로 대체된 것(PR 본문 수정 → PR Review 재실행)이라 실패로 보지 않는다
+    case "$states" in *fail*) gh pr checks "$pr" 2>/dev/null | grep -i "fail"; return 1;; esac
+    case "$states" in *pending*) sleep "${CI_POLL_SEC:-10}";; *) ok "CI 통과 ($states)"; return 0;; esac
+  done
+  return 2
+}
+
+scripts_tests_needed() {  # 키트 스크립트 자체 시험(scripts/test_*.py)을 돌릴지 — CI·키트 원본 레포·scripts/가 바뀐 브랜치에서만
+  [ -n "${CI:-}" ] && return 0
+  [ -f "$ROOT/templates/starter/export.py" ] && return 0
+  [ -n "$(git -C "$ROOT" status --porcelain -- scripts Makefile 2>/dev/null)" ] && return 0
+  local changed
+  changed=$(git -C "$ROOT" diff --name-only origin/main...HEAD -- scripts Makefile 2>/dev/null) || return 0  # origin/main이 없으면 돌린다
+  [ -n "$changed" ]
+}

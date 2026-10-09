@@ -18,9 +18,11 @@ HAS_TOOLS = bool(shutil.which("jq") and shutil.which("perl") and shutil.which("g
 FAKE_GH = r"""#!/usr/bin/env bash
 [ -f "$FIX/sleep" ] && sleep 30
 expr=.; prev=
-for a in "$@"; do [ "$prev" = --jq ] && expr=$a; prev=$a; done
+for a in "$@"; do { [ "$prev" = --jq ] || [ "$prev" = -q ]; } && expr=$a; prev=$a; done
 case "$1 $2" in
   "repo view") f=repo ;; "api user") f=user ;; "pr list") f=prs ;; "issue list") f=agent_pause ;;
+  "pr checks") f=pr_checks  # $FIX/seq 가 있으면 한 줄씩 꺼내 쓴다 (pending → pass 같은 흐름)
+    if [ -s "$FIX/seq" ]; then f=$(head -1 "$FIX/seq"); tail -n +2 "$FIX/seq" >"$FIX/seq.tmp"; mv "$FIX/seq.tmp" "$FIX/seq"; fi ;;
   "issue view") f=issue_$3; [ -f "$FIX/$f.404" ] && { echo "gh: Not Found (HTTP 404)" >&2; exit 1; }
     # REAL_GH: --jq 식을 진짜 gh 내장 jq(gojq)로 평가한다 — 픽스처를 jq 리터럴로 넣고 가벼운 API 응답은 버린다
     [ -n "${REAL_GH:-}" ] && exec "$REAL_GH" api rate_limit --jq "$(cat "$FIX/$f.json") | $expr" ;;
@@ -413,6 +415,53 @@ class TicketScriptTest(unittest.TestCase):
         self.git("reset", "-q", "--hard", "origin/main")
         self.write_commit({"docs/contracts/todo.md": "# todo\n\n## 테이블 (SQL 초안)\n    CREATE TABLE todos (id int);\n"}, "add-table")
         self.assertEqual(self.schema_gate().returncode, 1)  # 새로 넣어도
+
+    def lib(self, script, **env):
+        return run(["bash", "-c", f". scripts/lib.sh; {script}"], env={**self.env, "CI_POLL_SEC": "0", "CI_WAIT_MAX": "3", **env}, cwd=self.repo)
+
+    def test_ci_wait_passes_fails_or_times_out(self):
+        """ship 8단계: CI를 잠금 밖에서 기다린다 — 통과 0, 실패 1, 시간 초과 2, CI 없음 0."""
+        checks = lambda *buckets: [{"name": f"c{i}", "bucket": b} for i, b in enumerate(buckets)]
+        self.put("checks_pending", checks("pass", "pending"))
+        self.put("checks_pass", checks("pass", "skipping"))
+        self.put("checks_fail", checks("pass", "fail"))
+        self.put("checks_none", [])
+        (self.fix / "seq").write_text("checks_pending\nchecks_pending\nchecks_pending\nchecks_pass\n")
+        r = self.lib("ci_wait 7; echo rc=$?")
+        self.assertIn("CI 통과 (pass,skipping)", r.stdout)
+        self.assertIn("rc=0", r.stdout)
+        (self.fix / "seq").write_text("checks_pending\nchecks_pending\nchecks_fail\n")
+        self.assertIn("rc=1", self.lib("ci_wait 7; echo rc=$?").stdout)
+        (self.fix / "seq").write_text("checks_none\n")
+        r = self.lib("ci_wait 7; echo rc=$?")
+        self.assertIn("CI가 없어", r.stdout)
+        self.assertIn("rc=0", r.stdout)
+        (self.fix / "seq").write_text("checks_none\n" + "checks_pending\n" * 10)  # 첫 조회(개수)만 있고 계속 pending
+        self.put("pr_checks", checks("pending"))
+        (self.fix / "seq").unlink()
+        self.assertIn("rc=2", self.lib("ci_wait 7; echo rc=$?").stdout)  # CI_WAIT_MAX=3 번 뒤 시간 초과
+
+    def test_scripts_tests_needed_only_when_scripts_changed(self):
+        """verify: 키트 스크립트 자체 시험은 CI·키트 원본 레포·scripts/가 바뀐 브랜치에서만 돈다."""
+        env = {k: v for k, v in self.env.items() if k != "CI"}
+        self.env = env
+        self.write_commit({"README.md": "x\n"}, "base")
+        self.git("push", "-q", "origin", "HEAD:refs/heads/main")
+        self.git("fetch", "-q", "origin")
+        self.git("switch", "-q", "-c", "feat/1-x")
+        self.assertEqual(self.lib("scripts_tests_needed").returncode, 1)  # 변경 없음 → 건너뜀
+        self.assertEqual(self.lib("scripts_tests_needed", CI="true").returncode, 0)
+        (self.repo / "scripts" / "new.sh").write_text("")  # 작업 중인 변경도 본다
+        self.assertEqual(self.lib("scripts_tests_needed").returncode, 0)
+        (self.repo / "scripts" / "new.sh").unlink()
+        self.write_commit({"docs/x.md": "y\n"}, "docs only")
+        self.assertEqual(self.lib("scripts_tests_needed").returncode, 1)
+        self.write_commit({"scripts/x.sh": "echo\n"}, "script change")
+        self.assertEqual(self.lib("scripts_tests_needed").returncode, 0)
+        self.git("reset", "-q", "--hard", "origin/main")
+        (self.repo / "templates" / "starter").mkdir(parents=True)
+        (self.repo / "templates" / "starter" / "export.py").write_text("")  # 키트 원본 레포는 항상
+        self.assertEqual(self.lib("scripts_tests_needed").returncode, 0)
 
     def test_list_filters_by_role(self):
         self.put(
