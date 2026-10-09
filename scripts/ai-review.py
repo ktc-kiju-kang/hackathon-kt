@@ -88,13 +88,24 @@ def sh(*cmd: str, cwd: Path = ROOT) -> str:
     return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, check=True).stdout.strip()
 
 
-def prompt(base: str, head: str, issue: str) -> str:
+def wait_note(merge_wait: str) -> str:
+    """머지 조건 대기 중이면 그 자체를 지적하지 않게 알린다 — make ship이 머지 조건으로 따로 막는다."""
+    if not merge_wait.strip():
+        return ""
+    return (
+        "- 머지 조건 대기: 이 Issue의 `- 머지 조건:` Issue가 아직 머지되지 않았다 "
+        f"({merge_wait.strip().replace(chr(10), '; ')}). make ship이 그게 풀릴 때까지 머지를 막으니, "
+        "그 Issue의 코드(예: 같은 REQ의 BE API)가 main에 아직 없다는 것 자체는 지적하지 말고 계약 기준으로 리뷰한다.\n"
+    )
+
+
+def prompt(base: str, head: str, issue: str, merge_wait: str = "") -> str:
     items = "\n".join(f"- {name} ({mx}점) → scores.{KEYS[name]}" for name, mx in ITEMS.items())
     return f"""이 PR을 리뷰하고 채점해라. 코드는 고치지 말고 읽기만 한다.
 
 - 변경 범위: `git diff {base}...{head}` (커밋 목록: `git log --oneline {base}..{head}`)
 - 연결 Issue: {issue or "없음"} (있으면 `gh issue view`로 완료 조건을 읽고 대조)
-- 기준: 너의 reviewer 점검 항목 + CLAUDE.md "채점 근거" 규칙 (REQ→AC→TC 사슬, 실행한 결과만 기록)
+{wait_note(merge_wait)}- 기준: 너의 reviewer 점검 항목 + CLAUDE.md "채점 근거" 규칙 (REQ→AC→TC 사슬, 실행한 결과만 기록)
 
 채점 (항목별 0~배점 정수, 근거 없이 만점 주지 말 것):
 {items}
@@ -112,10 +123,10 @@ def reviewer_instructions() -> str:
     return re.sub(r"\A---\n.*?\n---\n", "", text, count=1, flags=re.DOTALL)
 
 
-def run_review(base: str, head: str, issue: str) -> dict:
+def run_review(base: str, head: str, issue: str, merge_wait: str = "") -> dict:
     out = subprocess.run(
         [
-            "claude", "-p", prompt(base, head, issue),
+            "claude", "-p", prompt(base, head, issue, merge_wait),
             "--append-system-prompt", reviewer_instructions(),
             "--output-format", "json",
             "--json-schema", json.dumps(SCHEMA, ensure_ascii=False),
@@ -207,10 +218,11 @@ def main() -> int:
     ap.add_argument("--pr", required=True)
     ap.add_argument("--base", default="origin/main")
     ap.add_argument("--issue", default="")
+    ap.add_argument("--merge-wait", default="", help="Issue 머지 조건이 안 풀린 이유 (make ship이 따로 막는다)")
     args = ap.parse_args()
     head = sh("git", "rev-parse", "HEAD")
     try:
-        result = run_review(args.base, head, args.issue)
+        result = run_review(args.base, head, args.issue, args.merge_wait)
         block, total, blocking, verdict = render(result, head[:12])
     except (RuntimeError, KeyError, ValueError, TypeError, subprocess.TimeoutExpired) as e:
         print(f"  ❌ AI 리뷰 실패: {e}")

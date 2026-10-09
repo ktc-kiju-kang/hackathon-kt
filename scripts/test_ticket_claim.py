@@ -85,7 +85,9 @@ class TicketScriptTest(unittest.TestCase):
         claim.write_text("#!/usr/bin/env bash\nexit 0\n")
         claim.chmod(0o755)
 
-        self.env = {**os.environ, "PATH": f"{bindir}:{os.environ['PATH']}", "FIX": str(self.fix)}
+        # 루프 세션의 TICKET_ROLE 등이 시험에 섞이지 않게 뺀다 (역할 루프 안에서 make verify를 돌려도 같은 결과)
+        base = {k: v for k, v in os.environ.items() if not k.startswith("TICKET_")}
+        self.env = {**base, "PATH": f"{bindir}:{os.environ['PATH']}", "FIX": str(self.fix)}
         self.put("repo", {"nameWithOwner": "o/r"})
         self.put("user", {"login": "me"})
         self.put("issues", [])
@@ -324,6 +326,19 @@ class TicketScriptTest(unittest.TestCase):
         self.assertIn("W[판정 실패: ❌ Issue #12 조회 실패 — 다시 make ship]", r.stdout)
         (self.repo / "scripts" / "ticket-claim.sh").write_text("exit 2\n")  # 진단 없이 죽어도 원인 칸을 비우지 않는다
         self.assertIn("W[판정 실패: 종료코드 2 — 다시 make ship]", self.ship_gate(12, no_merge=True).stdout)
+
+    def test_claim_checks_see_claims_that_are_not_last(self):
+        """선점 확인이 뒤에 다른 선점이 있어도 보인다 (pipefail + grep -q SIGPIPE로 '없음'이 되던 회귀)."""
+        for n in (2, 3, 4, 5):
+            self.claim_branch(n, "me")
+        self.put("issues", [issue(2)])
+        r = self.sh("ticket-claim.sh", "claim", "2")
+        self.assertEqual(r.returncode, 1, r.stderr)
+        self.assertIn("SKIP #2: 이미 선점됨 (me)", r.stdout)
+        r = self.sh("ticket-claim.sh", "release", "2")  # 시험용 claim.sh는 지우지 않는다 → 남은 선점을 알아채야 한다
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("#2 선점이 남아 있음", r.stderr)
+        self.assertNotIn("RELEASED", r.stdout)
 
     def test_mine_filters_by_role(self):
         """한 계정에서 역할 루프를 여럿 돌려도 다른 역할의 선점을 '내 진행 중'으로 보고 멈추지 않는다."""

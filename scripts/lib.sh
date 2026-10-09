@@ -133,7 +133,7 @@ merge_waiting() {  # merge_waiting <Issue> — 머지하면 안 되는 이유를
   local out rc err="$RUN_DIR/merge-wait.err"  # 이유(stdout)만 PR 본문에, 진단(stderr)은 판정 실패 때만
   out=$("$ROOT/scripts/ticket-claim.sh" merge-wait "$1" 2>"$err"); rc=$?
   case $rc in
-    0) ;;
+    0) sed 's/^/  머지 조건 /' "$err" >&2 ;;  # 풀린 조건(예: "#11 완료로 닫힘 ✅")은 화면에만
     1) echo "$out" ;;
     *) echo "판정 실패: $(tail -1 "$err" 2>/dev/null | grep . || echo "종료코드 $rc") — 다시 make ship" ;;
   esac

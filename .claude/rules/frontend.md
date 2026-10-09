@@ -21,7 +21,7 @@ paths:
   - 선택이 바뀔 때마다 다시 불러오는 effect는 cleanup에서 이전 요청을 무시한다 (`let cancelled = false` → `return () => { cancelled = true }`). 늦게 온 이전 응답이 최신 결과를 덮지 않게.
   - `sessionStorage`·`localStorage`는 브라우저에서만 → effect 안에서 비동기로 읽고, 읽기·쓰기는 try/catch.
 - **SSE를 읽는 클라이언트**(`features/chat/api.ts`): `done`·`error` 없이 스트림이 끝나면 연결 끊김으로 보고 오류를 던진다. 중지·오류 시 진행 중 표시(스피너)를 끈다. `AbortController`로 취소한다.
-- **순수 로직의 테스트**(`lib/`, `features/*/api.ts`의 파서·변환 등)는 `*.test.ts`로 둔다 — Vitest, `npm test`, CI가 실행한다 (예: `src/lib/sse.test.ts`). 화면(컴포넌트) 테스트는 아직 없다. Vitest 5.x는 Node 22.12+를 요구해 CI의 Node 20과 맞지 않으므로 4.x를 쓴다.
+- **순수 로직의 테스트**(`lib/`, `features/*/api.ts`의 파서·변환 등)는 `*.test.ts`로 둔다 — Vitest, `npm test`, CI가 실행한다 (예: `src/lib/sse.test.ts`). 화면 AC는 같은 `*.test.ts`에서 `react-dom/server`의 `renderToString`으로 렌더 결과를 보고 API는 mock한다 (testing-library·jsdom·`*.test.tsx`는 없다 — 넣으려면 `chore/deps-` 단독 PR). Vitest 5.x는 Node 22.12+를 요구해 CI의 Node 20과 맞지 않으므로 4.x를 쓴다.
 - LLM이 만든 문자열을 React `key`로 쓸 때는 순번을 붙인다 (`${i}-${text}`). 같은 문구가 두 번 나올 수 있다.
 - **새 화면 = 라우트 + 기능 폴더 + 메뉴 한 줄**(`components/menu-items.ts`, merge=union이라 동시에 추가해도 충돌 없음) (`/add-page`). 모든 화면은 `AppShell`(사이드바 + 상단 헤더 `h-12`) 안에 그려진다.
   - 화면 전체 높이를 쓰는 페이지(채팅 등)는 루트를 `h-[calc(100svh-3rem)]`로, 스크롤은 페이지가 아니라 내부 목록(`min-h-0 flex-1 overflow-y-auto`)에서.
