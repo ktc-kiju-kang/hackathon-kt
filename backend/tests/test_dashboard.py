@@ -344,6 +344,9 @@ def test_readiness_checks_team_repo(repo_root, monkeypatch):
     (repo_root / "docs").mkdir()
     (repo_root / "docs" / "prd.md").write_text(PRD, encoding="utf-8")  # REQ-02가 계획
     (repo_root / "README.md").write_text("# {{서비스 이름}}\n{{설명}}\n", encoding="utf-8")
+    (repo_root / "docs" / "prd").mkdir()
+    (repo_root / "docs" / "prd" / "REQ-01-a.md").write_text("{{AC}}", encoding="utf-8")
+    (repo_root / "docs" / "prd" / "_memo.md").write_text("{{메모}}", encoding="utf-8")  # 제외
     _evidence(repo_root, "20261008-100000-ccccccc", "PASS", sha, "| be | 10개 중 실패 0 | x |\n")
     body = client.get("/api/dashboard").json()
     assert _checks(body) == {
@@ -353,7 +356,10 @@ def test_readiness_checks_team_repo(repo_root, monkeypatch):
         "reqs": "fail",
     }
     detail = {c["key"]: c["detail"] for c in body["readiness"]["checks"]}
-    assert detail["placeholders"] == "README.md 2개" and "REQ-02" in detail["reqs"]
+    assert (
+        detail["placeholders"] == "README.md 2개 · docs/prd/REQ-01-a.md 1개"
+        and "REQ-02" in detail["reqs"]
+    )
 
 
 def test_readiness_evidence_from_other_commit_or_dirty_fails(repo_root, monkeypatch):

@@ -162,7 +162,10 @@ def tables(text: str) -> list[tuple[list[str], list[list[str]]]]:
 
 
 def prd_children(prd: Path) -> str:
-    """prd.md 요구사항 표가 링크한 REQ별 하위 정의서(docs/prd/REQ-01-….md)의 내용을 이어 붙인 것."""
+    """prd.md 요구사항 표가 링크한 REQ별 하위 정의서(docs/prd/REQ-01-….md)의 내용을 이어 붙인 것.
+
+    링크 규칙은 check-docs.py PRD_LINK와 같다 (이름 형식 오류는 check-docs가 잡는다).
+    """
     links = dict.fromkeys(re.findall(r"\]\((prd/[^)\s#]+\.md)\)", prd.read_text(encoding="utf-8")))
     return "\n".join(
         (prd.parent / rel).read_text(encoding="utf-8")

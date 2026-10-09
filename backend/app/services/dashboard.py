@@ -235,7 +235,9 @@ def readiness(root: Path, version: str | None, reqs: Reqs) -> Readiness:
         checks.append(Check(key="placeholders", label="문서 자리표시 0개", status="na", detail=na))
     else:
         left = {}
-        for rel in SUBMISSION_DOCS:
+        # 제출 문서 + 요구사항 하위 정의서 (docs/prd/REQ-xx.md, _로 시작하는 메모 제외)
+        children = sorted(p for p in (root / "docs" / "prd").glob("*.md") if p.name[0] != "_")
+        for rel in [*SUBMISSION_DOCS, *(p.relative_to(root).as_posix() for p in children)]:
             f = root / rel
             if f.is_file():
                 n = len(
