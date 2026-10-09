@@ -203,6 +203,10 @@ class TicketScriptTest(unittest.TestCase):
         self.put("issue_125", {"number": 125, "state": "closed", "state_reason": "completed"})
         r = self.sh("ticket-claim.sh", "claim", "126", "--dry-run")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.put("issue_125", {"number": 125, "state": "closed", "state_reason": None})  # 옛 닫힘·PR
+        self.assertEqual(self.sh("ticket-claim.sh", "claim", "126", "--dry-run").returncode, 0)
+        self.put("issue_125", {"number": 125, "state": "closed", "state_reason": "duplicate"})
+        self.assertIn("(duplicate)", self.sh("ticket-claim.sh", "claim", "126", "--dry-run").stdout)
         (self.fix / "issue_125.json").unlink()  # 조회 실패는 needs-human이 아니라 오류(2)
         r = self.sh("ticket-claim.sh", "claim", "126", "--dry-run")
         self.assertEqual(r.returncode, 2)
