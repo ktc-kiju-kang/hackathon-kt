@@ -130,3 +130,20 @@ class GithubStatus(BaseModel):
     claims: list[GhClaim] = []
     main_sha: str | None = None
     recent_merges: list[GhMerge] = []
+
+
+class LeadBucket(BaseModel):
+    label: str
+    min_seconds: int
+    max_seconds: int | None
+    count: int
+
+
+class LeadTime(BaseModel):
+    status: Literal["ok", "unconfigured", "error"]
+    message: str | None = None
+    repo: str | None = None
+    fetched_at: datetime | None = None
+    count: int = 0
+    median_seconds: int | None = None
+    buckets: list[LeadBucket] = []

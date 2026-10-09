@@ -62,8 +62,30 @@ Response 200:
 - 개수 상한: Issue 50 · PR 10(PR마다 check-run 조회) · main 실행 20 · claim 10 · 최근 닫힌 PR 30
 - 팀원별 보기(담당·선점·열린 PR·CI 실패·24시간 머지, 24시간 넘은 선점 경고)는 이 응답으로 화면에서 집계한다
 
+## GET /api/dashboard/leadtime — v1
+이슈·PR 리드타임 (#107). Issue를 만든 시각부터 그 Issue를 닫은 PR이 머지된 시각까지. GitHub 현황과 **따로** 불러온다 — 이 칸이 실패해도 `/api/dashboard`·`/api/dashboard/github`는 그대로다. GitHub 칸과 같은 설정·캐시 규칙(60초, 토큰 없으면 5분).
+
+Response 200:
+```
+{
+  "status": "ok" | "unconfigured" | "error",
+  "message": string | null,                       // unconfigured·error 이유 (토큰 값은 절대 넣지 않는다)
+  "repo": string | null,
+  "fetched_at": string | null,
+  "count": int,                                   // 집계에 쓴 PR 수 (머지된 PR 중 Issue를 찾은 것)
+  "median_seconds": int | null,                   // count가 0이면 null
+  "buckets": [{ "label": string, "min_seconds": int, "max_seconds": int | null, "count": int }]
+}
+```
+- 머지된 PR이 없거나 Issue와 이어진 PR이 없으면 `status: "ok"`, `count: 0`, `median_seconds: null`, `buckets`는 건수 0으로 그대로 온다 (오류 아님 — 화면은 빈 상태).
+- `status: "error"`(인증 실패·한도 초과·네트워크)와 `unconfigured`일 때 `buckets`는 `[]`, `count`는 0.
+- PR ↔ Issue: PR 본문의 `Closes #N`·`Fixes #N`·`Resolves #N`, 없으면 브랜치 이름 `<type>/<N>-<설명>`. Issue 번호를 못 찾았거나 최근 닫힌 Issue 100개 밖이면 그 PR은 뺀다.
+- 구간(`buckets`, 위에서 아래로 고정): 1시간 미만 · 1~4시간 · 4~24시간 · 1~3일 · 3일 이상 (`min_seconds` 이상 `max_seconds` 미만, 마지막은 `max_seconds: null`).
+- 개수 상한: 최근 닫힌 PR 100 · 최근 닫힌 Issue 100 (GitHub 호출 2번)
+
 ## 변경 이력
 | 날짜 | 변경 | 작성자 |
 |---|---|---|
 | 2026-10-08 | 추가 (#99) | ktc-kiju-kang |
 | 2026-10-08 | `test_history`·`readiness`, GitHub `main_sha`·`recent_merges`·`claims[].claimed_at`, main 실행 20개 (v1 호환, #101) | ktc-kiju-kang |
+| 2026-10-09 | `GET /api/dashboard/leadtime` 추가 — 이슈·PR 리드타임 중앙값·구간 분포 (v1 호환, #107) | ktc-jehyuk-kim |

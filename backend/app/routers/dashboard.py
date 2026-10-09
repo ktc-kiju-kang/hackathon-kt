@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Response
 
-from app.schemas.dashboard import Dashboard, GithubStatus
+from app.schemas.dashboard import Dashboard, GithubStatus, LeadTime
 from app.services import dashboard as service
-from app.services import dashboard_github
+from app.services import dashboard_github, dashboard_leadtime
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -17,3 +17,9 @@ def dashboard(response: Response) -> Dashboard:
 def github(response: Response) -> GithubStatus:
     response.headers["Cache-Control"] = "no-store"  # 서버가 60초 캐시한다
     return dashboard_github.get_github_status()
+
+
+@router.get("/leadtime", response_model=LeadTime)
+def leadtime(response: Response) -> LeadTime:
+    response.headers["Cache-Control"] = "no-store"  # 서버가 60초 캐시한다
+    return dashboard_leadtime.get_leadtime()
