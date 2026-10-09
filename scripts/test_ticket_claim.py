@@ -676,6 +676,13 @@ class TicketScriptTest(unittest.TestCase):
         self.assertIn(f"WORKDIR {os.path.realpath(self.tmp / 'repo-wt-5')}", r.stdout)
         self.assertEqual(run(["git", "-C", str(self.repo), "branch", "--show-current"]).stdout.strip(), "fix/99-mine")
         self.assertTrue((self.tmp / "repo-wt-5").is_dir())
+        self.git("checkout", "-q", "--", "README.md")  # 사람이 정리하고 main으로 돌아와도 이미 있는 worktree를 계속 쓴다 (브랜치가 거기 체크아웃돼 있다)
+        self.git("switch", "-q", "main")
+        r = self.tick()
+        self.assertIn("BRANCH feat/5-req-02-fe (worktree ", r.stdout, r.stdout + r.stderr)
+        self.assertEqual(run(["git", "-C", str(self.repo), "branch", "--show-current"]).stdout.strip(), "main")
+        self.git("switch", "-q", "fix/99-mine")
+        (self.repo / "README.md").write_text("고치는 중\n")
         # 열린 PR이 origin에만 있는 브랜치면 worktree를 origin/<브랜치> 기준으로 만들고, 사람의 폴더는 건드리지 않는다
         self.git("switch", "-q", "-c", "feat/6-req-02-fe", "origin/main")
         self.write_commit({"y.txt": "1\n"}, "pr commit")

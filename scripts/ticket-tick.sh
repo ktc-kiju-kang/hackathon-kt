@@ -35,18 +35,18 @@ cur_is_done_ticket() {  # <브랜치> 가 <type>/<번호>-… 이고 그 Issue�
 checkout_branch() {  # checkout_branch <번호> <브랜치> — 이 폴더 또는 worktree. BRANCH·WORKDIR 줄을 출력하고 WORK를 정한다
   local n=$1 b=$2 cur dir remote=""
   cur=$(git -C "$ROOT" branch --show-current)
+  dir="$(dirname "$ROOT")/$(basename "$ROOT")-wt-$n"
   git -C "$ROOT" fetch -q origin "$b" 2>/dev/null && remote=1  # 다른 PC·세션이 push한 브랜치
   # 미추적 파일은 브랜치를 바꿔도 그대로라 보지 않는다 (.run/ 등). 수정·스테이지된 변경이 있으면 사람이 작업 중.
   # 끝났거나(닫힘) 놓은(release — 선점 ref 없음) 티켓의 브랜치에 남아 있는 것은 루프 자신이라 '이 폴더'로 본다. 사람의 작업 브랜치는 선점 ref가 있다(/start-task)
-  if [ -z "$(git -C "$ROOT" status --porcelain --untracked-files=no)" ] && { [ "$cur" = main ] || [ "$cur" = "$b" ] || [[ "$cur" == */$n-* ]] || cur_is_done_ticket "$cur"; }; then
+  if [ ! -d "$dir" ] && [ -z "$(git -C "$ROOT" status --porcelain --untracked-files=no)" ] && { [ "$cur" = main ] || [ "$cur" = "$b" ] || [[ "$cur" == */$n-* ]] || cur_is_done_ticket "$cur"; }; then
     local err
     if git -C "$ROOT" show-ref -q --verify "refs/heads/$b"; then err=$(git -C "$ROOT" switch -q "$b" 2>&1) || fail "브랜치 $b 로 바꾸지 못함: $err"
     elif [ -n "$remote" ]; then err=$(git -C "$ROOT" switch -q -c "$b" --track "origin/$b" 2>&1) || fail "origin/$b 체크아웃 실패: $err"
     else err=$(git -C "$ROOT" switch -q -c "$b" origin/main 2>&1) || fail "origin/main에서 $b 를 만들지 못함: $err"; fi
     WORK=$ROOT
     echo "BRANCH $b (이 폴더)"
-  else
-    dir="$(dirname "$ROOT")/$(basename "$ROOT")-wt-$n"
+  else  # 사람이 작업 중이거나, 이 티켓의 worktree가 이미 있다
     if [ -d "$dir" ]; then  # 사람이 new-worktree.sh로 같은 번호의 다른 브랜치를 만들었을 수 있다
       [ "$(git -C "$dir" branch --show-current 2>/dev/null)" = "$b" ] || fail "worktree $dir 가 다른 브랜치($(git -C "$dir" branch --show-current 2>/dev/null))에 있다 — 사람이 정리"
     else
