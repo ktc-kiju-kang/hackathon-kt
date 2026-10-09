@@ -97,9 +97,11 @@ cmd_claim() {
   local d reason
   for d in $(echo "$issue" | jq -r ".body | $DEPS_JQ"); do
     # 거부는 '열림' 또는 'not_planned·duplicate로 닫힘'일 때만 (state_reason이 없는 옛 닫힘은 완료로 본다)
-    reason=$(api "repos/$repo/issues/$d" --jq 'if .state == "open" then "open" else (.state_reason // "completed") end' 2>/dev/null) ||
-      die "선행 #$d 조회 실패 (일시 오류일 수 있음 — 다음 틱에 다시)"
-    case "$reason" in open|not_planned|duplicate) false ;; *) true ;; esac ||
+    if ! reason=$(api "repos/$repo/issues/$d" --jq 'if .state == "open" then "open" else (.state_reason // "completed") end' 2>&1); then
+      case "$reason" in *"Not Found"*|*404*) reason="없는 Issue" ;;  # 선행 줄 오타 — 사람이 고칠 일
+        *) die "선행 #$d 조회 실패 (일시 오류일 수 있음 — 다음 틱에 다시)" ;; esac
+    fi
+    case "$reason" in open|not_planned|duplicate|"없는 Issue") false ;; *) true ;; esac ||
       { echo "SKIP #$n: 선행 #$d 이 완료로 닫히지 않음 ($reason) — 사람이 본문 선행 줄을 고쳐야 함 (needs-human)"; return 1; }
   done
   PRS=$(open_prs) || die "PR 목록을 읽지 못함"

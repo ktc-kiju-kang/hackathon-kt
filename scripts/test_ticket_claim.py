@@ -24,7 +24,8 @@ case "$1 $2" in
   *) case "$*" in
        *pulls/*/comments*) f=pr_comments ;; *pulls/*/reviews*) f=pr_reviews ;;
        *issues/*/comments*) f=issue_comments ;; *issues\?*) f=issues ;;
-       *issues/[0-9]*) n=$(printf '%s' "$*" | sed -E 's|.*/issues/([0-9]+).*|\1|'); f=issue_$n ;;
+       *issues/[0-9]*) n=$(printf '%s' "$*" | sed -E 's|.*/issues/([0-9]+).*|\1|'); f=issue_$n
+         [ -f "$FIX/$f.404" ] && { echo "gh: Not Found (HTTP 404)" >&2; exit 1; } ;;
        *) exit 1 ;;
      esac ;;
 esac
@@ -207,7 +208,12 @@ class TicketScriptTest(unittest.TestCase):
         self.assertEqual(self.sh("ticket-claim.sh", "claim", "126", "--dry-run").returncode, 0)
         self.put("issue_125", {"number": 125, "state": "closed", "state_reason": "duplicate"})
         self.assertIn("(duplicate)", self.sh("ticket-claim.sh", "claim", "126", "--dry-run").stdout)
-        (self.fix / "issue_125.json").unlink()  # 조회 실패는 needs-human이 아니라 오류(2)
+        (self.fix / "issue_125.json").unlink()
+        (self.fix / "issue_125.404").write_text("")  # 없는 번호(선행 줄 오타)는 needs-human — 큐를 멈추지 않게 1
+        r = self.sh("ticket-claim.sh", "claim", "126", "--dry-run")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("(없는 Issue)", r.stdout)
+        (self.fix / "issue_125.404").unlink()  # 그 밖의 조회 실패는 needs-human이 아니라 오류(2)
         r = self.sh("ticket-claim.sh", "claim", "126", "--dry-run")
         self.assertEqual(r.returncode, 2)
         self.assertIn("조회 실패", r.stderr)
