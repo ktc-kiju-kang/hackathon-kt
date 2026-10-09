@@ -38,6 +38,11 @@ class DefuseTest(unittest.TestCase):
             defuse(text), "예: `update(\"Closes ＃12\")`, fixes: ＃3, Resolved owner/repo＃4"
         )
 
+    def test_issue_url_form_is_rewritten(self):
+        self.assertEqual(
+            defuse("Fixes https://github.com/o/r/issues/110 참고"), "Fixes o/r＃110 참고"
+        )
+
     def test_plain_references_untouched(self):
         self.assertEqual(defuse("#12 참고, PR #122"), "#12 참고, PR #122")
 
