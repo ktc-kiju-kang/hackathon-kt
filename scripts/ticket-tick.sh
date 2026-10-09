@@ -86,7 +86,8 @@ if [ -n "$n" ]; then
   "$T" owns "$n" >/dev/null 2>&1; orc=$?
   [ $orc = 1 ] && end OTHER-SESSION "#$n 은 같은 계정의 다른 세션이 작업 중 — 건드리지 않고 끝낸다 (새 티켓도 잡지 않는다)"
   [ $orc = 0 ] || fail "#$n 세션 확인 실패 (owns) — 다음 틱에 다시"
-  prs=$(gh pr list --state all --limit 100 --json number,state,headRefName,body,isDraft) || fail "PR 목록 조회 실패"
+  # 내가 올린 PR만 — 공개 레포에서 남(포크)이 'Closes #N'을 적은 PR로 루프를 조종하지 못하게
+  prs=$(gh pr list --state all --author @me --limit 100 --json number,state,headRefName,body,isDraft) || fail "PR 목록 조회 실패"
   pr=$(echo "$prs" | jq -c --arg n "$n" '[.[] | select((.headRefName|test("/"+$n+"-")) or ((.body // "")|test("(?i)(closes|fixes|resolves)\\s+#"+$n+"\\b")))] | sort_by(-.number) | .[0] // empty')
   "$T" comments "$n" >"$OUT/comments.jsonl" || fail "#$n 댓글 조회 실패"
   nc=$(grep -c . "$OUT/comments.jsonl" || true)

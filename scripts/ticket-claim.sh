@@ -251,8 +251,12 @@ cmd_comments() {
 cmd_pr_comments() {
   local n=$1 since=${2:-}
   num_or_die "$n"
-  if [ -z "$since" ]; then  # 마지막 '작업' 커밋 전의 리뷰는 그 커밋에 반영된 것으로 본다 (매 틱 같은 피드백을 '새 것'으로 주지 않게). sync의 Merge 커밋은 작업이 아니다
-    since=$(gh pr view "$n" --json commits --jq '[.commits[] | select(.messageHeadline | startswith("Merge ") | not) | .committedDate] | max // ""' 2>/dev/null)
+  if [ -z "$since" ]; then  # 마지막 '작업' 커밋(sync Merge 제외)이나 내 마지막 마커 댓글 중 늦은 것 이후 — 반영했거나 답한 피드백을 다시 '새 것'으로 주지 않게
+    local c1 c2
+    c1=$(gh pr view "$n" --json commits --jq '[.commits[] | select(.messageHeadline | startswith("Merge ") | not) | .committedDate] | max // ""' 2>/dev/null)
+    c2=$(api --paginate "repos/$repo/issues/$n/comments?per_page=100" --jq '.[] | {created_at,body,login:.user.login}' 2>/dev/null |
+      jq -rs --arg me "$me" 'map(select(.login==$me and (.body|contains("<!-- ticket-agent -->")))) | map(.created_at) | max // ""')
+    since=$(printf '%s\n%s\n' "$c1" "$c2" | sort | tail -1)
     since=${since:-1970-01-01T00:00:00Z}
   fi
   {

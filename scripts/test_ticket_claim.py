@@ -581,6 +581,9 @@ class TicketScriptTest(unittest.TestCase):
         self.assertIn("PR_COMMENTS 0 ", r.stdout)  # 2026-10-02T00:00 댓글은 마지막 작업 커밋(12:00) 전
         self.put("issue_comments", [comment(1, "kim", "OWNER", "2026-10-03T00:00:00Z", "리뷰: 이름 바꿔요")])  # 작업 커밋 뒤·sync Merge 전 → 새 것
         self.assertIn("PR_COMMENTS 1 ", self.tick().stdout)
+        self.put("issue_comments", [comment(1, "kim", "OWNER", "2026-10-03T00:00:00Z", "리뷰: 이름 바꿔요"),
+                                    comment(2, "me", "OWNER", "2026-10-03T01:00:00Z", "<!-- ticket-agent -->\n답: 계약대로입니다")])  # 답했으면 새 것 아님
+        self.assertIn("PR_COMMENTS 0 ", self.tick().stdout)
         self.put("issue_comments", [comment(1, "kim", "OWNER", "2026-10-02T00:00:00Z", "옛 댓글")])
         self.assertIn("BRANCH feat/5-req-01-be (이 폴더)", r.stdout)
         self.assertIn("새 댓글", r.stdout)
