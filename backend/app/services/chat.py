@@ -40,6 +40,19 @@ def list_conversations(client_id: str) -> list[Conversation]:
     return [Conversation(**c) for c in get_chat_store().list_conversations(client_id)]
 
 
+def search_conversations(client_id: str, q: str) -> list[Conversation]:
+    return [Conversation(**c) for c in get_chat_store().search_conversations(client_id, q)]
+
+
+def export_markdown(conversation_id: str, client_id: str) -> str:
+    conv = _owned(conversation_id, client_id)
+    lines = [f"# {conv['title'] or '제목 없음'}", ""]
+    labels = {"user": "사용자", "assistant": "어시스턴트", "tool": "도구"}
+    for m in list_messages(conversation_id, client_id):
+        lines += [f"## {labels[m.role]}", "", m.content, ""]
+    return "\n".join(lines)
+
+
 def _history(conversation_id: str) -> list[Message]:
     return [
         Message.model_validate(r["data"]) for r in get_chat_store().list_messages(conversation_id)

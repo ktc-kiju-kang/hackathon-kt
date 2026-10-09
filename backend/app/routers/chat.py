@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Header, Request
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Header, Query, Request
+from fastapi.responses import PlainTextResponse, StreamingResponse
 
 from app.core.quota import client_ip
 from app.schemas.chat import ChatMessage, ChatMessageIn, Conversation, ConversationCreate
@@ -19,6 +19,22 @@ def create_conversation(body: ConversationCreate, client_id: str = ClientId) -> 
 @router.get("/conversations", response_model=list[Conversation])
 def list_conversations(client_id: str = ClientId) -> list[Conversation]:
     return service.list_conversations(client_id)
+
+
+@router.get("/search", response_model=list[Conversation])
+def search_conversations(
+    q: str = Query(min_length=1, max_length=100), client_id: str = ClientId
+) -> list[Conversation]:
+    return service.search_conversations(client_id, q)
+
+
+@router.get("/conversations/{conversation_id}/export", response_class=PlainTextResponse)
+def export_conversation(conversation_id: str, client_id: str = ClientId) -> PlainTextResponse:
+    return PlainTextResponse(
+        service.export_markdown(conversation_id, client_id),
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="chat-{conversation_id}.md"'},
+    )
 
 
 @router.get("/conversations/{conversation_id}/messages", response_model=list[ChatMessage])
