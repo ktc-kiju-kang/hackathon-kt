@@ -18,9 +18,12 @@ HAS_TOOLS = bool(shutil.which("jq") and shutil.which("perl") and shutil.which("g
 FAKE_GH = r"""#!/usr/bin/env bash
 [ -f "$FIX/sleep" ] && sleep 30
 expr=.; prev=
-for a in "$@"; do [ "$prev" = --jq ] && expr=$a; prev=$a; done
+for a in "$@"; do { [ "$prev" = --jq ] || [ "$prev" = -q ]; } && expr=$a; prev=$a; done
 case "$1 $2" in
   "repo view") f=repo ;; "api user") f=user ;; "pr list") f=prs ;; "issue list") f=agent_pause ;;
+  "pr view") f=pr_view ;;
+  "pr checks") f=pr_checks; [ -f "$FIX/pr_checks.nochecks" ] && { echo "no checks reported on the 'x' branch" >&2; exit 1; }  # $FIX/seq 가 있으면 한 줄씩 꺼내 쓴다 (pending → pass 같은 흐름)
+    if [ -s "$FIX/seq" ]; then f=$(head -1 "$FIX/seq"); tail -n +2 "$FIX/seq" >"$FIX/seq.tmp"; mv "$FIX/seq.tmp" "$FIX/seq"; fi ;;
   "issue view") f=issue_$3; [ -f "$FIX/$f.404" ] && { echo "gh: Not Found (HTTP 404)" >&2; exit 1; }
     # REAL_GH: --jq 식을 진짜 gh 내장 jq(gojq)로 평가한다 — 픽스처를 jq 리터럴로 넣고 가벼운 API 응답은 버린다
     [ -n "${REAL_GH:-}" ] && exec "$REAL_GH" api rate_limit --jq "$(cat "$FIX/$f.json") | $expr" ;;
@@ -413,6 +416,86 @@ class TicketScriptTest(unittest.TestCase):
         self.git("reset", "-q", "--hard", "origin/main")
         self.write_commit({"docs/contracts/todo.md": "# todo\n\n## 테이블 (SQL 초안)\n    CREATE TABLE todos (id int);\n"}, "add-table")
         self.assertEqual(self.schema_gate().returncode, 1)  # 새로 넣어도
+
+    def lib(self, script, **env):
+        return run(["bash", "-c", f". scripts/lib.sh; {script}"], env={**self.env, "CI_POLL_SEC": "0", "CI_WAIT_MAX": "3", **env}, cwd=self.repo)
+
+    def test_ci_wait_passes_fails_or_times_out(self):
+        """ship 8단계: CI를 잠금 밖에서 기다린다 — 통과 0, 실패 1, 시간 초과 2, CI 없음 0."""
+        checks = lambda *buckets: [{"name": f"c{i}", "bucket": b} for i, b in enumerate(buckets)]
+        self.put("checks_pending", checks("pass", "pending"))
+        self.put("checks_pass", checks("pass", "skipping"))
+        self.put("checks_fail", checks("pass", "fail"))
+        self.put("checks_none", [])
+        (self.fix / "seq").write_text("checks_pending\nchecks_pending\nchecks_pending\nchecks_pass\n")
+        r = self.lib("ci_wait 7; echo rc=$?")
+        self.assertIn("CI 통과 (pass,skipping)", r.stdout)
+        self.assertIn("rc=0", r.stdout)
+        (self.fix / "seq").write_text("checks_pending\nchecks_pending\nchecks_fail\n")
+        self.assertIn("rc=1", self.lib("ci_wait 7; echo rc=$?").stdout)
+        (self.fix / "seq").write_text("checks_none\n")
+        r = self.lib("ci_wait 7; echo rc=$?")
+        self.assertIn("CI가 없어", r.stdout)
+        self.assertIn("rc=0", r.stdout)
+        (self.fix / "seq").unlink()
+        self.put("pr_checks", checks("pending"))  # seq 없음 → 계속 pending
+        self.assertIn("rc=2", self.lib("ci_wait 7; echo rc=$?").stdout)  # CI_WAIT_MAX=3 번 뒤 시간 초과
+        # 같은 실행의 두 번째 호출(main 재반영 후 push 직후): 체크가 아직 0이어도 'CI 없음'이 아니라 생길 때까지 기다린다
+        # gh 호출마다 seq 한 줄: 1차 [개수, 상태] → 2차 [개수=0, 생길 때까지 2번, 상태]
+        (self.fix / "seq").write_text("checks_pass\nchecks_pass\nchecks_none\nchecks_none\nchecks_pass\nchecks_pass\n")
+        r = self.lib("ci_wait 7 && ci_wait 7; echo rc=$?", CI_APPEAR_MAX="3")
+        self.assertEqual(r.stdout.count("CI 통과"), 2, r.stdout)
+        self.assertNotIn("CI가 없어", r.stdout)
+        (self.fix / "seq").write_text("checks_pass\nchecks_pass\n")
+        self.put("pr_checks", [])  # 끝내 안 생기면 2
+        r = self.lib("ci_wait 7; ci_wait 7; echo rc=$?", CI_APPEAR_MAX="2")
+        self.assertIn("체크가 생기지 않음", r.stdout)
+        self.assertIn("rc=2", r.stdout)
+        (self.fix / "seq").write_text("")  # 조회 자체가 실패하면(픽스처 없음 → gh 종료 1) 'CI 없음'이 아니라 판정 실패
+        (self.fix / "pr_checks.json").unlink()
+        r = self.lib("ci_wait 7; echo rc=$?", CI_APPEAR_MAX="1")
+        self.assertIn("조회 실패", r.stdout)
+        self.assertIn("rc=2", r.stdout)
+        (self.fix / "pr_checks.nochecks").write_text("")  # gh 판에 따라 체크 0개를 오류로 내는 경우 → CI 없음
+        self.assertIn("CI가 없어", self.lib("ci_wait 7; echo rc=$?").stdout)
+        (self.fix / "pr_checks.nochecks").unlink()
+        self.put("pr_checks", [])  # 워크플로가 있는 레포(CI_SEEN 미리 설정)에서 체크가 끝내 없으면 2, SHIP_NO_CI=1이면 통과
+        r = self.lib("CI_SEEN=1 ci_wait 7; echo rc=$?", CI_APPEAR_MAX="1")
+        self.assertIn("rc=2", r.stdout)
+        self.assertIn("rc=0", self.lib("ci_wait 7; echo rc=$?", SHIP_NO_CI="1").stdout)
+        # head SHA를 주면 PR head가 그 커밋이 될 때까지 기다린 뒤에 체크를 본다 (이전 커밋의 통과를 새 커밋 것으로 오인하지 않게)
+        self.put("pr_view", {"headRefOid": "abc123"})
+        self.put("pr_checks", checks("pass"))
+        self.assertIn("rc=0", self.lib("ci_wait 7 abc123; echo rc=$?").stdout)
+        self.put("pr_checks", checks("cancel", "cancel"))  # 모두 취소 = 통과한 체크 없음 → 실패
+        self.assertIn("rc=1", self.lib("ci_wait 7; echo rc=$?").stdout)
+        self.put("pr_checks", checks("pass", "cancel"))  # 대체 실행으로 취소된 것은 통과
+        self.assertIn("rc=0", self.lib("ci_wait 7; echo rc=$?").stdout)
+        r = self.lib("ci_wait 7 fff999; echo rc=$?", CI_APPEAR_MAX="1")
+        self.assertIn("head가 push한 커밋", r.stdout)
+        self.assertIn("rc=2", r.stdout)
+
+    def test_scripts_tests_needed_only_when_scripts_changed(self):
+        """verify: 키트 스크립트 자체 시험은 CI·키트 원본 레포·scripts/가 바뀐 브랜치에서만 돈다."""
+        env = {k: v for k, v in self.env.items() if k != "CI"}
+        self.env = env
+        self.write_commit({"README.md": "x\n"}, "base")
+        self.git("push", "-q", "origin", "HEAD:refs/heads/main")
+        self.git("fetch", "-q", "origin")
+        self.git("switch", "-q", "-c", "feat/1-x")
+        self.assertEqual(self.lib("scripts_tests_needed").returncode, 1)  # 변경 없음 → 건너뜀
+        self.assertEqual(self.lib("scripts_tests_needed", CI="true").returncode, 0)
+        (self.repo / "scripts" / "new.sh").write_text("")  # 작업 중인 변경도 본다
+        self.assertEqual(self.lib("scripts_tests_needed").returncode, 0)
+        (self.repo / "scripts" / "new.sh").unlink()
+        self.write_commit({"docs/x.md": "y\n"}, "docs only")
+        self.assertEqual(self.lib("scripts_tests_needed").returncode, 1)
+        self.write_commit({"scripts/x.sh": "echo\n"}, "script change")
+        self.assertEqual(self.lib("scripts_tests_needed").returncode, 0)
+        self.git("reset", "-q", "--hard", "origin/main")
+        (self.repo / "templates" / "starter").mkdir(parents=True)
+        (self.repo / "templates" / "starter" / "export.py").write_text("")  # 키트 원본 레포는 항상
+        self.assertEqual(self.lib("scripts_tests_needed").returncode, 0)
 
     def test_list_filters_by_role(self):
         self.put(

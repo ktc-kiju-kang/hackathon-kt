@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # 작업 브랜치를 main까지 자동으로 보낸다 — 사람은 "make ship" 한 번.
-#   1 sync(main merge) → 2 make verify → 3 충돌 검사 → 4 시험 확인(make e2e, 기록은 되돌림)
-#   → 5 push·PR 생성/갱신 → 6 AI 리뷰(PR 본문 블록) → 7 Issue에 근거 댓글
-#   → 8 머지 잠금 → main이 그새 바뀌었으면 다시 sync·verify → CI 대기 → squash 머지 → 잠금 해제
-#   → 9 main에서 make verify (머지 후 깨졌는지)
+#   1 sync(main merge) + push·초안 PR(CI를 로컬 검사와 나란히 시작) → 2 make verify → 3 충돌 검사
+#   → 4 시험 확인(make e2e, 기록은 되돌림) → 5 PR 본문 갱신·초안 해제 → 6 AI 리뷰(PR 본문 블록) → 7 Issue에 근거 댓글
+#   → 8 CI 대기 → 머지 잠금 → main이 그새 바뀌었으면 다시 sync·verify·CI → squash 머지 → 잠금 해제
+#   → 9 main 확인 (머지된 트리가 검사한 트리와 같으면 verify 생략)
 # 시작 전 Issue 선점 확인(scripts/claim.sh — 남이 잡은 Issue면 멈춤), 머지 후 선점 해제.
 # Issue 본문 "- 머지 조건: #N"의 Issue가 완료로 닫히지 않았으면 PR 본문에 적고 자동 머지하지 않는다 (docs/requirements-flow.md 2절).
-# 환경변수: SHIP_NO_MERGE=1 (PR·리뷰까지만), SHIP_SKIP_E2E=1, SHIP_KIND=record (make record 전용), TICKET_LOOP_MERGE=1 (루프 자동 머지 — 테이블 초안 계약은 사람 머지)
+# 환경변수: SHIP_NO_MERGE=1 (PR·리뷰까지만), SHIP_SKIP_E2E=1, SHIP_NO_CI=1 (Actions가 안 도는 레포 — CI 대기 생략), SHIP_KIND=record (make record 전용), TICKET_LOOP_MERGE=1 (루프 자동 머지 — 테이블 초안 계약은 사람 머지)
 set -uo pipefail
 . "$(dirname "$0")/lib.sh"
 need_setup
@@ -37,6 +37,41 @@ if [ "$KIND" = record ]; then  # 생성된 시험 기록만 담겼는지 확인 
   extra=$(git diff --name-only origin/main...HEAD | grep -vE '^docs/(evidence/|e2e-test\.md$|prd\.md$)' || true)
   [ -z "$extra" ] || die "record 브랜치에 기록 외 파일이 있음: $extra"
 fi
+# CI(pull_request)는 PR이 있어야 돈다 → 지금 push하고 초안 PR을 만들어 로컬 검사·리뷰와 나란히 돌린다 (8단계 대기가 짧아진다).
+# 검사가 실패하면 초안인 채 남는다 — 고친 뒤 make ship이 같은 PR을 이어 쓴다
+commits=$(git log --reverse --format='- %s' origin/main..HEAD | grep -v '^- Merge ' || true)
+title=$(git log --reverse --format='%s' origin/main..HEAD | grep -v '^Merge ' | head -1)
+# 이미 닫힌 Issue의 후속 PR은 Refs로 잇는다 — Closes로 이으면 칸반의 "PR 연결" 자동화가
+# 닫힌 카드를 In Review로 되돌리고, 다시 닫히지 않아 Done으로 돌아오지 않는다 (#109)
+link=Closes
+[ -n "$issue" ] && [ "$(gh issue view "$issue" --json state -q .state 2>/dev/null)" = CLOSED ] && link=Refs
+# 공개 레포에 올리기 전 비밀값 검사 — verify(2단계)보다 push가 먼저이므로 여기서 한 번 (gitleaks가 없으면 CI Security가 잡는다)
+envs=$(git diff --name-only --diff-filter=d origin/main...HEAD | grep -E '(^|/)\.env(\.|$)' | grep -v '\.env\.example$' || true)
+[ -z "$envs" ] || die "환경 파일이 커밋에 들어 있습니다 — push하지 않음: $envs (git rm --cached 후 .gitignore 확인)"
+if command -v gitleaks >/dev/null; then
+  gitleaks git . --redact --no-banner >"$RUN_DIR/ship-gitleaks.log" 2>&1 || { tail -n 20 "$RUN_DIR/ship-gitleaks.log"; die "비밀값이 커밋 이력에 있습니다 — push하지 않음 (.run/ship-gitleaks.log)"; }
+  export VERIFY_SKIP_GITLEAKS=1  # 2단계 verify가 같은 이력을 또 검사하지 않게
+else
+  warn "gitleaks 미설치 — push 전 비밀값 검사 없이 올라갑니다 (CI Security가 잡음). 설치: brew install gitleaks"
+fi
+out=$(git push -q -u origin "$branch" 2>&1) || { echo "$out"; die "push 실패"; }  # GitHub의 "Create a pull request" 안내는 숨긴다
+pr=$(gh pr view "$branch" --json number,state -q 'select(.state=="OPEN") | .number' 2>/dev/null || true)
+if [ -z "$pr" ]; then
+  { [ -n "$issue" ] && printf '%s #%s\n\n' "$link" "$issue"
+    printf '## 변경 내용\n%s\n\n<!-- ship:start -->\n(make ship 검사 중)\n<!-- ship:end -->\n\n<!-- ai-review:start -->\n(AI 리뷰 대기)\n<!-- ai-review:end -->\n' "$commits"
+  } >"$RUN_DIR/pr-body.md"
+  if ! out=$(gh pr create --draft --base main --head "$branch" --title "$title" --body-file "$RUN_DIR/pr-body.md" 2>&1); then
+    # GitHub Free 비공개 레포는 초안 PR이 없다 → 제목에 "WIP: "를 붙인 보통 PR로 (5단계가 뗀다)
+    case "$out" in *"Draft pull requests are not supported"*|*"draft"*"not supported"*)
+      gh pr create --base main --head "$branch" --title "WIP: $title" --body-file "$RUN_DIR/pr-body.md" >/dev/null || die "PR 생성 실패" ;;
+    *) echo "$out"; die "PR 생성 실패" ;;
+    esac
+  fi
+  pr=$(gh pr view "$branch" --json number -q .number)
+  echo "  초안 PR #$pr 생성 — CI 시작"
+fi
+# 워크플로가 있으면 체크가 생길 것으로 보고 기다린다 (조회 오류·등록 전을 'CI 없음'으로 오판하지 않게). Actions가 안 도는 GHE면 SHIP_NO_CI=1
+ls "$ROOT"/.github/workflows/*.yml "$ROOT"/.github/workflows/*.yaml >/dev/null 2>&1 && CI_SEEN=1
 
 say "2/9 검사 (make verify)"
 "$ROOT/scripts/verify.sh" >"$RUN_DIR/ship-verify.log" 2>&1 || { grep -E "FAIL" "$RUN_DIR/ship-verify.log"; die "verify 실패 → .run/ship-verify.log"; }
@@ -65,17 +100,9 @@ if [ "$KIND" != record ] && [ "${SHIP_SKIP_E2E:-}" != 1 ]; then
   ok "$(echo "$tc_lines" | head -1 | sed 's/^- //')"
 fi
 
-say "5/9 push·PR"
-git push -q -u origin "$branch" || die "push 실패"
+say "5/9 PR 본문 갱신"
 head=$(git rev-parse HEAD)
-pr=$(gh pr view "$branch" --json number,state -q 'select(.state=="OPEN") | .number' 2>/dev/null || true)
-commits=$(git log --reverse --format='- %s' origin/main..HEAD | grep -v '^- Merge ' || true)
-title=$(git log --reverse --format='%s' origin/main..HEAD | grep -v '^Merge ' | head -1)
 ship_block="$RUN_DIR/ship-block.md"
-# 이미 닫힌 Issue의 후속 PR은 Refs로 잇는다 — Closes로 이으면 칸반의 "PR 연결" 자동화가
-# 닫힌 카드를 In Review로 되돌리고, 다시 닫히지 않아 Done으로 돌아오지 않는다 (#109)
-link=Closes
-[ -n "$issue" ] && [ "$(gh issue view "$issue" --json state -q .state 2>/dev/null)" = CLOSED ] && link=Refs
 # 역할 분담의 FE 티켓은 같은 REQ의 BE가 먼저 머지돼야 한다 — 시작 조건(선행)과 따로 "머지 조건" 줄에 둔다.
 # 판정은 선행과 같은 기준(완료로 닫힘만 통과): scripts/ticket-claim.sh merge-wait (lib.sh merge_waiting·merge_gate)
 waiting=""
@@ -89,24 +116,18 @@ waiting=""
   [ -z "$waiting" ] || echo "$waiting" | sed 's/^/- ⚠️ 머지 조건 /'
   echo "<!-- ship:end -->"
 } >"$ship_block"
-if [ -z "$pr" ]; then
-  { [ -n "$issue" ] && printf '%s #%s\n\n' "$link" "$issue"
-    printf '## 변경 내용\n%s\n\n' "$commits"
-    cat "$ship_block"
-    printf '\n<!-- ai-review:start -->\n(AI 리뷰 대기)\n<!-- ai-review:end -->\n'
-  } >"$RUN_DIR/pr-body.md"
-  gh pr create --base main --head "$branch" --title "$title" --body-file "$RUN_DIR/pr-body.md" >/dev/null || die "PR 생성 실패"
-  pr=$(gh pr view "$branch" --json number -q .number)
-  ok "PR #$pr 생성"
-else
-  # 사람이 쓴 본문은 그대로 두고 <!-- ship:start/end --> 구역만 바꾼다
-  gh pr view "$pr" --json body -q .body >"$RUN_DIR/pr-body.old"
-  "$PY" scripts/pr_body.py "$RUN_DIR/pr-body.old" "$ship_block" "$issue" "$link" >"$RUN_DIR/pr-body.md"
-  [ "$link" = Refs ] && grep -qiE "^(closes|fixes|resolves) #$issue\b" "$RUN_DIR/pr-body.md" &&
-    warn "PR 본문에 사람이 쓴 'Closes #$issue'가 있음 — Issue가 이미 닫혀 칸반 카드가 In Review로 돌아갈 수 있으니 Refs로 고치세요"
-  gh pr edit "$pr" --body-file "$RUN_DIR/pr-body.md" >/dev/null || die "PR 본문 갱신 실패"
-  ok "PR #$pr 갱신"
+# 사람이 쓴 본문은 그대로 두고 <!-- ship:start/end --> 구역만 바꾼다
+gh pr view "$pr" --json body -q .body >"$RUN_DIR/pr-body.old"
+"$PY" scripts/pr_body.py "$RUN_DIR/pr-body.old" "$ship_block" "$issue" "$link" >"$RUN_DIR/pr-body.md"
+[ "$link" = Refs ] && grep -qiE "^(closes|fixes|resolves) #$issue\b" "$RUN_DIR/pr-body.md" &&
+  warn "PR 본문에 사람이 쓴 'Closes #$issue'가 있음 — Issue가 이미 닫혀 칸반 카드가 In Review로 돌아갈 수 있으니 Refs로 고치세요"
+gh pr edit "$pr" --body-file "$RUN_DIR/pr-body.md" >/dev/null || die "PR 본문 갱신 실패"
+cur_title=$(gh pr view "$pr" --json title -q .title 2>/dev/null)
+case "$cur_title" in "WIP: "*) gh pr edit "$pr" --title "${cur_title#WIP: }" >/dev/null 2>&1 || warn "제목의 WIP 제거 실패";; esac
+if [ "$(gh pr view "$pr" --json isDraft -q .isDraft 2>/dev/null)" = true ]; then
+  gh pr ready "$pr" >/dev/null 2>&1 || { [ "${SHIP_NO_MERGE:-}" = 1 ] && warn "초안 해제 실패 — gh pr ready $pr" || die "초안 해제 실패 — gh pr ready $pr 뒤 make ship"; }
 fi
+ok "PR #$pr 갱신 (검사 통과, 초안 해제)"
 
 say "6/9 AI 리뷰"
 if [ "$KIND" = record ]; then
@@ -139,42 +160,37 @@ schema_gate "$pr"
 migration_gate "$pr"
 [ "${SHIP_NO_MERGE:-}" = 1 ] && { ok "PR #$pr 준비 완료 (SHIP_NO_MERGE=1 — 머지 안 함)"; exit 0; }
 
-say "8/9 머지 (잠금 → 최신 main 확인 → CI → squash)"
-lock_acquire "PR #$pr $branch" || die "10분 동안 머지 잠금을 못 잡았습니다 — make lock-status"
-git fetch -q origin main
-if ! git merge-base --is-ancestor origin/main HEAD; then
-  warn "그새 main이 바뀌었습니다 → 다시 반영·검사"
+say "8/9 머지 (CI → 잠금 → 최신 main 확인 → squash)"
+# CI는 잠금 밖에서 기다린다 — 잠금을 잡은 채 기다리면 다른 사람의 ship이 내 CI까지 기다린다
+ci_check() { ci_wait "$pr" "$(git rev-parse HEAD)"; case $? in 1) die "CI 실패 — 고친 뒤 make ship";; 2) die "CI가 끝나지 않음 — GitHub Actions 확인 후 make ship";; esac; }
+for attempt in 1 2 3; do
+  ci_check
+  lock_acquire "PR #$pr $branch" || die "10분 동안 머지 잠금을 못 잡았습니다 — make lock-status"
+  git fetch -q origin main
+  git merge-base --is-ancestor origin/main HEAD && break
+  lock_release  # 재반영·검사·CI는 잠금 밖에서 — 잠금을 쥔 채 20분 기다리면 남의 ship이 잠금 대기에서 실패한다
+  [ "$attempt" -lt 3 ] || die "main이 계속 바뀝니다 — 잠시 뒤 make ship"
+  warn "그새 main이 바뀌었습니다 → 다시 반영·검사 ($attempt/3)"
   "$ROOT/scripts/sync.sh" || die "main 반영 중 충돌 — 해결 후 make ship"
   "$ROOT/scripts/verify.sh" >"$RUN_DIR/ship-verify2.log" 2>&1 || die "main 반영 후 verify 실패 → .run/ship-verify2.log"
   git push -q origin "$branch" || die "push 실패"
-fi
+done
 head=$(git rev-parse HEAD)
-checks=$(gh pr checks "$pr" --json name,bucket -q 'length' 2>/dev/null || echo 0)
-if [ "${checks:-0}" -gt 0 ]; then
-  echo "  CI 대기 (최대 20분)…"
-  for _ in $(seq 1 120); do
-    states=$(gh pr checks "$pr" --json bucket -q '[.[].bucket] | unique | join(",")' 2>/dev/null)
-    # cancel은 새 실행으로 대체된 것(PR 본문 수정 → PR Review 재실행)이라 실패로 보지 않는다
-    case "$states" in *fail*) gh pr checks "$pr" | grep -i "fail"; die "CI 실패 — 고친 뒤 make ship";; esac
-    case "$states" in *pending*) sleep 10;; *) break;; esac
-  done
-  case "$states" in *pending*) die "CI가 20분 안에 끝나지 않음";; esac
-  ok "CI 통과 ($states)"
-else
-  echo "  이 레포에 CI가 없어 로컬 verify 결과로 진행"
-fi
 gh pr merge "$pr" --squash --delete-branch --match-head-commit "$head" >/dev/null 2>"$RUN_DIR/ship-merge.err" \
-  || { cat "$RUN_DIR/ship-merge.err"; die "머지 실패 — 보호 규칙(승인 필수 등)이면 팀원 승인 후 다시"; }
+  || { cat "$RUN_DIR/ship-merge.err"; die "머지 실패 — 보호 규칙(승인 필수 등)이면 팀원 승인 후 다시, 초안 상태면 gh pr ready $pr"; }
 lock_release
 ok "PR #$pr 머지"
 [ -n "$issue" ] && { "$ROOT/scripts/claim.sh" done "$issue" >/dev/null 2>&1 || warn "Issue #$issue 선점 해제 실패 — scripts/claim.sh done $issue"; }
 
 say "9/9 머지 후 main 확인"
+shipped_tree=$(git rev-parse "$head^{tree}")  # 검사·CI를 통과한 트리 — squash 머지는 이 트리를 그대로 main에 올린다
 # worktree에서는 main이 다른 체크아웃에 있어 switch가 안 된다 → 머지된 origin/main을 detached로 본다
 git fetch -q origin main || die "origin/main fetch 실패 — 머지 후 main을 확인하지 못함"
 if git switch -q main 2>/dev/null; then git pull -q --ff-only
 else git switch -q --detach origin/main || die "머지된 main으로 바꾸지 못함"; echo "  (worktree는 이제 detached — 끝났으면 git worktree remove)"; fi
-if "$ROOT/scripts/verify.sh" >"$RUN_DIR/ship-main-verify.log" 2>&1; then
+if [ "$(git rev-parse 'HEAD^{tree}')" = "$shipped_tree" ]; then
+  ok "main 정상 ($(git rev-parse --short HEAD)) — 머지된 트리가 방금 검사한 트리와 같아 verify 생략"
+elif "$ROOT/scripts/verify.sh" >"$RUN_DIR/ship-main-verify.log" 2>&1; then
   ok "main 정상 ($(git rev-parse --short HEAD))"
 else
   warn "머지 후 main 검사 실패 → .run/ship-main-verify.log"
