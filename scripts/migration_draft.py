@@ -20,7 +20,7 @@ ALLOWED = re.compile(r"^create (unique )?(table|index) ")
 
 def normalize(sql: str) -> list[str]:
     """주석을 빼고 소문자·공백 하나로 맞춘 문장 목록 (괄호·쉼표 앞뒤 공백도 없앤다)."""
-    sql = re.sub(r"--[^\n]*", "", sql).lower()
+    sql = re.sub(r"--[^\n]*", "", re.sub(r"/\*.*?\*/", "", sql, flags=re.S)).lower()
     out = []
     for stmt in sql.split(";"):
         s = re.sub(r"\s+", " ", stmt).strip()
@@ -54,17 +54,22 @@ def check(base: str, root: Path = ROOT) -> list[str]:
     for f in git("ls-tree", "--name-only", base, "docs/contracts/").split():
         if f.endswith(".md") and not f.endswith("/README.md"):
             drafts.update(normalize(draft_sql(git("show", f"{base}:{f}"))))
+    # 이미 있는 테이블·인덱스를 다시 만들면 기동이 깨진다 (다른 기능 계약의 초안을 그대로 옮긴 경우)
+    created = {re.sub(r"\(.*", "", s) for f in git("ls-tree", "--name-only", base, "database/migrations/").split()
+               if f.endswith(".sql") for s in normalize(git("show", f"{base}:{f}"))}
     for row in git("diff", "--name-status", f"{base}...HEAD", "--", "database/migrations/").splitlines():
         status, path = row.split("\t")[0], row.split("\t")[-1]
         if not status.startswith("A"):
             reasons.append(f"{path}: 기존 마이그레이션을 고치거나 지움 ({status}) — 사람 확인")
             continue
-        for stmt in normalize((root / path).read_text(encoding="utf-8")):
+        for stmt in normalize(git("show", f"HEAD:{path}")):  # 커밋된 내용 = PR에 들어간 것
             short = stmt[:80]
             if not ALLOWED.match(stmt):
                 reasons.append(f"{path}: CREATE TABLE·INDEX가 아닌 문장 — {short}")
             elif stmt not in drafts:
                 reasons.append(f"{path}: 계약의 테이블 SQL 초안에 없는 문장 — {short}")
+            elif re.sub(r"\(.*", "", stmt) in created:
+                reasons.append(f"{path}: 이미 있는 마이그레이션이 만든 것 — {short}")
     return reasons
 
 
