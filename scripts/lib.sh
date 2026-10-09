@@ -164,3 +164,13 @@ schema_gate() {  # schema_gate <PR> — 해당 계약이 있으면 SHIP_NO_MERGE
   [ "${SHIP_NO_MERGE:-}" = 1 ] || die "테이블 SQL 초안이 있는 계약이 바뀜 ($found) — 사람이 스키마를 확인하고 GitHub에서 머지합니다 (G3, PR #$1)"
   warn "테이블 SQL 초안이 있는 계약이 바뀜 ($found) — 스키마를 확인하고 머지하세요 (G3)"
 }
+
+migration_gate() {  # migration_gate <PR> — 루프 자동 머지에서 새 마이그레이션이 계약 초안과 다르면 사람이 머지한다
+  local out rc
+  [ "${TICKET_LOOP_MERGE:-}" = 1 ] && [ "${SHIP_KIND:-}" != record ] || return 0
+  out=$(python3 "$ROOT/scripts/migration_draft.py" 2>&1); rc=$?
+  [ $rc = 0 ] && return 0
+  echo "$out" | sed 's/^/  마이그레이션 /'
+  [ "${SHIP_NO_MERGE:-}" = 1 ] || die "마이그레이션이 계약의 테이블 SQL 초안과 다름 — 사람이 확인하고 GitHub에서 머지합니다 (PR #$1)"
+  warn "마이그레이션이 계약의 테이블 SQL 초안과 다름 — 확인하고 머지하세요"
+}
