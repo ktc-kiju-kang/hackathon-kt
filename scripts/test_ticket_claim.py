@@ -451,6 +451,15 @@ class TicketScriptTest(unittest.TestCase):
         r = self.lib("ci_wait 7; ci_wait 7; echo rc=$?", CI_APPEAR_MAX="2")
         self.assertIn("체크가 생기지 않음", r.stdout)
         self.assertIn("rc=2", r.stdout)
+        (self.fix / "seq").write_text("")  # 조회 자체가 실패하면(픽스처 없음 → gh 종료 1) 'CI 없음'이 아니라 판정 실패
+        (self.fix / "pr_checks.json").unlink()
+        r = self.lib("ci_wait 7; echo rc=$?", CI_APPEAR_MAX="1")
+        self.assertIn("조회 실패", r.stdout)
+        self.assertIn("rc=2", r.stdout)
+        self.put("pr_checks", [])  # 워크플로가 있는 레포(CI_SEEN 미리 설정)에서 체크가 끝내 없으면 2, SHIP_NO_CI=1이면 통과
+        r = self.lib("CI_SEEN=1 ci_wait 7; echo rc=$?", CI_APPEAR_MAX="1")
+        self.assertIn("rc=2", r.stdout)
+        self.assertIn("rc=0", self.lib("ci_wait 7; echo rc=$?", SHIP_NO_CI="1").stdout)
         # head SHA를 주면 PR head가 그 커밋이 될 때까지 기다린 뒤에 체크를 본다 (이전 커밋의 통과를 새 커밋 것으로 오인하지 않게)
         self.put("pr_view", {"headRefOid": "abc123"})
         self.put("pr_checks", checks("pass"))

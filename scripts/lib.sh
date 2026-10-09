@@ -186,15 +186,17 @@ ci_wait() {  # ci_wait <PR> [head SHA] — PR 체크가 끝날 때까지 기다�
       sleep "$poll"
     done
   fi
-  checks=$(gh pr checks "$pr" --json name,bucket -q 'length' 2>/dev/null || echo 0)
-  if [ "${checks:-0}" -eq 0 ] 2>/dev/null && [ -n "$CI_SEEN" ]; then  # push 직후엔 새 커밋의 체크가 아직 등록 전일 수 있다
-    for i in $(seq 1 "${CI_APPEAR_MAX:-12}"); do
-      sleep "$poll"; checks=$(gh pr checks "$pr" --json name,bucket -q 'length' 2>/dev/null || echo 0)
-      [ "${checks:-0}" -gt 0 ] 2>/dev/null && break
-    done
-    [ "${checks:-0}" -gt 0 ] 2>/dev/null || { warn "새 커밋의 CI 체크가 생기지 않음 — GitHub Actions 확인 후 make ship"; return 2; }
-  fi
-  [ "${checks:-0}" -gt 0 ] 2>/dev/null || { echo "  이 레포에 CI가 없어 로컬 verify 결과로 진행"; return 0; }
+  [ "${SHIP_NO_CI:-}" = 1 ] && { echo "  SHIP_NO_CI=1 — CI 대기 생략, 로컬 verify 결과로 진행"; return 0; }
+  count_checks() { gh pr checks "$pr" --json name,bucket -q 'length' 2>/dev/null || echo ERR; }  # 조회 오류(ERR)는 '없음'이 아니다
+  checks=$(count_checks)
+  # 오류이거나, CI가 있는 레포인데 아직 0개(push 직후 등록 전)면 생길 때까지 잠시 기다린다
+  for i in $(seq 1 "${CI_APPEAR_MAX:-12}"); do
+    { [ "$checks" = ERR ] || { [ "$checks" = 0 ] && [ -n "$CI_SEEN" ]; }; } || break
+    sleep "$poll"; checks=$(count_checks)
+  done
+  [ "$checks" = ERR ] && { warn "PR 체크 조회 실패 — gh auth status·네트워크 확인 후 make ship"; return 2; }
+  [ "$checks" = 0 ] && [ -n "$CI_SEEN" ] && { warn "CI 체크가 생기지 않음 — GitHub Actions 확인 후 make ship (Actions가 없는 레포면 SHIP_NO_CI=1)"; return 2; }
+  [ "$checks" -gt 0 ] 2>/dev/null || { echo "  이 레포에 CI가 없어 로컬 verify 결과로 진행"; return 0; }
   CI_SEEN=1
   echo "  CI 대기 (최대 $((max * poll / 60))분)…"
   for i in $(seq 1 "$max"); do

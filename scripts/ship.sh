@@ -6,7 +6,7 @@
 #   → 9 main 확인 (머지된 트리가 검사한 트리와 같으면 verify 생략)
 # 시작 전 Issue 선점 확인(scripts/claim.sh — 남이 잡은 Issue면 멈춤), 머지 후 선점 해제.
 # Issue 본문 "- 머지 조건: #N"의 Issue가 완료로 닫히지 않았으면 PR 본문에 적고 자동 머지하지 않는다 (docs/requirements-flow.md 2절).
-# 환경변수: SHIP_NO_MERGE=1 (PR·리뷰까지만), SHIP_SKIP_E2E=1, SHIP_KIND=record (make record 전용), TICKET_LOOP_MERGE=1 (루프 자동 머지 — 테이블 초안 계약은 사람 머지)
+# 환경변수: SHIP_NO_MERGE=1 (PR·리뷰까지만), SHIP_SKIP_E2E=1, SHIP_NO_CI=1 (Actions가 안 도는 레포 — CI 대기 생략), SHIP_KIND=record (make record 전용), TICKET_LOOP_MERGE=1 (루프 자동 머지 — 테이블 초안 계약은 사람 머지)
 set -uo pipefail
 . "$(dirname "$0")/lib.sh"
 need_setup
@@ -45,6 +45,10 @@ title=$(git log --reverse --format='%s' origin/main..HEAD | grep -v '^Merge ' | 
 # 닫힌 카드를 In Review로 되돌리고, 다시 닫히지 않아 Done으로 돌아오지 않는다 (#109)
 link=Closes
 [ -n "$issue" ] && [ "$(gh issue view "$issue" --json state -q .state 2>/dev/null)" = CLOSED ] && link=Refs
+# 공개 레포에 올리기 전 비밀값 검사 — verify(2단계)보다 push가 먼저이므로 여기서 한 번 (gitleaks가 없으면 CI Security가 잡는다)
+if command -v gitleaks >/dev/null; then
+  gitleaks git . --redact --no-banner >"$RUN_DIR/ship-gitleaks.log" 2>&1 || { tail -n 20 "$RUN_DIR/ship-gitleaks.log"; die "비밀값이 커밋 이력에 있습니다 — push하지 않음 (.run/ship-gitleaks.log)"; }
+fi
 out=$(git push -q -u origin "$branch" 2>&1) || { echo "$out"; die "push 실패"; }  # GitHub의 "Create a pull request" 안내는 숨긴다
 pr=$(gh pr view "$branch" --json number,state -q 'select(.state=="OPEN") | .number' 2>/dev/null || true)
 if [ -z "$pr" ]; then
@@ -55,6 +59,8 @@ if [ -z "$pr" ]; then
   pr=$(gh pr view "$branch" --json number -q .number)
   echo "  초안 PR #$pr 생성 — CI 시작"
 fi
+# 워크플로가 있으면 체크가 생길 것으로 보고 기다린다 (조회 오류·등록 전을 'CI 없음'으로 오판하지 않게). Actions가 안 도는 GHE면 SHIP_NO_CI=1
+ls "$ROOT"/.github/workflows/*.yml >/dev/null 2>&1 && CI_SEEN=1
 
 say "2/9 검사 (make verify)"
 "$ROOT/scripts/verify.sh" >"$RUN_DIR/ship-verify.log" 2>&1 || { grep -E "FAIL" "$RUN_DIR/ship-verify.log"; die "verify 실패 → .run/ship-verify.log"; }

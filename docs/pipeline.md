@@ -65,7 +65,7 @@
 | DB가 꼬임 (로컬) | `make db-reset && make serve` (데이터 삭제 → 마이그레이션이 처음부터 다시 적용) |
 | worktree 두 곳에서 `make dev`·`serve` "포트 55432(db) 사용 중" | 각 worktree가 자기 db를 띄운다. 두 번째는 `DB_PORT=55433` + 그 worktree `backend/.env`의 `DATABASE_URL`을 55433으로 (`make verify`·`e2e`는 첫 db를 같이 써도 schema로 격리돼 괜찮다) |
 | "PostgreSQL에 접속할 수 없습니다" | Docker Desktop 실행 → `make db`. 포트 55432를 다른 프로그램이 쓰면 `DB_PORT=55433` + `backend/.env`의 `DATABASE_URL`도 같은 포트로 |
-| CI가 안 돎 (사내 GHE) | ship이 "CI 없음"으로 보고 로컬 verify 결과로 진행한다 (PR 본문에 기록) |
+| CI가 안 돎 (사내 GHE) | 워크플로 파일이 없으면 ship이 "CI 없음"으로 보고 로컬 verify 결과로 진행한다. 워크플로는 있는데 Actions가 꺼져 있으면 "CI 체크가 생기지 않음"으로 멈춤 → `SHIP_NO_CI=1 make ship` |
 | ship "머지 대기 중" | 다른 사람이 머지 중 — 기다린다. 15분 넘은 잠금은 자동으로 가져온다. 확인: `make lock-status` |
 | start-task·ship "○○ 님이 이미 잡았습니다" | 그 Issue는 다른 사람 담당 — 다른 Issue를 고른다. 주인이 손을 뗐으면 본인이 `make release ISSUE=<번호>`, 연락이 안 되면 합의 후 `scripts/claim.sh release <번호> --force` |
 | ship "머지 조건이 풀리지 않아" | 역할 분담의 FE 티켓이 같은 REQ의 BE보다 먼저 끝났다 — PR은 그대로 두고, PR 본문 ⚠️의 Issue가 머지된 뒤 `make ship`을 다시. "완료로 닫히지 않음"·"'#' 없는 번호"면 Issue의 머지 조건 줄을 사람이 고친다. "판정 실패"·"조회 실패"면 네트워크·`gh auth status`를 확인하고 `make ship`을 다시 |
