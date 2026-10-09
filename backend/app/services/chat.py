@@ -1,7 +1,7 @@
 import asyncio
 import json
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator, AsyncIterator
 
 from fastapi import HTTPException
 
@@ -12,6 +12,9 @@ from app.core.quota import check_quota
 from app.schemas.chat import ChatMessage, Conversation
 from app.services.chat_store import get_chat_store
 
+_inflight: dict[
+    str, asyncio.Task[None]
+] = {}  # 대화별 진행 중 생산자 (중단 저장이 끝나길 기다리는 데 쓴다)
 PING_INTERVAL = 15.0  # 모델 생각·도구 실행 중에도 연결이 끊기지 않게 SSE 주석을 보낸다
 
 
@@ -100,23 +103,56 @@ async def send_message(
     if not conv.get("title"):
         await asyncio.to_thread(store.set_title, conversation_id, content[:40])
 
-    async def events() -> AsyncIterator[str]:
+    return _stream(conversation_id, history)
+
+
+def _drop_unanswered_tool_calls(msgs: list[Message]) -> list[Message]:
+    """결과 없는 tool_call 메시지부터 뒤를 버린다 (짝 없는 호출이 저장되면 다음 요청이 깨진다)."""
+    answered = {m.tool_call_id for m in msgs if m.role == "tool"}
+    for i, m in enumerate(msgs):
+        if m.role == "assistant" and any(c.id not in answered for c in m.tool_calls):
+            return msgs[:i]
+    return msgs
+
+
+def _stream(conversation_id: str, history: list[Message]) -> AsyncGenerator[str, None]:
+    """history를 에이전트에 넣어 SSE 문자열을 스트리밍하고, 새 메시지를 턴마다 저장한다."""
+    store = get_chat_store()
+
+    async def events() -> AsyncGenerator[str, None]:
         queue: asyncio.Queue[AgentEvent | None] = asyncio.Queue()
 
         async def produce() -> None:
             saved = len(history)
+            partial: list[str] = []  # 아직 message로 확정되지 않은 스트리밍 텍스트
             try:
                 async for ev in run_agent(history):
+                    if ev.type == "text":
+                        partial.append(ev.data.get("text", ""))
                     if ev.type in ("message", "tool_result", "done", "error"):
                         # 턴마다 새 메시지 저장 → 중간에 끊겨도 진행분은 남는다
                         new = history[saved:]
                         saved = len(history)
+                        partial.clear()
                         await asyncio.to_thread(store.append_messages, conversation_id, new)
                     await queue.put(ev)
+            except asyncio.CancelledError:
+                # 사용자가 중단: 그때까지 만든 텍스트도 남긴다
+                new = _drop_unanswered_tool_calls(history[saved:])
+                if text := "".join(partial).strip():
+                    new = [*new, Message(role="assistant", content=text)]
+                await asyncio.shield(
+                    asyncio.to_thread(store.append_messages, conversation_id, new)
+                )
+                raise
             finally:
                 await queue.put(None)
 
         task = asyncio.create_task(produce())
+        _inflight[conversation_id] = task
+        task.add_done_callback(
+            lambda t: _inflight.get(conversation_id) is t and _inflight.pop(conversation_id)
+        )
         try:
             while True:
                 try:
@@ -131,3 +167,22 @@ async def send_message(
             task.cancel()  # 클라이언트가 끊으면 LLM 호출도 멈춘다 (비용 절약)
 
     return events()
+
+
+async def regenerate_message(conversation_id: str, client_id: str, ip: str) -> AsyncIterator[str]:
+    """마지막 사용자 메시지에 대한 assistant 응답을 지우고 새로 만든다 (SSE).
+
+    권한·한도 체크를 지우기 전에 끝낸다 — 한도에 걸려도 기존 답변은 남는다.
+    """
+    await asyncio.to_thread(_owned, conversation_id, client_id)
+    if pending := _inflight.get(
+        conversation_id
+    ):  # 방금 중단한 스트림의 부분 저장이 끝나길 잠깐 기다린다
+        await asyncio.wait({pending}, timeout=5)
+    history = await asyncio.to_thread(_history, conversation_id)
+    last_user = max((i for i, m in enumerate(history) if m.role == "user"), default=-1)
+    if last_user < 0:
+        raise HTTPException(status_code=422, detail="다시 생성할 메시지가 없어요")
+    check_quota(ip)
+    await asyncio.to_thread(get_chat_store().truncate_after_last_user, conversation_id)
+    return _stream(conversation_id, history[: last_user + 1])

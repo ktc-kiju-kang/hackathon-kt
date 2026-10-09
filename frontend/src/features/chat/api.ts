@@ -74,6 +74,19 @@ export async function sendMessage(
   })
 }
 
+/** 마지막 답변을 지우고 다시 생성한다 (SSE). */
+export async function regenerate(
+  id: string,
+  onEvent: (ev: ChatEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  if (isMock) return mockStream('(재생성)', onEvent)
+  return postSse<ChatEvent>(apiUrl(`/api/chat/conversations/${id}/regenerate`), {}, onEvent, {
+    headers: headers(),
+    signal,
+  })
+}
+
 async function mockStream(content: string, onEvent: (ev: ChatEvent) => void) {
   const text = `[mock] 백엔드 연결 없이 동작 중입니다. 받은 메시지: ${content}`
   for (const word of text.split(' ')) {

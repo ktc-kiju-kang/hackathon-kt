@@ -19,6 +19,7 @@ class ChatStore(Protocol):
     def list_messages(self, conversation_id: str) -> list[dict[str, Any]]: ...
     def append_messages(self, conversation_id: str, messages: list[Message]) -> None: ...
     def set_title(self, conversation_id: str, title: str) -> None: ...
+    def truncate_after_last_user(self, conversation_id: str) -> None: ...
 
 
 class MemoryChatStore:
@@ -68,6 +69,11 @@ class MemoryChatStore:
 
     def set_title(self, conversation_id: str, title: str) -> None:
         self.conversations[conversation_id]["title"] = title
+
+    def truncate_after_last_user(self, conversation_id: str) -> None:
+        msgs = self.messages[conversation_id]
+        last = max((i for i, m in enumerate(msgs) if m["data"].get("role") == "user"), default=-1)
+        del msgs[last + 1 :]
 
 
 def _no_nul(v: Any) -> Any:
@@ -151,6 +157,15 @@ class DbChatStore:
             db.execute(
                 "update conversations set title = %s where id = %s",
                 (_no_nul(title), conversation_id),
+            )
+
+    def truncate_after_last_user(self, conversation_id: str) -> None:
+        with get_db() as db:
+            db.execute(
+                "delete from messages where conversation_id = %(c)s and id > coalesce("
+                "(select max(id) from messages where conversation_id = %(c)s"
+                " and data->>'role' = 'user'), 0)",
+                {"c": conversation_id},
             )
 
 

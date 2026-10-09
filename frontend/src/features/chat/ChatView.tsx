@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { CircleAlertIcon, CopyIcon, LoaderCircleIcon, PlusIcon, SendIcon, SquareIcon } from 'lucide-react'
+import { CircleAlertIcon, CopyIcon, LoaderCircleIcon, PlusIcon, RefreshCwIcon, SendIcon, SquareIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { AiGeneratedLabel } from '@/components/ai-generated-label'
 import { PageHeader } from '@/components/page-header'
@@ -28,7 +28,7 @@ function copy(text: string) {
 }
 
 export function ChatView() {
-  const { items, busy, send, stop, reset } = useChat()
+  const { items, busy, send, regenerate, stop, reset } = useChat()
   const [input, setInput] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
 
@@ -103,6 +103,11 @@ export function ChatView() {
                   <Button variant="ghost" size="icon-sm" aria-label="답변 복사" onClick={() => copy(item.text.trim())}>
                     <CopyIcon />
                   </Button>
+                  {i === items.length - 1 && !busy && (
+                    <Button variant="ghost" size="icon-sm" aria-label="답변 다시 생성" onClick={() => void regenerate()}>
+                      <RefreshCwIcon />
+                    </Button>
+                  )}
                 </div>
               )}
               {item.status && (
