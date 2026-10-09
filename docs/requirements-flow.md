@@ -148,6 +148,6 @@ PM은 승인된 정의서만 읽고 분배표를 만든다. 분배표는 사람�
 | 백엔드·프론트 | `/start-task` → `/add-endpoint`·`/add-page` → `/handoff`. 자동으로 돌리면 `/ticket-loop` |
 | 리뷰어 | `reviewer` 에이전트 (`make ship`) — Issue의 요구사항 근거와 변경 내용이 맞는지도 본다 |
 
-앞으로: `/ticket-loop`가 `role:` 라벨로 자기 역할의 티켓만 집게 하기.
+자동으로 돌릴 때: 역할마다 다른 계정(또는 사람)이 `/loop 5m /ticket-loop architect`·`backend`·`frontend`를 돌리면 `role:` 라벨 티켓만 집는다 (`TICKET_ROLE`, `scripts/ticket-claim.sh`). 본문 "선행: #N"의 Issue가 열려 있으면 후보에서 빠지므로 plan → BE → FE 순서가 스크립트로 지켜진다 (선행 줄에 적은 Issue가 **모두** 닫혀야 시작 — mock으로 먼저 시작하려면 사람이 선점한다). 선점은 GitHub 계정 단위라 **한 계정에 루프 하나**.
 
 검증: 2026-10-09 리허설 — 임의 요구 6문장(회의실 예약)을 범용 에이전트가 이 문서만 읽고 PO·PM을 수행 → REQ 6·AC 19·TC 19, 티켓 16개(근거·링크·AC 대조 이상 없음). 그때 에이전트가 스스로 판단해야 했던 곳(섞인 AC, 머지 순서 칸, 비기능 출처, 희망 표현, 같은 화면 확장, 티켓 수)을 이 문서와 양식에 규칙으로 넣었다.

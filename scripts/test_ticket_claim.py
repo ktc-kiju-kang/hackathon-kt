@@ -23,7 +23,10 @@ case "$1 $2" in
   "repo view") f=repo ;; "api user") f=user ;; "pr list") f=prs ;; "issue list") f=agent_pause ;;
   *) case "$*" in
        *pulls/*/comments*) f=pr_comments ;; *pulls/*/reviews*) f=pr_reviews ;;
-       *issues/*/comments*) f=issue_comments ;; *issues\?*) f=issues ;; *) exit 1 ;;
+       *issues/*/comments*) f=issue_comments ;; *issues\?*) f=issues ;;
+       *issues/[0-9]*) n=$(printf '%s' "$*" | sed -E 's|.*/issues/([0-9]+).*|\1|'); f=issue_$n
+         [ -f "$FIX/$f.404" ] && { echo "gh: Not Found (HTTP 404)" >&2; exit 1; } ;;
+       *) exit 1 ;;
      esac ;;
 esac
 jq -r "($expr) | if type==\"string\" or type==\"number\" then tostring else tojson end" "$FIX/$f.json"
@@ -38,7 +41,7 @@ def comment(id, user, assoc, at, body="요청", type="User"):
     return {"id": id, "user": {"login": user, "type": type}, "author_association": assoc, "created_at": at, "body": body}
 
 
-def issue(number, assoc="OWNER", at="2026-10-01T00:00:00Z", assignees=(), labels=(), pr=False):
+def issue(number, assoc="OWNER", at="2026-10-01T00:00:00Z", assignees=(), labels=(), pr=False, body=""):
     d = {
         "number": number,
         "title": f"이슈 {number}",
@@ -47,6 +50,7 @@ def issue(number, assoc="OWNER", at="2026-10-01T00:00:00Z", assignees=(), labels
         "assignees": [{"login": a} for a in assignees],
         "labels": [{"name": n} for n in labels],
         "created_at": at,
+        "body": body,
     }
     if pr:
         d["pull_request"] = {}
@@ -172,6 +176,69 @@ class TicketScriptTest(unittest.TestCase):
         r = self.sh("ticket-claim.sh", "list")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(r.stdout.split(), ["1", "9", "7"])  # 9 는 created_at 기본값(2026-10-01)이 1 과 같아 입력 순
+
+    def test_list_waits_for_open_predecessors(self):
+        """역할 분담 티켓: 본문 '- 선행: #N' 의 Issue가 열려 있으면 후보가 아니다 (닫혔으면 후보)."""
+        self.put(
+            "issues",
+            [
+                issue(125, assignees=["lee"], labels=["plan"]),  # 진행 중 (열림)
+                issue(126, body="### 요구사항 근거\n- 선행: #125 [REQ-01][plan] 머지 후 시작"),
+                issue(127, body="- 선행: #124 머지 후 시작"),  # #124는 닫힘 (열린 목록에 없음)
+                issue(128, body="본문 중간의 #125 언급은 선행이 아니다"),
+                issue(129, body="  * 선행 : #125"),  # 글머리·공백이 달라도 선행 줄
+            ],
+        )
+        self.assertEqual(self.sh("ticket-claim.sh", "list").stdout.split(), ["127", "128"])
+        r = self.sh("ticket-claim.sh", "claim", "126", "--dry-run")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("열린 선행 Issue", r.stdout)
+
+    def test_claim_requires_closed_predecessor_completed(self):
+        """선행이 not planned로 닫혔으면(목록엔 없어도) 선점하지 않는다. 완료로 닫혔으면 선점 가능."""
+        self.put("issues", [issue(126, body="- 선행: #125 머지 후 시작")])
+        self.put("issue_125", {"number": 125, "state": "closed", "state_reason": "not_planned"})
+        r = self.sh("ticket-claim.sh", "claim", "126", "--dry-run")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("선행 #125 이 완료로 닫히지 않음 (not_planned)", r.stdout)
+        self.put("issue_125", {"number": 125, "state": "closed", "state_reason": "completed"})
+        r = self.sh("ticket-claim.sh", "claim", "126", "--dry-run")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.put("issue_125", {"number": 125, "state": "open"})  # 열린 PR 번호·다시 열림 → 대기만
+        r = self.sh("ticket-claim.sh", "claim", "126", "--dry-run")
+        self.assertIn("선행 #125 열림 — 대기", r.stdout)
+        self.assertNotIn("needs-human", r.stdout)
+        self.put("issue_125", {"number": 125, "state": "closed", "state_reason": None})  # 옛 닫힘·PR
+        self.assertEqual(self.sh("ticket-claim.sh", "claim", "126", "--dry-run").returncode, 0)
+        self.put("issue_125", {"number": 125, "state": "closed", "state_reason": "duplicate"})
+        self.assertIn("(duplicate)", self.sh("ticket-claim.sh", "claim", "126", "--dry-run").stdout)
+        (self.fix / "issue_125.json").unlink()
+        (self.fix / "issue_125.404").write_text("")  # 없는 번호(선행 줄 오타)는 needs-human — 큐를 멈추지 않게 1
+        r = self.sh("ticket-claim.sh", "claim", "126", "--dry-run")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("(없는 Issue)", r.stdout)
+        (self.fix / "issue_125.404").unlink()  # 그 밖의 조회 실패는 needs-human이 아니라 오류(2)
+        r = self.sh("ticket-claim.sh", "claim", "126", "--dry-run")
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("조회 실패", r.stderr)
+
+    def test_list_filters_by_role(self):
+        self.put(
+            "issues",
+            [
+                issue(1, labels=["plan", "role:architect"]),
+                issue(2, labels=["feature", "role:backend"]),
+                issue(3, labels=["feature", "role:frontend"]),
+                issue(4, labels=["feature"]),  # 역할 없는 기본 방식 Issue
+            ],
+        )
+        self.assertEqual(self.sh("ticket-claim.sh", "list").stdout.split(), ["1", "2", "3", "4"])
+        self.env["TICKET_ROLE"] = "backend"
+        self.assertEqual(self.sh("ticket-claim.sh", "list").stdout.split(), ["2"])
+        self.env["TICKET_ROLE"] = "designer"
+        r = self.sh("ticket-claim.sh", "list")
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("TICKET_ROLE", r.stderr)
 
     def test_list_pr_body_closes_marks_covered(self):
         self.put("issues", [issue(3)])

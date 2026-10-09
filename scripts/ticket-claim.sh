@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # GitHub Issue(티켓) 큐 어댑터. /ticket-loop 스킬이 쓴다. 선점은 scripts/claim.sh(git ref 원자적 생성) 하나만 기준이다.
 #   scripts/ticket-claim.sh list                      작업 가능한 Issue 번호 (오래된 순, 한 줄에 하나)
+#     TICKET_ROLE=architect|backend|frontend 이면 그 role:<역할> 라벨 Issue만 (역할 분담 방식, docs/requirements-flow.md)
+#     본문 '- 선행: #N …' 줄(글머리 -·*, 공백 무관)의 Issue가 아직 열려 있으면 후보가 아니다 (list·claim 공통)
 #   scripts/ticket-claim.sh claim <번호> [--dry-run]   선점. 종료코드 0=내가 선점, 1=대상 아님·남이 선점, 2=오류
 #   scripts/ticket-claim.sh mine                      내가 선점한 열린 Issue 번호
 #   scripts/ticket-claim.sh cleanup                   내 선점 중 이슈가 닫힌 것의 선점 ref 를 정리 (머지 후 남은 claim/<번호>)
@@ -37,7 +39,7 @@ num_or_die() { [[ "$1" =~ ^[0-9]+$ ]] || die "번호가 숫자가 아님: $1"; }
 # 이슈 JSON (PR 제외). 실패하면 비정상 종료 (빈 목록으로 오인하지 않는다)
 open_issues() {
   api --paginate "repos/$repo/issues?state=open&per_page=100" \
-    --jq '.[] | select(.pull_request|not) | {number,title,author:.user.login,assoc:.author_association,assignees:[.assignees[].login],labels:[.labels[].name],created_at}' |
+    --jq '.[] | select(.pull_request|not) | {number,title,author:.user.login,assoc:.author_association,assignees:[.assignees[].login],labels:[.labels[].name],created_at,body}' |
     jq -s '.'
 }
 
@@ -59,11 +61,16 @@ pr_covers() { # $PRS 에 열린 PR이 있는지: 브랜치명 `<type>/<번호>-�
   echo "$PRS" | jq -e --arg n "$1" 'map(select((.headRefName|test("/"+$n+"-")) or ((.body // "")|test("(?i)(closes|fixes|resolves)\\s+#"+$n+"\\b")))) | length > 0' >/dev/null
 }
 
-eligible_json() { # stdin: 이슈 목록 → 후보(오래된 순)
-  jq --argjson blocking "$BLOCKING" --argjson trusted "$TRUSTED" '
+# 본문 '- 선행: #N …' 줄의 Issue 번호들 (jq 식, 입력 = 본문 문자열)
+DEPS_JQ='(. // "") | scan("(?m)^\\s*[-*]\\s*선행\\s*:[^\n]*") | scan("#([0-9]+)") | .[0] | tonumber'
+
+eligible_json() { # stdin: 이슈 목록, $1: 열린 Issue 번호 JSON 배열 → 후보(오래된 순)
+  jq --argjson blocking "$BLOCKING" --argjson trusted "$TRUSTED" --argjson open "${1:-[]}" --arg role "${TICKET_ROLE:-}" '
     map(select((.assignees|length)==0
       and ((.labels|map(select(. as $l | $blocking|index($l)))|length)==0)
-      and (.assoc as $a | $trusted|index($a))))
+      and (.assoc as $a | $trusted|index($a))
+      and ($role == "" or (.labels|index("role:" + $role)))
+      and ([.body | '"$DEPS_JQ"'] | all(. as $d | $open|index($d)|not))))
     | sort_by(.created_at)'
 }
 
@@ -72,19 +79,39 @@ cmd_list() {
   issues=$(open_issues) || die "이슈 목록을 읽지 못함"
   PRS=$(open_prs) || die "PR 목록을 읽지 못함"
   taken=$(claims) || die "선점 목록을 읽지 못함 (git ls-remote 실패)"
-  echo "$issues" | eligible_json | jq -r '.[].number' | while read -r n; do
+  echo "$issues" | eligible_json "$(echo "$issues" | jq -c 'map(.number)')" | jq -r '.[].number' | while read -r n; do
     echo "$taken" | grep -q "^$n " && continue   # 이미 누군가 선점 (assign 전이어도)
     pr_covers "$n" || echo "$n"
   done
 }
 
 cmd_claim() {
-  local n=$1 dry=${2:-} issue out rc
+  local n=$1 dry=${2:-} issues issue out rc
   num_or_die "$n"
-  issue=$(open_issues | jq --argjson n "$n" '.[] | select(.number==$n)') || die "이슈 조회 실패"
+  issues=$(open_issues) || die "이슈 조회 실패"
+  issue=$(echo "$issues" | jq --argjson n "$n" '.[] | select(.number==$n)')
   [ -n "$issue" ] || { echo "SKIP #$n: 열린 이슈가 아님"; return 1; }
-  echo "$issue" | jq -s '.' | eligible_json | jq -e 'length==1' >/dev/null ||
-    { echo "SKIP #$n: 담당자·차단 라벨·신뢰할 수 없는 작성자 중 하나로 대상이 아님"; return 1; }
+  echo "$issue" | jq -s '.' | eligible_json "$(echo "$issues" | jq -c 'map(.number)')" | jq -e 'length==1' >/dev/null ||
+    { echo "SKIP #$n: 담당자·차단 라벨·신뢰할 수 없는 작성자·다른 역할(TICKET_ROLE)·열린 선행 Issue 중 하나로 대상이 아님"; return 1; }
+  # 닫힌 선행은 '완료'로 닫혔어야 한다 — not planned·중복이면 계약 없이 시작하게 되므로 사람에게 넘긴다
+  local d reason
+  for d in $(echo "$issue" | jq -r ".body | $DEPS_JQ"); do
+    # 거부는 '열림' 또는 'not_planned·duplicate로 닫힘'일 때만 (state_reason이 없는 옛 닫힘은 완료로 본다)
+    if ! reason=$(api "repos/$repo/issues/$d" --jq 'if .state == "open" then "open" else (.state_reason // "completed") end' 2>&1); then
+      case "$reason" in *"Not Found"*|*404*) reason="없는 Issue" ;;  # 선행 줄 오타 — 사람이 고칠 일
+        *) die "선행 #$d 조회 실패 (일시 오류일 수 있음 — 다음 틱에 다시)" ;; esac
+    fi
+    case "$reason" in
+      open) echo "SKIP #$n: 선행 #$d 열림 — 대기"; return 1 ;;  # 열린 PR 번호·다시 열린 Issue
+      not_planned|duplicate|"없는 Issue")
+        # 기다려도 풀리지 않는다 — 스크립트가 직접 needs-human을 붙여 후보에서 빼고 큐가 멈추지 않게 한다
+        [ "$dry" = "--dry-run" ] || {
+          gh label create needs-human --color D93F0B >/dev/null 2>&1 || true
+          gh issue edit "$n" --add-label needs-human >/dev/null 2>&1 || echo "⚠️  #$n 에 needs-human을 붙이지 못함" >&2
+        }
+        echo "SKIP #$n: 선행 #$d 이 완료로 닫히지 않음 ($reason) — needs-human, 사람이 본문 선행 줄을 고친다"; return 1 ;;
+    esac
+  done
   PRS=$(open_prs) || die "PR 목록을 읽지 못함"
   pr_covers "$n" && { echo "SKIP #$n: 이미 열린 PR이 있음"; return 1; }
   claims | grep -q "^$n " && { echo "SKIP #$n: 이미 선점됨 ($(claims | grep "^$n " | cut -d' ' -f2))"; return 1; }
@@ -180,6 +207,8 @@ cmd_release() {
   claims | grep -q "^$n " && die "#$n 선점이 남아 있음"
   echo "RELEASED #$n${state:+ → $state}"
 }
+
+case "${TICKET_ROLE:-}" in ""|architect|backend|frontend) ;; *) die "TICKET_ROLE은 architect|backend|frontend 중 하나: $TICKET_ROLE" ;; esac
 
 case "${1:-}" in
   list)        cmd_list ;;
