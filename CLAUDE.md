@@ -12,7 +12,7 @@
 ## 이 레포에서 고칠 때
 - 팀 레포에서도 똑같이 돌아야 한다. PR 전에 `make verify` + 키트를 내보내 확인한다 (CI `starter-kit` 잡이 PR마다 `export.py` → `make setup·verify·e2e`를 돌린다).
 - 팀 레포용으로 **달라야 하는** 파일만 `templates/starter/overlay/`(팀 `CLAUDE.md`·CI)에 둔다. 이 레포 전용 파일은 `export.py`의 `EXCLUDE`에 넣는다. 그 밖에는 이 레포 파일이 그대로 키트다.
-- 제출 문서 8개는 `templates/submission/`에만 있다 (이 레포 루트에는 없어서 `make verify`의 문서 검사는 SKIP, `make e2e` 근거는 `.run/evidence/`).
+- 제출 문서 8개는 `templates/submission/`에만 있다 (이 레포 루트에는 없어서 `make verify`의 문서 검사는 SKIP, `make e2e` 근거는 `.run/evidence/`). 이 레포 자체 일감의 요구사항 정의서는 같은 형식으로 `docs/backlog/`(`prd.md` 인덱스 + `prd/REQ-xx-….md`, 키트에서 제외).
 - 리허설 기록·교훈: `templates/starter/README.md` "리허설".
 
 ## 문서 지도
