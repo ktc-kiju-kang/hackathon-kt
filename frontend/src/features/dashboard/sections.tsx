@@ -2,6 +2,7 @@
 
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts'
 import { TriangleAlertIcon } from 'lucide-react'
+import { ErrorLine } from '@/components/error-line'
 import { Card, CardContent } from '@/components/ui/card'
 import {
   ChartContainer,
@@ -10,7 +11,18 @@ import {
   type ChartConfig,
 } from '@/components/ui/chart'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { countdown, memberStats, runState, testedSameAsRunning, type Dashboard, type GithubStatus } from './api'
+import {
+  countdown,
+  formatUptime,
+  leadTimeBars,
+  leadTimeState,
+  memberStats,
+  runState,
+  testedSameAsRunning,
+  type Dashboard,
+  type GithubStatus,
+  type LeadTime,
+} from './api'
 import { DotStrip, Legend, ToneIcon, type Dot, type Tone } from './charts'
 
 export function Section({
@@ -248,6 +260,46 @@ export function TeamSection({ gh, now }: { gh: GithubStatus | null; now: Date })
                 ))}
               </ul>
             )}
+          </CardContent>
+        </Card>
+      )}
+    </Section>
+  )
+}
+
+const LEAD: ChartConfig = { count: { label: '건수', color: 'var(--chart-1)' } }
+
+/** Issue를 만든 때부터 그 Issue를 닫은 PR이 머지될 때까지 — 중앙값과 구간별 건수. GitHub 칸과 따로 실패한다. */
+export function LeadTimeSection({ lt }: { lt: LeadTime | null }) {
+  const state = leadTimeState(lt)
+  const aside = lt?.status === 'ok' && lt.count > 0 ? `머지된 PR ${lt.count}건 기준` : (lt?.repo ?? undefined)
+  return (
+    <Section title="리드타임 (Issue 생성 → 머지)" aside={aside}>
+      {state === 'loading' && <Empty>불러오는 중…</Empty>}
+      {state === 'error' && <ErrorLine message={lt?.message ?? '리드타임을 불러오지 못했어요'} />}
+      {state === 'unconfigured' && <Empty>{lt?.message} (docs/contracts/dashboard.md)</Empty>}
+      {state === 'empty' && <Empty>머지된 PR이 아직 없어요 — Issue를 닫은 PR이 머지되면 여기에 보여요</Empty>}
+      {state === 'ok' && lt && (
+        <Card>
+          <CardContent className="grid gap-8 md:grid-cols-[240px_1fr]">
+            <div className="space-y-2">
+              <div className="text-[13px] text-muted-foreground">중앙값</div>
+              <div className="text-[40px] leading-none font-semibold tabular-nums">{formatUptime(lt.median_seconds ?? undefined)}</div>
+              <div className="text-[13px] text-muted-foreground">최근 닫힌 PR·Issue 100개 안에서 이어진 것만 센다</div>
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-[15px] font-semibold">걸린 시간 분포 (건수)</h3>
+              <ChartContainer config={LEAD} className="h-48 w-full">
+                <BarChart data={leadTimeBars(lt)} margin={{ left: 0, right: 8, top: 8 }}>
+                  <CartesianGrid vertical={false} />
+                  <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} />
+                  <YAxis tickLine={false} axisLine={false} width={36} allowDecimals={false} />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  {/* 30초마다 다시 그리므로 애니메이션은 끈다 */}
+                  <Bar dataKey="count" fill="var(--color-count)" radius={[4, 4, 0, 0]} maxBarSize={40} isAnimationActive={false} />
+                </BarChart>
+              </ChartContainer>
+            </div>
           </CardContent>
         </Card>
       )}

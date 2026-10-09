@@ -8,9 +8,10 @@ import re
 import subprocess
 import threading
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime
 from functools import lru_cache
-from typing import Any, Literal
+from typing import Any, Literal, TypeVar
 
 import httpx
 
@@ -34,39 +35,64 @@ class GithubError(Exception):
     """사용자에게 보여 줄 수 있는 이유 (토큰 값 없음)."""
 
 
-def get_github_status() -> GithubStatus:
+UNCONFIGURED = "레포를 알 수 없습니다 — backend/.env에 GITHUB_REPO=owner/name"
+
+
+def target() -> tuple[str, str, str] | None:
+    """(repo, API 주소, 토큰). 레포를 알 수 없으면 None. 리드타임 칸도 같은 기준을 쓴다."""
     remote = settings.git_remote_url or _git_origin()
     repo = settings.github_repo or _repo_from_remote(remote)
     if not _REPO.fullmatch(repo or "") or ".." in repo:  # URL 경로에 그대로 들어간다
-        return GithubStatus(
-            status="unconfigured",
-            message="레포를 알 수 없습니다 — backend/.env에 GITHUB_REPO=owner/name",
-        )
+        return None
     api = settings.github_api_url or _api_from_remote(remote)
     # 토큰은 명시한 GITHUB_API_URL 또는 github.com에만 보낸다 — origin이 다른 호스트
     # (미러·GitLab 등)여도 github.com용 토큰이 새지 않게. 사내 GHE는 GITHUB_API_URL을 직접 적는다
     token = settings.github_token if (settings.github_api_url or api == GITHUB_API) else ""
+    return repo, api, token
+
+
+def cache_ttl(token: str) -> int:
+    return CACHE_SEC if token else CACHE_SEC_NO_TOKEN
+
+
+T = TypeVar("T")
+
+
+def call_github(
+    api: str, token: str, repo: str, fetch: "Callable[[_Api, str], T]", failed: Callable[[str], T]
+) -> T:
+    """GitHub 한 번 갱신. 실패는 사용자에게 보여 줄 이유(토큰 값 없음)로 바꿔 failed에 넘긴다."""
+    try:
+        with _client(api, token) as client:
+            return fetch(_Api(client, time.monotonic() + DEADLINE_SEC), repo)
+    except GithubError as e:
+        return failed(str(e))
+    except httpx.HTTPError as e:
+        log.warning("github fetch failed: %s", type(e).__name__)
+        return failed(f"GitHub 연결 실패 ({type(e).__name__})")
+    except (ValueError, KeyError, TypeError) as e:  # HTML 로그인 페이지·다른 모양·pydantic
+        log.warning("github response unexpected: %s", type(e).__name__)
+        return failed(f"GitHub 응답 형식 오류 ({type(e).__name__})")
+
+
+def get_github_status() -> GithubStatus:
+    t = target()
+    if t is None:
+        return GithubStatus(status="unconfigured", message=UNCONFIGURED)
+    repo, api, token = t
     key = f"{api}|{repo}"
-    ttl = CACHE_SEC if token else CACHE_SEC_NO_TOKEN
+    ttl = cache_ttl(token)
     with _lock:
         hit = _cache.get(key)
         if hit and time.monotonic() - hit[0] < ttl:
             return hit[1]
-        try:
-            with _client(api, token) as client:
-                result = _fetch(_Api(client, time.monotonic() + DEADLINE_SEC), repo)
-        except GithubError as e:
-            result = GithubStatus(status="error", message=str(e), repo=repo)
-        except httpx.HTTPError as e:
-            log.warning("github fetch failed: %s", type(e).__name__)
-            result = GithubStatus(
-                status="error", message=f"GitHub 연결 실패 ({type(e).__name__})", repo=repo
-            )
-        except (ValueError, KeyError, TypeError) as e:  # HTML 로그인 페이지·다른 모양·pydantic
-            log.warning("github response unexpected: %s", type(e).__name__)
-            result = GithubStatus(
-                status="error", message=f"GitHub 응답 형식 오류 ({type(e).__name__})", repo=repo
-            )
+        result = call_github(
+            api,
+            token,
+            repo,
+            _fetch,
+            lambda msg: GithubStatus(status="error", message=msg, repo=repo),
+        )
         _cache[key] = (time.monotonic(), result)
         return result
 

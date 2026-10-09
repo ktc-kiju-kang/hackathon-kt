@@ -14,6 +14,7 @@ import {
   formatUptime,
   getDashboard,
   getGithubStatus,
+  getLeadTime,
   parseSuite,
   reqProgress,
   runState,
@@ -22,9 +23,10 @@ import {
   type Checks,
   type Dashboard,
   type GithubStatus,
+  type LeadTime,
 } from './api'
 import { DotStrip, Legend, Meter, StatTile, ToneIcon, type Dot, type Segment, type Tone } from './charts'
-import { DeadlineSection, Empty, Section, TeamSection, TrendSection } from './sections'
+import { DeadlineSection, Empty, LeadTimeSection, Section, TeamSection, TrendSection } from './sections'
 
 const AUTO_SEC = 30 // 자동 새로 고침 간격 (GitHub은 서버가 1~5분 캐시하므로 한도 걱정 없음)
 const AUTO_KEY = 'dashboard:auto'
@@ -33,6 +35,7 @@ const AUTO_KEY = 'dashboard:auto'
 export function DashboardView() {
   const [data, setData] = useState<Dashboard | null>(null)
   const [gh, setGh] = useState<GithubStatus | null>(null)
+  const [lead, setLead] = useState<LeadTime | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [auto, setAuto] = useState(true)
@@ -63,6 +66,10 @@ export function DashboardView() {
         notify({ ...last.current, gh: g })
       })
       .catch((e: Error) => setGh({ ...EMPTY_GH, status: 'error', message: e.message }))
+    // 리드타임도 따로 — 실패하면 이 칸만 오류로 보이고 나머지 화면은 그대로다
+    void getLeadTime()
+      .then(setLead)
+      .catch((e: Error) => setLead({ ...EMPTY_LEAD, status: 'error', message: e.message }))
   }, [notify])
 
   useEffect(() => {
@@ -140,6 +147,7 @@ export function DashboardView() {
           <ReqsSection data={data} />
         </div>
       )}
+      <LeadTimeSection lt={lead} />
       <TeamSection gh={gh} now={now} />
       <GithubSection gh={gh} />
       {data && <ServerSection data={data} />}
@@ -158,6 +166,16 @@ const EMPTY_GH: GithubStatus = {
   claims: [],
   main_sha: null,
   recent_merges: [],
+}
+
+const EMPTY_LEAD: LeadTime = {
+  status: 'unconfigured',
+  message: null,
+  repo: null,
+  fetched_at: null,
+  count: 0,
+  median_seconds: null,
+  buckets: [],
 }
 
 const short = (sha?: string | null) => (sha ? sha.slice(0, 7) + (sha.endsWith('-dirty') ? '-dirty' : '') : '-')

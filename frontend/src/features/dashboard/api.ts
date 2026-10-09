@@ -72,6 +72,18 @@ export type GithubStatus = {
   recent_merges: { number: number; title: string; author: string; merged_at: string }[]
 }
 
+// GET /api/dashboard/leadtime — GitHub 현황과 따로 불러온다 (#107)
+export type LeadBucket = { label: string; min_seconds: number; max_seconds: number | null; count: number }
+export type LeadTime = {
+  status: 'ok' | 'unconfigured' | 'error'
+  message: string | null
+  repo: string | null
+  fetched_at: string | null
+  count: number
+  median_seconds: number | null
+  buckets: LeadBucket[]
+}
+
 const now = () => new Date().toISOString()
 
 const MOCK_DASHBOARD: Dashboard = {
@@ -97,11 +109,24 @@ const MOCK_GITHUB: GithubStatus = {
   recent_merges: [],
 }
 
+const MOCK_LEADTIME: LeadTime = {
+  status: 'unconfigured',
+  message: 'mock 모드 — NEXT_PUBLIC_API_BASE_URL을 설정하면 실제 값을 보여 줍니다',
+  repo: null,
+  fetched_at: null,
+  count: 0,
+  median_seconds: null,
+  buckets: [],
+}
+
 export const getDashboard = (): Promise<Dashboard> =>
   isMock ? Promise.resolve(MOCK_DASHBOARD) : request<Dashboard>('/api/dashboard')
 
 export const getGithubStatus = (): Promise<GithubStatus> =>
   isMock ? Promise.resolve(MOCK_GITHUB) : request<GithubStatus>('/api/dashboard/github')
+
+export const getLeadTime = (): Promise<LeadTime> =>
+  isMock ? Promise.resolve(MOCK_LEADTIME) : request<LeadTime>('/api/dashboard/leadtime')
 
 /** 초 → "3일 4시간" · "2시간 5분" · "5분" · "30초" (큰 단위 두 개까지). */
 export function formatUptime(seconds: number | undefined): string {
@@ -263,4 +288,16 @@ export function failureAlerts(
     }
   }
   return out
+}
+
+/** 리드타임 칸 상태. 머지된 PR이 없는 것(empty)은 오류가 아니다. */
+export function leadTimeState(lt: LeadTime | null): 'loading' | 'error' | 'unconfigured' | 'empty' | 'ok' {
+  if (!lt) return 'loading'
+  if (lt.status !== 'ok') return lt.status
+  return lt.count === 0 ? 'empty' : 'ok'
+}
+
+/** 구간별 건수 → 막대 차트 행 (키는 영문 — ChartConfig 규칙). */
+export function leadTimeBars(lt: LeadTime): { label: string; count: number }[] {
+  return lt.buckets.map((b) => ({ label: b.label, count: b.count }))
 }

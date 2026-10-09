@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from app.core import db
 from app.core.config import settings
 from app.main import app
-from app.services import dashboard, dashboard_github
+from app.services import dashboard, dashboard_github, dashboard_leadtime
 
 client = TestClient(app)
 TOKEN = "ghp_secret_should_never_leak"
@@ -47,6 +47,7 @@ def repo_root(tmp_path, monkeypatch):
 @pytest.fixture(autouse=True)
 def _github_settings(monkeypatch):
     dashboard_github.clear_cache()
+    dashboard_leadtime.clear_cache()
     monkeypatch.setattr(settings, "github_repo", "")
     monkeypatch.setattr(settings, "github_token", "")
     monkeypatch.setattr(settings, "github_api_url", "")
@@ -54,6 +55,7 @@ def _github_settings(monkeypatch):
     monkeypatch.setattr(dashboard_github, "_git_origin", lambda: "")
     yield
     dashboard_github.clear_cache()
+    dashboard_leadtime.clear_cache()
 
 
 def test_dashboard_local_sections_empty_repo(repo_root):
@@ -344,3 +346,151 @@ def test_readiness_evidence_from_other_commit_or_dirty_fails(repo_root, monkeypa
     )
     c = _checks(client.get("/api/dashboard").json())
     assert c["committed"] == "fail" and c["evidence"] == "fail"
+
+
+# ── 리드타임 (#107) ──────────────────────────────────────────────────────────
+
+H = 3600
+
+
+def _leadtime_handler(prs: list[dict], issues: list[dict]):
+    """Issue 목록(created_at)과 닫힌 PR 목록(merged_at)만 돌려주는 가짜 GitHub."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.headers["Authorization"] == f"Bearer {TOKEN}"
+        p = request.url.path
+        if p.endswith("/pulls") and request.url.params.get("state") == "closed":
+            return httpx.Response(200, json=prs)
+        if p.endswith("/issues") and request.url.params.get("state") == "closed":
+            return httpx.Response(200, json=issues)
+        return httpx.Response(404)
+
+    return handler
+
+
+def _issue(number: int, created: str) -> dict:
+    return {"number": number, "title": f"이슈 {number}", "created_at": created}
+
+
+def _pr(number: int, merged: str | None, body: str | None = None, ref: str = "x") -> dict:
+    return {"number": number, "merged_at": merged, "body": body, "head": {"ref": ref}}
+
+
+def _configure(monkeypatch):
+    monkeypatch.setattr(settings, "github_repo", "team/app")
+    monkeypatch.setattr(settings, "github_token", TOKEN)
+
+
+def test_tc_lt_01_median_and_buckets(monkeypatch):
+    """TC-LT-01: 머지된 PR만 집계 — Issue를 PR 본문(Closes) 또는 브랜치 이름으로 찾는다."""
+    _configure(monkeypatch)
+    issues = [
+        _issue(7, "2026-10-08T00:00:00Z"),
+        _issue(8, "2026-10-08T00:00:00Z"),
+        _issue(9, "2026-10-08T00:00:00Z"),
+        {**_issue(10, "2026-10-08T00:00:00Z"), "pull_request": {}},  # PR이 섞여 온다
+    ]
+    prs = [
+        _pr(20, "2026-10-08T02:00:00Z", body="기능 추가\n\nCloses #7"),  # 2시간
+        _pr(21, "2026-10-09T06:00:00Z", ref="feat/8-big-one"),  # 30시간 (브랜치로 찾음)
+        _pr(22, None, body="Closes #9"),  # 머지 없이 닫힘 → 뺀다
+        _pr(23, "2026-10-08T01:00:00Z", body="이슈 언급 없음"),  # Issue를 못 찾음 → 뺀다
+        _pr(24, "2026-10-08T01:00:00Z", body="Closes #999"),  # 목록 밖 Issue → 뺀다
+        _pr(25, "2026-10-08T09:00:00Z", body="Closes #10"),  # #10은 PR이라 Issue가 아님 → 뺀다
+    ]
+    _fake_github(monkeypatch, _leadtime_handler(prs, issues))
+    r = client.get("/api/dashboard/leadtime")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["status"] == "ok" and body["repo"] == "team/app" and body["fetched_at"]
+    assert body["count"] == 2
+    assert body["median_seconds"] == (2 * H + 30 * H) // 2  # 짝수 개면 가운데 두 값의 평균
+    counts = {b["label"]: b["count"] for b in body["buckets"]}
+    assert counts == {"1시간 미만": 0, "1~4시간": 1, "4~24시간": 0, "1~3일": 1, "3일 이상": 0}
+    assert [b["label"] for b in body["buckets"]][0] == "1시간 미만"  # 순서 고정
+    assert body["buckets"][-1]["max_seconds"] is None
+    assert TOKEN not in r.text and r.headers["cache-control"] == "no-store"
+
+
+def test_tc_lt_02_no_merged_prs_is_empty_not_error(monkeypatch):
+    """TC-LT-02: 머지된 PR이 없으면 오류가 아니라 빈 상태 (건수 0, 중앙값 null)."""
+    _configure(monkeypatch)
+    _fake_github(monkeypatch, _leadtime_handler([_pr(1, None, body="Closes #1")], []))
+    body = client.get("/api/dashboard/leadtime").json()
+    assert body["status"] == "ok" and body["message"] is None
+    assert body["count"] == 0 and body["median_seconds"] is None
+    assert len(body["buckets"]) == 5 and all(b["count"] == 0 for b in body["buckets"])
+
+
+def test_tc_lt_03_github_failure_is_isolated_to_leadtime(monkeypatch, repo_root):
+    """TC-LT-03: GitHub 조회가 실패해도 리드타임 칸만 오류 — 기존 현황판 응답은 그대로."""
+    _configure(monkeypatch)
+    _fake_github(monkeypatch, lambda req: httpx.Response(401, json={"message": "Bad credentials"}))
+    r = client.get("/api/dashboard/leadtime")
+    assert r.status_code == 200  # 오류도 200 — 화면이 그 칸만 오류로 보여 준다
+    body = r.json()
+    assert body["status"] == "error" and "인증 실패" in body["message"]
+    assert body["count"] == 0 and body["median_seconds"] is None and body["buckets"] == []
+    assert TOKEN not in r.text
+    assert client.get("/api/dashboard").status_code == 200  # 로컬 칸은 GitHub과 무관
+
+
+def test_tc_lt_04_network_failure_becomes_error_status(monkeypatch):
+    """TC-LT-04: 연결 실패·응답 형식 오류도 error로 바꾼다 (500이 되지 않는다)."""
+    _configure(monkeypatch)
+
+    def boom(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("refused")
+
+    _fake_github(monkeypatch, boom)
+    body = client.get("/api/dashboard/leadtime").json()
+    assert body["status"] == "error" and "연결 실패" in body["message"]
+
+    dashboard_leadtime.clear_cache()
+    _fake_github(monkeypatch, lambda req: httpx.Response(200, text="<html>login</html>"))
+    body = client.get("/api/dashboard/leadtime").json()
+    assert body["status"] == "error" and "형식 오류" in body["message"]
+
+
+def test_tc_lt_05_unconfigured_without_repo():
+    """TC-LT-05: 레포를 모르면 unconfigured (GitHub 칸과 같은 안내)."""
+    body = client.get("/api/dashboard/leadtime").json()
+    assert body["status"] == "unconfigured" and "GITHUB_REPO" in body["message"]
+    assert body["buckets"] == []
+
+
+def test_tc_lt_06_leadtime_is_cached(monkeypatch):
+    """TC-LT-06: 60초 캐시 — 화면을 여러 번 새로 고쳐도 GitHub을 다시 부르지 않는다."""
+    _configure(monkeypatch)
+    calls = _fake_github(monkeypatch, _leadtime_handler([], []))
+    client.get("/api/dashboard/leadtime")
+    assert len(calls) == 2  # 닫힌 PR 1번 + 닫힌 Issue 1번
+    client.get("/api/dashboard/leadtime")
+    assert len(calls) == 2
+
+
+def test_tc_lt_07_merge_before_issue_clamps_to_zero(monkeypatch):
+    """TC-LT-07: 시계가 어긋나 머지가 Issue보다 이르면 음수 대신 0초로 센다."""
+    _configure(monkeypatch)
+    issues = [_issue(3, "2026-10-08T05:00:00Z")]
+    prs = [_pr(30, "2026-10-08T04:00:00Z", body="Fixes #3")]
+    _fake_github(monkeypatch, _leadtime_handler(prs, issues))
+    body = client.get("/api/dashboard/leadtime").json()
+    assert body["count"] == 1 and body["median_seconds"] == 0
+    assert body["buckets"][0]["count"] == 1
+
+
+@pytest.mark.parametrize(
+    ("pr", "expect"),
+    [
+        ({"body": "Closes #12", "head": {"ref": "feat/9-x"}}, 12),  # 본문이 브랜치보다 먼저
+        ({"body": "closes: #12", "head": {"ref": ""}}, 12),
+        ({"body": "Resolved #4 와 fixes #5", "head": {"ref": ""}}, 4),
+        ({"body": None, "head": {"ref": "fix/33-bug"}}, 33),
+        ({"body": "참고 #8", "head": {"ref": "chore/deps"}}, None),
+        ({"head": {}}, None),
+    ],
+)
+def test_tc_lt_08_issue_number_from_pr(pr, expect):
+    """TC-LT-08: PR → Issue 번호 (Closes/Fixes/Resolves, 없으면 브랜치 이름)."""
+    assert dashboard_leadtime._issue_number(pr) == expect
