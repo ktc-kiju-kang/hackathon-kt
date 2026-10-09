@@ -183,6 +183,7 @@ class TicketScriptTest(unittest.TestCase):
                 issue(126, body="### 요구사항 근거\n- 선행: #125 [REQ-01][plan] 머지 후 시작"),
                 issue(127, body="- 선행: #124 머지 후 시작"),  # #124는 닫힘 (열린 목록에 없음)
                 issue(128, body="본문 중간의 #125 언급은 선행이 아니다"),
+                issue(129, body="  * 선행 : #125"),  # 글머리·공백이 달라도 선행 줄
             ],
         )
         self.assertEqual(self.sh("ticket-claim.sh", "list").stdout.split(), ["127", "128"])

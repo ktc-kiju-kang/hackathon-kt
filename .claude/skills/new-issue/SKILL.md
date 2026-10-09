@@ -12,5 +12,5 @@ Issue를 만든다: $ARGUMENTS
    - **역할 분담 방식**이면 본문을 새로 쓰지 않고 `pm` 에이전트가 만든 `.run/tickets/NN-….md` 초안(첫 줄 제목, 둘째 줄 `labels:`)을 쓴다. 사람이 `distribution.md`(분배표·AC 대조표)를 승인(G2)한 경우에만. 초안의 근거 SHA가 지금 정의서와 다르면(`git diff <SHA> -- docs/prd.md docs/prd/`) 멈추고 PM에게 다시 맡긴다.
 3. 하루 안에 끝나지 않을 크기면 독립적으로 머지 가능한 REQ 여러 개로 쪼개자고 제안한다.
 4. `gh issue list --state open`으로 중복·의존 관계를 확인한다.
-5. 초안을 사용자에게 보여주고 확인받은 뒤 생성한다: `gh issue create --title "..." --body "..." --label ...` (담당자가 정해졌으면 `--assignee <id>`). 양식·초안에 라벨이 있으면 같이 붙인다. 역할 라벨(`plan`·`role:architect`·`role:backend`·`role:frontend`)이 레포에 없으면 같은 확인에서 `gh label create`로 먼저 만든다. 여러 개면 목록으로 한 번에 확인받고, 선행 관계(`선행: 04`)는 만든 번호(`#12`)로 바꿔 적는다.
+5. 초안을 사용자에게 보여주고 확인받은 뒤 생성한다: `gh issue create --title "..." --body "..." --label ...` (담당자가 정해졌으면 `--assignee <id>`). 양식·초안에 라벨이 있으면 같이 붙인다. 역할 라벨(`plan`·`role:architect`·`role:backend`·`role:frontend`)이 레포에 없으면 같은 확인에서 `gh label create`로 먼저 만든다. 여러 개면 목록으로 한 번에 확인받고, 선행 관계(`선행: 04`)는 만든 번호(`#12`)로 바꿔 적는다 — `- 선행:` 줄에는 먼저 머지돼야 하는 Issue 번호만 둔다 (`/ticket-loop`가 그 Issue들이 닫힐 때까지 기다린다).
 6. Issue 번호를 `docs/prd.md` 요구사항 표의 Issue 칸(역할 분담이면 플랜 티켓, 플랜이 없으면 첫 개발 티켓)에 적자고 안내하고, 바로 시작하려면 `/start-task <번호>`.

@@ -2,7 +2,7 @@
 # GitHub Issue(티켓) 큐 어댑터. /ticket-loop 스킬이 쓴다. 선점은 scripts/claim.sh(git ref 원자적 생성) 하나만 기준이다.
 #   scripts/ticket-claim.sh list                      작업 가능한 Issue 번호 (오래된 순, 한 줄에 하나)
 #     TICKET_ROLE=architect|backend|frontend 이면 그 role:<역할> 라벨 Issue만 (역할 분담 방식, docs/requirements-flow.md)
-#     본문 '- 선행: #N …' 줄의 Issue가 아직 열려 있으면 후보가 아니다 (list·claim 공통)
+#     본문 '- 선행: #N …' 줄(글머리 -·*, 공백 무관)의 Issue가 아직 열려 있으면 후보가 아니다 (list·claim 공통)
 #   scripts/ticket-claim.sh claim <번호> [--dry-run]   선점. 종료코드 0=내가 선점, 1=대상 아님·남이 선점, 2=오류
 #   scripts/ticket-claim.sh mine                      내가 선점한 열린 Issue 번호
 #   scripts/ticket-claim.sh cleanup                   내 선점 중 이슈가 닫힌 것의 선점 ref 를 정리 (머지 후 남은 claim/<번호>)
@@ -67,7 +67,7 @@ eligible_json() { # stdin: 이슈 목록, $1: 열린 Issue 번호 JSON 배열 �
       and ((.labels|map(select(. as $l | $blocking|index($l)))|length)==0)
       and (.assoc as $a | $trusted|index($a))
       and ($role == "" or (.labels|index("role:" + $role)))
-      and ([(.body // "") | scan("(?m)^- 선행:[^\n]*") | scan("#([0-9]+)") | .[0] | tonumber]
+      and ([(.body // "") | scan("(?m)^\\s*[-*]\\s*선행\\s*:[^\n]*") | scan("#([0-9]+)") | .[0] | tonumber]
            | all(. as $d | $open|index($d)|not))))
     | sort_by(.created_at)'
 }
