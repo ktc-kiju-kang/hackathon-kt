@@ -101,8 +101,16 @@ cmd_claim() {
       case "$reason" in *"Not Found"*|*404*) reason="없는 Issue" ;;  # 선행 줄 오타 — 사람이 고칠 일
         *) die "선행 #$d 조회 실패 (일시 오류일 수 있음 — 다음 틱에 다시)" ;; esac
     fi
-    case "$reason" in open|not_planned|duplicate|"없는 Issue") false ;; *) true ;; esac ||
-      { echo "SKIP #$n: 선행 #$d 이 완료로 닫히지 않음 ($reason) — 사람이 본문 선행 줄을 고쳐야 함 (needs-human)"; return 1; }
+    case "$reason" in
+      open) echo "SKIP #$n: 선행 #$d 열림 — 대기"; return 1 ;;  # 열린 PR 번호·다시 열린 Issue
+      not_planned|duplicate|"없는 Issue")
+        # 기다려도 풀리지 않는다 — 스크립트가 직접 needs-human을 붙여 후보에서 빼고 큐가 멈추지 않게 한다
+        [ "$dry" = "--dry-run" ] || {
+          gh label create needs-human --color D93F0B >/dev/null 2>&1 || true
+          gh issue edit "$n" --add-label needs-human >/dev/null 2>&1 || echo "⚠️  #$n 에 needs-human을 붙이지 못함" >&2
+        }
+        echo "SKIP #$n: 선행 #$d 이 완료로 닫히지 않음 ($reason) — needs-human, 사람이 본문 선행 줄을 고친다"; return 1 ;;
+    esac
   done
   PRS=$(open_prs) || die "PR 목록을 읽지 못함"
   pr_covers "$n" && { echo "SKIP #$n: 이미 열린 PR이 있음"; return 1; }

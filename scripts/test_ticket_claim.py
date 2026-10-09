@@ -204,6 +204,10 @@ class TicketScriptTest(unittest.TestCase):
         self.put("issue_125", {"number": 125, "state": "closed", "state_reason": "completed"})
         r = self.sh("ticket-claim.sh", "claim", "126", "--dry-run")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.put("issue_125", {"number": 125, "state": "open"})  # 열린 PR 번호·다시 열림 → 대기만
+        r = self.sh("ticket-claim.sh", "claim", "126", "--dry-run")
+        self.assertIn("선행 #125 열림 — 대기", r.stdout)
+        self.assertNotIn("needs-human", r.stdout)
         self.put("issue_125", {"number": 125, "state": "closed", "state_reason": None})  # 옛 닫힘·PR
         self.assertEqual(self.sh("ticket-claim.sh", "claim", "126", "--dry-run").returncode, 0)
         self.put("issue_125", {"number": 125, "state": "closed", "state_reason": "duplicate"})
