@@ -24,6 +24,7 @@ DOCS = [
     "docs/e2e-test.md",
 ]
 TC_STATUS = ("PASS", "FAIL", "SKIP", "미실행")
+AC_CHECK = ("API", "화면", "수동")
 PLACEHOLDER = re.compile(r"\{\{[^}]*\}\}")
 COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
 # 한글 조사("REQ-01을")가 붙어도 잡히도록 \b 대신 영문·숫자만 막는 경계를 쓴다
@@ -152,6 +153,12 @@ def main() -> int:
         if own not in reqs:
             errors.append(f"{rel}: {own}가 prd.md 요구사항 표에 없음")
         for ac, row in id_rows(text, "AC", errors, rel).items():
+            # '확인' 칸(있으면): 한 AC는 한 가지 수단으로 확인한다 → PM이 API=BE, 화면=FE로 나눈다
+            if "확인" in row and row["확인"] not in AC_CHECK:
+                errors.append(
+                    f"{rel}: {ac} '확인' 칸 '{row['확인']}' — {'/'.join(AC_CHECK)} 중 하나"
+                    " (둘 다 필요하면 AC를 나눈다)"
+                )
             if req_of(ac) != own:
                 errors.append(f"{rel}: {ac}는 {own}의 확인 조건이 아님")
             if ac in acs:
@@ -171,14 +178,18 @@ def main() -> int:
                     f"prd.md: {req}의 '확인 조건' 칸({', '.join(got) or '없음'})이"
                     f" 정의된 AC({', '.join(want) or '없음'})와 다름"
                 )
-    # 원문(SRC)은 REQ의 '출처' 칸이나 '범위 밖' 표로 이어져야 한다 (질문·메모에만 나오면 안 이어진 것)
+    # 원문(SRC)은 요구사항·비기능 표의 '출처' 칸이나 '범위 밖' 표로 이어져야 한다
+    # (질문·메모에만 나오면 안 이어진 것). 일부만 범위 밖이면 출처와 범위 밖 양쪽에 둔다
     defined: set[str] = set()
-    used = {s for r in reqs.values() for s in SRC_RE.findall(r.get("출처", ""))}
+    used: set[str] = set()
     for header, body in tables(prd):
         if header[:1] == ["SRC"]:
             (defined if "원문" in header else used).update(
                 s for cells in body for s in SRC_RE.findall(cells[0])
             )
+        elif "출처" in header:
+            i = header.index("출처")
+            used.update(s for cells in body if len(cells) > i for s in SRC_RE.findall(cells[i]))
     for src in sorted(defined - used, key=lambda s: int(s[4:])):
         soft.append(f"prd.md: {src}가 어느 REQ의 출처나 '범위 밖'에도 없음")
     tcs = id_rows(texts.get("docs/e2e-test.md", ""), "TC", errors, "e2e-test.md")

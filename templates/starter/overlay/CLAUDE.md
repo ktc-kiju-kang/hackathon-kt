@@ -21,7 +21,7 @@
 
 ## 작업 방식: 세 명 · 로컬 PC · 레포 하나 · 자동 리뷰·머지
 - 서버 없음. 각자 PC에서 docker compose로 실행한다 (`make dev`/`make serve`, `compose.yaml`). DB는 각자 PC의 PostgreSQL(docker volume), 공유하지 않는다. 검사·시험(`make verify`·`e2e`·`ship`)은 로컬 도구로 돌고 DB만 docker로 자동으로 띄운다 — 그래서 `make setup`과 Docker Desktop 둘 다 필요하다.
-- **Issue 하나 = REQ 하나**를 한 사람이 frontend + backend + DB + 시험까지 끝까지 맡는다. 담당자 = Issue assignee. 제목 `[REQ-01] <요약>`, 완료 조건 = prd.md의 AC, 양식은 주최 측 "개발 작업·검증".
+- 기본은 **Issue 하나 = REQ 하나**를 한 사람이 frontend + backend + DB + 시험까지 끝까지 맡는다. 담당자 = Issue assignee. 제목 `[REQ-01] <요약>`, 완료 조건 = 하위 정의서의 AC, 양식은 주최 측 "개발 작업·검증". 에이전트에게 역할을 나눠 맡기면 `po`→`pm`→`architect` 에이전트와 `[REQ-01][plan|BE|FE]` 티켓 (`docs/requirements-flow.md`).
 - 사람이 하는 일은 **코드 작성 → 커밋 → `make ship`** 이 전부다. ship이 검사·시험·PR·AI 리뷰·Issue 근거 댓글·머지까지 한다. 기준을 넘지 못하면 멈추고 이유를 보여 준다 (`/handoff`).
 - 완료: `Closes #<번호>`로 squash 머지되면 Issue가 completed로 닫힌다. 취소·중복은 사유를 남기고 Close as not planned. (Projects Done·체크박스만으로는 완료 집계 안 됨)
 

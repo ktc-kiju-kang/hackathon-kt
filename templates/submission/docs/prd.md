@@ -16,6 +16,10 @@
 
 ## 요구사항
 
+우선순위: 원문의 요구(“해야 한다”·“할 수 있다”)는 `필수`, “좋겠다·가능하면”처럼 희망이면 `선택`. 팀 추가 요구(11번부터)는 `선택`.
+
+머지 순서 (PO): {{REQ-01 → REQ-02 → REQ-11}} — 앞선 REQ는 뒤 REQ의 API 없이 완성·시험할 수 있어야 한다.
+
 | ID | 출처 | 요구사항 | 우선순위 | Issue | 확인 조건 | 상태 |
 |---|---|---|---|---|---|---|
 | [REQ-01](prd/REQ-01.md) | 주최 (SRC-01) | {{사용자는 ~할 수 있다}} | 필수 | {{#번호}} | AC-01-1, AC-01-2, AC-01-3 | 계획 |
@@ -27,11 +31,13 @@
      '확인 조건' 칸 = 하위 정의서의 AC ID 목록 그대로 (scripts/check-docs.py가 대조). 상태는 이 표에만 — make e2e·make record가 갱신. -->
 
 ## 비기능 요구
-| ID | 항목 | 기준 | 확인 |
-|---|---|---|---|
-| REQ-N1 | 보안 | [security-compliance.md](security-compliance.md)의 SEC 항목 | SEC별 TC |
-| REQ-N2 | 화면 | KDS 2.0 적용 ([experience.md](experience.md)) | 화면 캡처 |
-| REQ-N3 | {{성능 등}} | {{기준}} | {{TC}} |
+원문에서 나온 비기능(예: "모바일에서도 사용")은 출처 칸에 SRC를 적는다. 기능 REQ로 억지로 만들지 않는다.
+
+| ID | 출처 | 항목 | 기준 | 확인 |
+|---|---|---|---|---|
+| REQ-N1 | 주최 정책 | 보안 | [security-compliance.md](security-compliance.md)의 SEC 항목 | SEC별 TC |
+| REQ-N2 | 주최 정책 | 화면 | KDS 2.0 적용 ([experience.md](experience.md)) | 화면 캡처 |
+| REQ-N3 | {{SRC- 또는 팀}} | {{성능·모바일 등}} | {{기준}} | {{TC}} |
 
 ## 가정·미결 질문
 | # | 내용 | 관련 | 상태 |

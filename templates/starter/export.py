@@ -58,6 +58,22 @@ PATCHES = [
         "```\n\n"
         "개발 중에는 `make dev` (docker, 핫 리로드). docker 없이 `NATIVE=1 make dev` / `NATIVE=1 make serve`. 명령 목록 `make help`.",
     ),
+    # 팀 레포에는 templates/가 없다 — 제출 문서 안내는 docs/submission-guide.md, 작업 기록은 development.md
+    (
+        "docs/SDLC-IMPROVEMENT.md",
+        "[DEMO.md](../templates/submission/GUIDE.md)",
+        "[DEMO.md](submission-guide.md)",
+    ),
+    (
+        "docs/SDLC-IMPROVEMENT.md",
+        "[worklog/](../templates/starter/README.md)",
+        "[worklog/](development.md)",
+    ),
+    (
+        "docs/PIPELINE-MODEL-SKILLS.md",
+        "[DEMO 기준](../templates/submission/GUIDE.md)",
+        "[DEMO 기준](submission-guide.md)",
+    ),
 ]
 
 
