@@ -48,23 +48,25 @@ def test_health_uptime_uses_started_at(monkeypatch):
     assert 100 <= uptime < 110
 
 
-def test_tc_health_1_llm_mode_mock():  # TC-HEALTH-1: 키가 없으면 mock
+def test_tc_health_1_llm_mode_mock():
+    """TC-HEALTH-1: LLM 키가 없으면 llm_mode=mock."""
     body = client.get("/api/health").json()
     assert (body["llm"], body["llm_mode"]) == ("mock", "mock")
 
 
-def test_tc_health_2_llm_mode_real(
-    monkeypatch,
-):  # TC-HEALTH-2: 실제 공급자면 real, 키는 응답에 없음
-    from app.services import health
+def test_tc_health_2_llm_mode_real(monkeypatch):
+    """TC-HEALTH-2: 실제 공급자면 llm_mode=real, 키 값은 응답에 없다."""
+    from app.core.config import settings
 
-    monkeypatch.setattr(health, "_llm_name", lambda: "anthropic")
+    monkeypatch.setattr(settings, "llm_provider", "anthropic")
+    monkeypatch.setattr(settings, "anthropic_api_key", "sk-test-secret-109")
     res = client.get("/api/health")
-    assert res.json()["llm_mode"] == "real"
-    assert "key" not in res.text.lower()
+    assert (res.json()["llm"], res.json()["llm_mode"]) == ("anthropic", "real")
+    assert "sk-test-secret-109" not in res.text
 
 
-def test_tc_health_3_llm_misconfigured(monkeypatch):  # TC-HEALTH-3: 잘못된 LLM_PROVIDER여도 200
+def test_tc_health_3_llm_misconfigured(monkeypatch):
+    """TC-HEALTH-3: 잘못된 LLM_PROVIDER여도 200, llm·llm_mode는 null."""
     from app.core.config import settings
 
     monkeypatch.setattr(settings, "llm_provider", "nope")
@@ -73,9 +75,8 @@ def test_tc_health_3_llm_misconfigured(monkeypatch):  # TC-HEALTH-3: 잘못된 L
     assert (res.json()["llm"], res.json()["llm_mode"]) == (None, None)
 
 
-def test_tc_health_4_db_down_still_200(
-    monkeypatch,
-):  # TC-HEALTH-4: DB 연결 실패여도 200 + db=error
+def test_tc_health_4_db_down_still_200(monkeypatch):
+    """TC-HEALTH-4: DB 연결 실패여도 200 + db=error, 기존 필드 유지."""
     from app.services import health
 
     def boom():
@@ -86,4 +87,4 @@ def test_tc_health_4_db_down_still_200(
     assert res.status_code == 200
     body = res.json()
     assert body["db"] == "error"
-    assert body["uptime_seconds"] >= 0  # 기존 필드 유지
+    assert body["uptime_seconds"] >= 0

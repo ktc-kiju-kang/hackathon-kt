@@ -12,6 +12,7 @@ from conftest import read_sse
 def test_health_reports_running_source(api):
     body = api.get("/api/health").json()
     assert body["status"] == "ok" and body["db"] == "ok"
+    assert body["llm_mode"] in ("mock", "real")  # TC-HEALTH-1·2: 배포 상태에서도 LLM 모드가 보인다
     if want := os.environ.get("E2E_EXPECT_VERSION"):
         assert body["version"] == want  # 시험 결과가 어느 커밋의 것인지 보장
 
