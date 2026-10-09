@@ -31,7 +31,12 @@ class RoundTripTest(unittest.TestCase):
         self.assertEqual([(p["severity"], p["problem"], p["in_delta"]) for p in prev], [("높음", "A/B 문제", True), ("낮음", "사소", True)])
         block, *_ = ar.render(result([finding("높음", "범위 밖", in_delta=False)]), "abc123def456")
         self.assertEqual(ar.previous_findings(block)[1][0]["in_delta"], False)
-        self.assertEqual(ar.previous_findings("<!-- ai-review:start -->\n### 지적 사항\n| 높음 | x | 옛 형식 | 제안 |\n<!-- ai-review:end -->")[1][0]["in_delta"], True)
+        old = "<!-- ai-review:start -->\n- 리뷰한 커밋: `abc123def456`\n### 지적 사항\n| 높음 | x | 옛 형식 | 제안 |\n<!-- ai-review:end -->"
+        self.assertEqual(ar.previous_findings(old)[1][0]["in_delta"], True)  # '이번 변경' 열이 없던 블록은 전부 막았던 것으로
+        placeholder = "<!-- ai-review:start -->\n(AI 리뷰 대기)\n<!-- ai-review:end -->"
+        self.assertEqual(ar.previous_findings(placeholder), ("", []))  # 자리표시 블록 = 1회차
+        no_commit = "<!-- ai-review:start -->\n### 지적 사항\n| 높음 | x | 커밋 줄 없음 | 제안 |\n<!-- ai-review:end -->"
+        self.assertEqual(ar.previous_findings(no_commit), ("", []))  # 기준 커밋이 없으면 비교할 수 없다 → 1회차
         self.assertEqual(ar.previous_findings("블록 없음"), ("", []))
         block, *_ = ar.render(result(), "abc123def456")  # 지적 없음 → 빈 목록
         self.assertEqual(ar.previous_findings(block)[1], [])

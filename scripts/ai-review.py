@@ -108,7 +108,9 @@ def previous_findings(body: str) -> tuple[str, list[dict]]:
         return "", []
     blk = blocks[-1]
     m = re.search(r"리뷰한 커밋:\s*`?([0-9a-f]{7,40})`?", blk)
-    commit = m.group(1) if m else ""
+    if not m:  # '(AI 리뷰 대기)' 자리표시나 커밋 줄이 없는 블록 — 비교할 기준 커밋이 없으니 1회차로 다룬다
+        return "", []
+    commit = m.group(1)
     sec = re.search(r"### 지적 사항\n(.*?)(?:\n###|\Z)", blk, re.DOTALL)
     rows = []
     for line in (sec.group(1) if sec else "").splitlines():
