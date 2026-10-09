@@ -90,11 +90,12 @@ def sh(*cmd: str, cwd: Path = ROOT) -> str:
 
 def wait_note(merge_wait: str) -> str:
     """머지 조건 대기 중이면 그 자체를 지적하지 않게 알린다 — make ship이 머지 조건으로 따로 막는다."""
-    if not merge_wait.strip():
+    reasons = [l for l in merge_wait.splitlines() if l.strip() and not l.startswith("판정 실패")]
+    if not reasons:  # 판정 실패는 '아직 안 머지됨'이 아니다 — 리뷰어에게 알리지 않는다
         return ""
     return (
         "- 머지 조건 대기: 이 Issue의 `- 머지 조건:` Issue가 아직 머지되지 않았다 "
-        f"({merge_wait.strip().replace(chr(10), '; ')}). make ship이 그게 풀릴 때까지 머지를 막으니, "
+        f"({'; '.join(reasons)}). make ship이 그게 풀릴 때까지 머지를 막으니, "
         "그 Issue의 코드(예: 같은 REQ의 BE API)가 main에 아직 없다는 것 자체는 지적하지 말고 계약 기준으로 리뷰한다.\n"
     )
 

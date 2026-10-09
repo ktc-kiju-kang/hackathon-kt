@@ -259,7 +259,7 @@ cmd_pr_comments() {
 }
 
 cmd_release() {
-  local n=$1 state=${2:-}
+  local n=$1 state=${2:-} owner
   num_or_die "$n"
   case "$state" in needs-info|needs-human|blocked|"") ;; *) die "알 수 없는 라벨: $state" ;; esac
   # 내 선점일 때만 푼다 (claim.sh 가 남의 선점은 거부한다). 선점이 이미 없으면 라벨만 처리한다
@@ -271,7 +271,8 @@ cmd_release() {
     gh issue edit "$n" --add-label "$state" >/dev/null || die "#$n 에 $state 라벨을 붙이지 못함 (큐에 남을 수 있음)"
   fi
   gh issue edit "$n" --remove-label in-progress >/dev/null 2>&1 || true
-  [ -z "$(claim_owner "$n")" ] || die "#$n 선점이 남아 있음"
+  owner=$(claim_owner "$n") || die "선점 목록 조회 실패 — 해제됐는지 make claims로 확인"
+  [ -z "$owner" ] || die "#$n 선점이 남아 있음"
   echo "RELEASED #$n${state:+ → $state}"
 }
 

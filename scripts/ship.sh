@@ -169,8 +169,9 @@ ok "PR #$pr 머지"
 
 say "9/9 머지 후 main 확인"
 # worktree에서는 main이 다른 체크아웃에 있어 switch가 안 된다 → 머지된 origin/main을 detached로 본다
-git fetch -q origin main
-if git switch -q main 2>/dev/null; then git pull -q --ff-only; else git switch -q --detach origin/main || die "머지된 main으로 바꾸지 못함"; fi
+git fetch -q origin main || die "origin/main fetch 실패 — 머지 후 main을 확인하지 못함"
+if git switch -q main 2>/dev/null; then git pull -q --ff-only
+else git switch -q --detach origin/main || die "머지된 main으로 바꾸지 못함"; echo "  (worktree는 이제 detached — 끝났으면 git worktree remove)"; fi
 if "$ROOT/scripts/verify.sh" >"$RUN_DIR/ship-main-verify.log" 2>&1; then
   ok "main 정상 ($(git rev-parse --short HEAD))"
 else
