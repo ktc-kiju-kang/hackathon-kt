@@ -169,9 +169,9 @@ describe('TC-02 PullRow 강조', () => {
     const old = render(pull({ number: 1, opened_at: hoursAgo(25) }))
     const fresh = render(pull({ number: 2, opened_at: hoursAgo(3) }))
     expect(old).toContain(STALE)
-    expect(old).toContain('lucide-triangle-alert') // 색만으로 구별하지 않는다: 아이콘 + 문구
+    expect(old).toContain('data-stale') // 색만으로 구별하지 않는다: 경고 줄(아이콘 + 문구)
     expect(fresh).not.toContain(STALE)
-    expect(fresh).not.toContain('lucide-triangle-alert')
+    expect(fresh).not.toContain('data-stale')
   })
 
   it('TC-02-2: 정확히 24시간 된 PR은 강조하지 않고 1초 더 지나면 강조한다', () => {

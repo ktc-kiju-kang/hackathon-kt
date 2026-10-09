@@ -24,7 +24,7 @@ export function PullRow({ pull: p, now }: { pull: GithubStatus['pulls'][number];
           열린 지 {formatElapsed(age)} · 업데이트 {formatKst(p.updated_at)}
         </div>
         {isStale(age) && (
-          <div className="mt-0.5 flex items-center gap-1.5 text-[13px] font-medium text-foreground">
+          <div data-stale className="mt-0.5 flex items-center gap-1.5 text-[13px] font-medium text-foreground">
             <TriangleAlertIcon className="size-4 shrink-0 text-[var(--chart-2)]" aria-hidden />
             24시간 넘음
           </div>
