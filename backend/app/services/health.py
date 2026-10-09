@@ -47,11 +47,13 @@ def _llm_name() -> str | None:
 
 
 def get_health() -> Health:
+    llm = _llm_name()
     return Health(
         status="ok",
         time=datetime.now(UTC),
         version=settings.app_version or _git_sha(),
         db=check_db(),
-        llm=_llm_name(),
+        llm=llm,
+        llm_mode=None if llm is None else "mock" if llm == "mock" else "real",
         uptime_seconds=max(0, int(time.monotonic() - _STARTED_AT)),
     )

@@ -7,6 +7,7 @@ export type Health = {
   version?: string | null
   db?: 'ok' | 'error' | 'unconfigured'
   llm?: string | null
+  llm_mode?: 'mock' | 'real' | null
   client_ip?: string | null
   uptime_seconds?: number
 }
