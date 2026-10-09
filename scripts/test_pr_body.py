@@ -35,7 +35,7 @@ class DefuseTest(unittest.TestCase):
     def test_closing_keywords_are_escaped(self):
         text = "예: `update(\"Closes #12\")`, fixes: #3, Resolved owner/repo#4"
         self.assertEqual(
-            defuse(text), "예: `update(\"Closes \\#12\")`, fixes: \\#3, Resolved owner/repo\\#4"
+            defuse(text), "예: `update(\"Closes ＃12\")`, fixes: ＃3, Resolved owner/repo＃4"
         )
 
     def test_plain_references_untouched(self):

@@ -17,9 +17,10 @@ CLOSING = re.compile(
 
 
 def defuse(text: str) -> str:
-    """AI 리뷰 같은 생성 글의 'Closes #12'를 'Closes \\#12'로 — 화면에는 그대로 #12로 보이지만
-    GitHub이 Issue 연결로 읽지 않는다. 연결되면 칸반 'PR 연결' 자동화가 닫힌 카드를 되돌린다 (#12)."""
-    return CLOSING.sub(lambda m: f"{m[1]}{m[2]}{m[3]}\\#{m[4]}", text)
+    """AI 리뷰 같은 생성 글의 'Closes #12'를 'Closes ＃12'(전각)로 — GitHub이 Issue 연결로 읽지 않는다.
+    연결되면 칸반 'PR 연결' 자동화가 닫힌 카드를 In Review로 되돌린다 (#12).
+    2026-10-09 PR #123에서 실제 확인: 'Fixes \\#110'(백슬래시)은 연결됨, 'Fixes ＃110'은 연결 안 됨."""
+    return CLOSING.sub(lambda m: f"{m[1]}{m[2]}{m[3]}＃{m[4]}", text)
 
 
 def update(body: str, block: str, issue: str, link: str) -> str:
