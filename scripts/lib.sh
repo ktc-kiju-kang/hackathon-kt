@@ -135,7 +135,7 @@ merge_waiting() {  # merge_waiting <Issue> — 머지하면 안 되는 이유를
   case $rc in
     0) ;;
     1) echo "$out" ;;
-    *) echo "판정 실패: $(tail -1 "$err") — 다시 make ship" ;;
+    *) echo "판정 실패: $(tail -1 "$err" 2>/dev/null | grep . || echo "종료코드 $rc") — 다시 make ship" ;;
   esac
 }
 
