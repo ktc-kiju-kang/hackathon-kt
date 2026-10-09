@@ -83,7 +83,7 @@ waiting=""
 if [ -n "$issue" ] && [ "$KIND" != record ]; then
   if ! body=$(gh issue view "$issue" --json body -q .body 2>&1); then
     waiting="판정 실패: Issue #$issue 조회 실패 — 다시 make ship"
-  elif echo "$body" | grep -qE '머지[[:space:]]*조건'; then
+  elif echo "$body" | grep -qE '^[[:space:]]*[-*][[:space:]]*머지[[:space:]]*조건[[:space:]]*:'; then
     waiting=$("$ROOT/scripts/ticket-claim.sh" merge-wait "$issue" 2>&1); rc=$?
     case $rc in 0) waiting="" ;; 1) ;; *) waiting="판정 실패: $(echo "$waiting" | tail -1) — 다시 make ship" ;; esac
   fi
