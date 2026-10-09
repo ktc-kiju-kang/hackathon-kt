@@ -31,6 +31,7 @@ ID_RE = re.compile(r"(?<![A-Za-z0-9-])((?:REQ|AC|TC|SEC)-S?\d+(?:-\d+)?)(?![0-9]
 PRD_LINK = re.compile(r"\]\((prd/[^)\s#]+)\)")  # 요구사항 표 ID 칸: [REQ-01](prd/REQ-01-login.md)
 CHILD_NAME = re.compile(r"REQ-(\d+)(?:-[a-z0-9-]+)?\.md")
 SRC_RE = re.compile(r"SRC-\d+")
+FLOW_RE = re.compile(r"FLOW-\d+")
 ID_PAT = {
     "REQ": r"REQ-\d+",
     "AC": r"AC-\d+-\d+",
@@ -239,6 +240,17 @@ def main() -> int:
         for ref in sorted(found - known):
             if not ref.startswith("SEC-"):
                 warns.append(f"{rel}: {ref}가 prd.md/e2e-test.md에 정의되지 않음")
+    # FLOW: experience.md 1절 표에 정의된 흐름만 가리킨다 ({{…}} 안은 예시라서 제외)
+    flows = {
+        cells[0]
+        for header, body in tables(texts.get("docs/experience.md", ""))
+        if header[:1] == ["FLOW"]
+        for cells in body
+        if FLOW_RE.fullmatch(cells[0])
+    }
+    for rel, text in texts.items():
+        for ref in sorted(set(FLOW_RE.findall(PLACEHOLDER.sub("", text))) - flows):
+            warns.append(f"{rel}: {ref}가 experience.md 흐름 표에 정의되지 않음")
     # SEC: 주최 정책의 모든 항목이 compliance 표에 있는가
     policy = root / "docs/security-policy.md"
     if not policy.exists():

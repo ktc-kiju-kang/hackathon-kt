@@ -111,6 +111,13 @@ class CheckDocsTest(unittest.TestCase):
         _, warns = self.run_check()
         self.assertFalse(any("SRC-02" in w for w in warns), warns)
 
+    def test_undefined_flow_warns(self):
+        self.edit("docs/prd/REQ-02.md", "관련 흐름: FLOW-01", "관련 흐름: FLOW-09")
+        errors, warns = self.run_check()
+        self.assertEqual(errors, [])
+        self.assertIn("경고  docs/prd/REQ-02.md: FLOW-09가 experience.md 흐름 표에 정의되지 않음", warns)
+        self.assertFalse(any("FLOW-01" in w for w in warns), warns)
+
     def test_single_file_prd_still_works(self):
         """하위 문서 없이 prd.md 한 파일에 AC를 둔 예전 형식."""
         shutil.rmtree(self.root / "docs/prd")

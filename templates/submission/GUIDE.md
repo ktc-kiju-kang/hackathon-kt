@@ -43,6 +43,7 @@
 | ID | 뜻 | 정의하는 곳 | 참조하는 곳 |
 |---|---|---|---|
 | `SRC-01` | 주제 원문의 1번 문장 | `prd.md` "원문" | `prd.md` 출처 칸·하위 정의서·Issue 근거 |
+| `FLOW-01` | 핵심 사용자 흐름 | `experience.md` 1절 | 하위 정의서 "관련 흐름" |
 | `REQ-01` | 요구사항 | `prd.md` 요구사항 표 | 모든 문서, Issue 제목 |
 | `AC-01-1` | REQ-01의 1번 확인 조건 | `docs/prd/REQ-01-….md` | `prd.md` '확인 조건' 칸, `e2e-test.md`, Issue 완료 조건 |
 | `TC-01-1` | AC-01-1을 확인하는 1번 시험 | `e2e-test.md` | `security-compliance.md`, Issue 근거 |
