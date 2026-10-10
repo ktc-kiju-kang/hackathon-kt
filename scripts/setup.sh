@@ -15,6 +15,7 @@ npm_major=$(npm -v | cut -d. -f1)
 [ "$npm_major" = 10 ] || warn "npm 10이 아닙니다 ($(npm -v)) — package-lock.json이 팀원과 다르게 바뀔 수 있어요 (Node 20 권장, .nvmrc)"
 command -v gh >/dev/null || warn "gh CLI가 없습니다 — make ship(자동 PR·머지)에 필요: brew install gh && gh auth login"
 command -v claude >/dev/null || warn "claude CLI가 없습니다 — make ship의 AI 리뷰에 필요"
+command -v gitleaks >/dev/null || warn "gitleaks가 없습니다 — make ship의 push 전 비밀값 검사·make audit에 필요: brew install gitleaks (없으면 CI Security가 대신 검사)"
 
 say "backend 의존성"
 cd "$ROOT/backend"
