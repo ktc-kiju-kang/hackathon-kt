@@ -29,9 +29,24 @@ class UpdateTest(unittest.TestCase):
         self.assertIn("| 비밀값이 저장소에 없음 | `make audit` — gitleaks detect (push 전 `make ship`·CI Security도 검사) | PASS — gitleaks detect 발견 0건 (2026-10-14 10:00 KST, abc1234) |", text)
         self.assertIn("| 의존성 취약점 | `make audit` — frontend `npm audit --omit=dev`, backend `pip-audit` | npm audit(운영) FAIL — high 7·critical 0 (전체 7) · pip-audit PASS — 발견 0건 (2026-10-14 10:00 KST, abc1234) |", text)
         self.assertIn("| 실제 개인정보 미사용 | {{합성 데이터만 사용 — 위치}} | {{…}} |", text)  # 사람 칸은 그대로
-        self.assertIn("| 다른 표 | x | y |", text)  # 첫 '점검' 표는 4절이 아니어도… 헤더가 같으면 첫 표에 쓴다
+        self.assertIn("| 다른 표 | x | y |", text)  # 같은 머리글의 표를 전부 훑되 행 이름이 맞는 곳만 바꾼다
         self.assertEqual(ad.update(text, "PASS — gitleaks detect 발견 0건", "npm audit(운영) FAIL — high 7·critical 0 (전체 7) · pip-audit PASS — 발견 0건", "2026-10-14 10:00 KST, abc1234")[1], 0)
         self.assertEqual(ad.update("표 없음\n", "a", "b", "c"), ("표 없음\n", 0))
+        # 결과가 바뀌면 그 행만 다시 쓴다
+        text2, n2 = ad.update(text, "PASS — gitleaks detect 발견 0건", "npm audit(운영) PASS — high·critical 0 (전체 0) · pip-audit PASS — 발견 0건", "2026-10-14 12:00 KST, def5678")
+        self.assertEqual(n2, 1)
+        self.assertIn("npm audit(운영) PASS — high·critical 0 (전체 0) · pip-audit PASS — 발견 0건 (2026-10-14 12:00 KST, def5678)", text2)
+
+    def test_main_without_doc_skips(self):
+        import subprocess, sys, tempfile
+        with tempfile.TemporaryDirectory() as d:
+            r = subprocess.run([sys.executable, str(Path(__file__).parent / "audit_doc.py"), "--secrets", "a", "--deps", "b", "--doc", f"{d}/none.md"], capture_output=True, text=True)
+            self.assertEqual(r.returncode, 0)
+            self.assertIn("없음", r.stdout)
+            doc = Path(d) / "c.md"; doc.write_text(DOC, encoding="utf-8")
+            r = subprocess.run([sys.executable, str(Path(__file__).parent / "audit_doc.py"), "--secrets", "a", "--deps", "b", "--stamp", "s", "--doc", str(doc)], capture_output=True, text=True)
+            self.assertIn("2행 갱신", r.stdout)
+            self.assertIn("| 비밀값이 저장소에 없음 | `make audit`", doc.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

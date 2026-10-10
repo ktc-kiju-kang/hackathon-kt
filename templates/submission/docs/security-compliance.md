@@ -34,7 +34,7 @@ SEC 번호·이름은 `security-policy.md`와 **똑같이** 옮긴다.
 ## 4. 공통 점검
 | 점검 | 방법 | 결과 |
 |---|---|---|
-| 비밀값이 저장소에 없음 | `make audit` — gitleaks detect | {{미실행 — make audit가 채움}} |
-| 의존성 취약점 | `make audit` — npm audit(운영)·pip-audit | {{미실행 — make audit가 채움}} |
+| 비밀값이 저장소에 없음 | {{make audit가 채움}} | {{미실행 — make audit가 채움}} |
+| 의존성 취약점 | {{make audit가 채움}} | {{미실행 — make audit가 채움}} |
 | 실제 개인정보 미사용 | {{합성 데이터만 사용 — 위치}} | {{…}} |
 | AI·외부 API 입력에 민감정보 미전송 | {{…}} | {{…}} |
