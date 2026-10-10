@@ -5,7 +5,7 @@
 
 행마다: 작업(연결된 Issue 제목), AI가 한 것(PR·AI 리뷰 점수), 사람이 확인한 방법(PR 본문의 '- AI 검증: …' 줄 + ship 검사·e2e·리뷰 지적 반영·머지한 사람),
 고친 것(리뷰가 지적하고 다음 라운드에 '해결'로 판정된 것 — AI가 틀린 것을 잡은 근거), 근거(PR·머지 SHA).
-이미 적힌 PR(근거 칸의 #번호)은 건너뛰고, 양식의 {{자리표시}} 행은 첫 실제 행으로 바꾼다. 사람은 '사람이 확인한 방법' 칸에 직접 본 것을 보탠다.
+이미 적힌 PR(근거 칸의 'PR #N' 또는 '/pull/N')은 건너뛰고, 양식의 {{자리표시}} 행은 첫 실제 행으로 바꾼다. 사람은 '사람이 확인한 방법' 칸에 직접 본 것을 보탠다.
 make record가 부른다 (기록 담당 한 사람이 main에서 — 기능 PR끼리 같은 표를 고쳐 충돌하지 않게). 문서가 없는 레포(키트 원본)는 건너뛴다.
 """
 
@@ -30,7 +30,8 @@ def cell(text: str, limit: int = 120) -> str:
 
 
 def parse_review(body: str) -> dict:
-    """마지막 AI 리뷰 블록 → {score, fixed:[...], open:[...]}. 블록이 없으면 score None."""
+    """마지막 AI 리뷰 블록 → {score, fixed:[...], open:[...]}. 블록이 없으면 score None.
+    ship이 블록을 덮어쓰므로 '이전 지적 처리'는 마지막 라운드 기준이다 — 3라운드 이상에서 1라운드 지적이 2라운드에 해결된 것은 남지 않는다 (한계)."""
     blocks = re.findall(re.escape(START) + r"(.*?)" + re.escape(END), body or "", re.DOTALL)
     if not blocks:
         return {"score": None, "fixed": [], "open": []}
@@ -100,7 +101,8 @@ def recorded_prs(text: str) -> set[int]:
     out: set[int] = set()
     for r in rows_:
         if r and "{{" not in "".join(r):
-            out |= {int(n) for n in re.findall(r"#(\d+)|/pull/(\d+)", r[-1]) for n in n if n}
+            # 근거 칸의 'PR #N'·'/pull/N'만 PR 번호로 본다 — 사람이 적은 Issue 번호(#N)나 SHA는 PR이 아니다
+            out |= {int(n) for n in re.findall(r"PR #(\d+)|/pull/(\d+)", r[-1]) for n in n if n}
     return out
 
 

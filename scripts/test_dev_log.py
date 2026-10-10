@@ -101,6 +101,8 @@ class InsertTest(unittest.TestCase):
         self.assertIn("<br>낮음: 칸 수 부족 행에서 IndexError", rows[1][4])
         self.assertEqual(rows[1][5], "[PR #12](https://github.com/o/r/pull/12) · `beabcaa`")
         self.assertEqual(dl.recorded_prs(text), {11, 12, 15})
+        hand = text.replace("| 3 | feat(x)", "| 9 | 손으로 쓴 행 | x | y | z | #14 · `abc1234` |\n| 3 | feat(x)")  # 사람이 적은 Issue 번호·SHA는 PR로 보지 않는다
+        self.assertEqual(dl.recorded_prs(hand), {11, 12, 15})
         # 다시 돌리면 같은 PR은 안 붙고 새 PR만 번호를 이어 붙는다
         text2, n2 = dl.insert_rows(text, prs + [pr(14, "fix(memo): 빈 내용", "", "2026-10-14T13:00:00Z")])
         self.assertEqual(n2, 1)
