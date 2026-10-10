@@ -18,7 +18,7 @@
 | `docs/prd.md` | 요구사항 정의서 **인덱스** — 원문(SRC)·REQ 표·상태. REQ별 AC는 하위 정의서 `docs/prd/REQ-01-<설명>.md` (ID 칸이 링크). **모든 ID의 원본** | 주제 공개 직후 |
 | `docs/arch.md` | 구성도·기술 선택 이유·데이터·API·REQ별 코드 위치 | 구현 시작 전 → 구현하며 갱신 |
 | `docs/experience.md` | 화면 흐름·화면별 REQ·KDS 적용·오류/빈 상태 | 화면 만들 때 |
-| `docs/development.md` | 개발 과정·AI 활용 기록(AI가 한 것 vs 사람이 확인·고친 것)·결정 | 계속 (작업 끝날 때마다 한 줄) |
+| `docs/development.md` | 개발 과정·AI 활용 기록(AI가 한 것 vs 사람이 확인·고친 것)·결정 | 3절 표는 `make record`가 PR에서 채움 (PR 본문 `- AI 검증:` 줄) · 나머지 절은 계속 |
 | `docs/security-compliance.md` | `security-policy.md`의 SEC별 적용 여부·코드 위치·검증 결과 | 정책 확인 즉시 → 시험 후 |
 | `docs/e2e-test.md` | 재현 절차, TC별 GIVEN/WHEN/THEN·명령·실제 결과 | 시나리오는 구현 전, 결과는 시험 후 |
 | `scripts/check-docs.py` | 빠진 문서·남은 `{{자리표시}}`·끊긴 ID 사슬 검사 | 커밋 전, 제출 직전 |
@@ -60,4 +60,4 @@
 ## Claude에게 맡길 때
 - "prd.md의 REQ를 기준으로 e2e-test.md TC 시나리오 초안을 써줘. 상태는 미실행으로" 처럼 **ID를 기준으로** 시킨다.
 - 결과 칸(실제 결과·PASS/FAIL)은 **명령을 실제로 실행한 출력으로만** 채운다. 실행하지 않았으면 `미실행`.
-- AI가 틀린 것을 사람이 잡은 사례는 바로 `development.md` "AI 활용 기록"에 적는다 — 발표(AI 검증)와 평가 모두의 근거다.
+- AI가 틀린 것을 사람이 잡은 사례는 그 PR 본문 "## 변경 내용"에 `- AI 검증: …` 한 줄로 적는다 (`make record`가 `development.md` "AI 활용 기록" 행에 옮긴다) — 발표(AI 검증)와 평가 모두의 근거다. 3절 표를 손으로 고치지 않는다.

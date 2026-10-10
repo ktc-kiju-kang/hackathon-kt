@@ -30,7 +30,7 @@ DOC = """# Development
 BODY = """## 변경
 ...
 <!-- ship:start -->
-## 확인 (make ship 자동 기록)
+## 확인 (make ship 자동 기록, `abc1234`)
 - 검사 통과
 <!-- ship:end -->
 <!-- ai-review:start -->
@@ -70,32 +70,41 @@ class ParseTest(unittest.TestCase):
         self.assertEqual(dl.parse_review("<!-- ai-review:start -->\n(AI 리뷰 대기)\n<!-- ai-review:end -->")["score"], None)
 
 
+class NotesTest(unittest.TestCase):
+    def test_human_notes_ignore_auto_blocks(self):
+        body = "## 변경 내용\n- AI 검증: 타인 자료가 조회돼 소유자 조건 추가\n* AI 검증 : 두 번째\n<!-- ship:start -->\n- AI 검증: 블록 안은 무시\n<!-- ship:end -->\n" + BODY
+        self.assertEqual(dl.human_notes(body), ["타인 자료가 조회돼 소유자 조건 추가", "두 번째"])
+        self.assertEqual(dl.human_notes("없음"), [])
+
+
 class InsertTest(unittest.TestCase):
     def test_rows_replace_placeholder_and_skip_recorded_and_record_prs(self):
         prs = [
             pr(12, "feat(memo): 메모 API (REQ-01, #2)", BODY, "2026-10-14T11:00:00Z", issues=[(2, "[REQ-01][BE] 메모 등록·목록 API")]),
-            pr(11, "docs(memo): 계약", "본문만", "2026-10-14T10:00:00Z", issues=[(1, "[REQ-01][plan] 메모판 계약")]),
+            pr(11, "docs(memo): 계약", "## 변경 내용\n- 계약 초안\n- AI 검증: 422 형식이 틀려 FastAPI 기본으로 고침\n", "2026-10-14T10:00:00Z", issues=[(1, "[REQ-01][plan] 메모판 계약")]),
             pr(13, "docs(e2e): 시험 기록 abc (전체 PASS)", "", "2026-10-14T12:00:00Z"),  # make record — 적지 않는다
+            pr(15, "feat(x): 검사에서 멈춘 뒤 사람이 머지", "<!-- ship:start -->\n(make ship 검사 중)\n<!-- ship:end -->", "2026-10-14T12:30:00Z"),  # 자리표시만 → 검사 통과 아님
         ]
         text, n = dl.insert_rows(DOC, prs)
-        self.assertEqual(n, 2)
+        self.assertEqual(n, 3)
         self.assertNotIn("{{REQ-01 API 구현}}", text)  # 양식 행은 지워진다
         self.assertIn("{{10/14 HH:MM}}", text)  # 다른 절의 양식 행은 그대로
         _, _, rows, _ = dl.find_table(text)
-        self.assertEqual([r[0] for r in rows], ["1", "2"])
+        self.assertEqual([r[0] for r in rows], ["1", "2", "3"])
+        self.assertEqual(rows[2][3], "ship 검사 기록 없음, AI 리뷰 없음, 머지 kim")  # 자리표시 블록만 있는 PR
         self.assertEqual(rows[0][1], "[REQ-01][plan] 메모판 계약 (#1)")  # 머지 순서 (11 → 12)
         self.assertEqual(rows[0][2], "PR #11: docs(memo): 계약 — AI 리뷰 없음")
-        self.assertEqual(rows[0][3], "ship 검사 기록 없음, AI 리뷰 없음, 머지 kim")  # ship 블록이 없는 PR에 검사 통과를 적지 않는다
+        self.assertEqual(rows[0][3], "422 형식이 틀려 FastAPI 기본으로 고침 (ship 검사 기록 없음, AI 리뷰 없음, 머지 kim)")  # PR 본문의 'AI 검증:' 줄이 앞에, ship 블록이 없는 PR에 검사 통과를 적지 않는다
         self.assertEqual(rows[0][4], "없음")
         self.assertEqual(rows[1][3], "make ship 검사·e2e 통과, AI 리뷰 51/60 — 지적 2건 반영, 머지 kim")
         self.assertIn("중간: `--remove-label` 두 개를", rows[1][4])
         self.assertIn("<br>낮음: 칸 수 부족 행에서 IndexError", rows[1][4])
         self.assertEqual(rows[1][5], "[PR #12](https://github.com/o/r/pull/12) · `beabcaa`")
-        self.assertEqual(dl.recorded_prs(text), {11, 12})
+        self.assertEqual(dl.recorded_prs(text), {11, 12, 15})
         # 다시 돌리면 같은 PR은 안 붙고 새 PR만 번호를 이어 붙는다
         text2, n2 = dl.insert_rows(text, prs + [pr(14, "fix(memo): 빈 내용", "", "2026-10-14T13:00:00Z")])
         self.assertEqual(n2, 1)
-        self.assertEqual(dl.find_table(text2)[2][-1][:3], ["3", "fix(memo): 빈 내용", "PR #14 구현·리뷰 — AI 리뷰 없음"])  # Issue 없음 → 제목 되풀이 안 함
+        self.assertEqual(dl.find_table(text2)[2][-1][:3], ["4", "fix(memo): 빈 내용", "PR #14 구현·리뷰 — AI 리뷰 없음"])  # Issue 없음 → 제목 되풀이 안 함
         self.assertEqual(dl.insert_rows(text2, prs)[1], 0)
 
     def test_missing_section_is_an_error(self):

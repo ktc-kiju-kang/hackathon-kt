@@ -3,7 +3,7 @@
 
     python3 scripts/dev_log.py [--doc docs/development.md] [--dry-run]
 
-행마다: 작업(연결된 Issue 제목), AI가 한 것(PR·AI 리뷰 점수), 사람이 확인한 방법(ship 검사·e2e·리뷰 지적 반영·머지한 사람),
+행마다: 작업(연결된 Issue 제목), AI가 한 것(PR·AI 리뷰 점수), 사람이 확인한 방법(PR 본문의 '- AI 검증: …' 줄 + ship 검사·e2e·리뷰 지적 반영·머지한 사람),
 고친 것(리뷰가 지적하고 다음 라운드에 '해결'로 판정된 것 — AI가 틀린 것을 잡은 근거), 근거(PR·머지 SHA).
 이미 적힌 PR(근거 칸의 #번호)은 건너뛰고, 양식의 {{자리표시}} 행은 첫 실제 행으로 바꾼다. 사람은 '사람이 확인한 방법' 칸에 직접 본 것을 보탠다.
 make record가 부른다 (기록 담당 한 사람이 main에서 — 기능 PR끼리 같은 표를 고쳐 충돌하지 않게). 문서가 없는 레포(키트 원본)는 건너뛴다.
@@ -67,6 +67,13 @@ def issue_title(n: int) -> str:  # gh pr list의 closingIssuesReferences에는 �
     return _titles[n]
 
 
+def human_notes(body: str) -> list[str]:
+    """PR 본문(자동 블록 밖)의 '- AI 검증: …' 줄 — 사람이 AI 결과를 어떻게 확인·고쳤는지."""
+    text = re.sub(re.escape(START) + r".*?" + re.escape(END), "", body or "", flags=re.DOTALL)
+    text = re.sub(r"<!-- ship:start -->.*?<!-- ship:end -->", "", text, flags=re.DOTALL)
+    return [m.group(1).strip() for m in re.finditer(r"(?m)^\s*[-*]?\s*AI 검증\s*:\s*(.+)$", text) if m.group(1).strip()]
+
+
 def make_row(pr: dict, index: int) -> list[str]:
     rv = parse_review(pr.get("body") or "")
     issues = pr.get("closingIssuesReferences") or []
@@ -74,9 +81,13 @@ def make_row(pr: dict, index: int) -> list[str]:
     issue_ref = f" (#{issues[0]['number']})" if issues else ""
     score = f"AI 리뷰 {rv['score']}/60" if rv["score"] is not None else "AI 리뷰 없음"
     merged_by = (pr.get("mergedBy") or {}).get("login") or "?"
-    # ship이 만든 PR(확인 절이 있음)만 '검사·e2e 통과'라고 쓴다 — 손으로 만든 PR에 없는 검사를 적지 않는다
-    shipped = "make ship 검사·e2e 통과" if "<!-- ship:start -->" in (pr.get("body") or "") else "ship 검사 기록 없음"
+    # ship이 검사를 끝내고 5단계에서 채운 확인 절("## 확인 (make ship 자동 기록")이 있을 때만 '검사·e2e 통과'라고 쓴다.
+    # 1단계의 자리표시 블록("(make ship 검사 중)")만 있는 PR(검사에서 멈춘 뒤 사람이 머지)이나 손으로 만든 PR에는 없는 검사를 적지 않는다
+    shipped = "make ship 검사·e2e 통과" if "## 확인 (make ship 자동 기록" in (pr.get("body") or "") else "ship 검사 기록 없음"
     checked = f"{shipped}, {score}" + (f" — 지적 {len(rv['fixed'])}건 반영" if rv["fixed"] else "") + f", 머지 {merged_by}"
+    notes = human_notes(pr.get("body") or "")
+    if notes:
+        checked = "; ".join(notes) + f" ({checked})"  # 사람이 적은 확인이 앞에
     fixed = "<br>".join(cell(f, 80) for f in rv["fixed"]) if rv["fixed"] else "없음"
     sha = (pr.get("mergeCommit") or {}).get("oid", "")[:7]
     evidence = f"[PR #{pr['number']}]({pr['url']})" + (f" · `{sha}`" if sha else "")
