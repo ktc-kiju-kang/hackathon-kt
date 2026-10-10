@@ -108,11 +108,14 @@ class FillTest(unittest.TestCase):
 class CheckDocsTest(unittest.TestCase):
     def test_check_docs_flags_stale_readme_numbers(self):
         """README 숫자가 문서와 다르면 check-docs가 잡는다 (--draft 경고, strict 오류)."""
-        tpl = HERE.parent / "templates" / "submission"
+        # 양식(templates/submission)은 내보낸 키트에 없다 — 문서 8개를 상수로 임시 루트에 쓴다
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
-            subprocess.run(["rsync", "-a", "--exclude", "GUIDE.md", f"{tpl}/", f"{root}/"], check=True)
+            (root / "docs").mkdir()
+            for rel in ("docs/project-brief.md", "docs/arch.md", "docs/experience.md", "docs/development.md"):
+                (root / rel).write_text("# 문서\n", encoding="utf-8")
             (root / "docs/prd.md").write_text(PRD, encoding="utf-8")
+            (root / "docs/prd").mkdir()
             for rel in ("docs/prd/REQ-01-a.md", "docs/prd/REQ-02-b.md", "docs/prd/REQ-11-c.md"):
                 (root / rel).write_text("# x\n", encoding="utf-8")
             (root / "docs/e2e-test.md").write_text(E2E, encoding="utf-8")

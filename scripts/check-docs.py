@@ -14,11 +14,14 @@ import re
 import sys
 from pathlib import Path
 
-try:  # README '결과 한눈에' 숫자를 세는 식은 scripts/readme_summary.py 하나에만 둔다 (채우기와 검사가 같은 식)
-    _spec = importlib.util.spec_from_file_location("readme_summary", Path(__file__).with_name("readme_summary.py"))
+# README '결과 한눈에' 숫자를 세는 식은 scripts/readme_summary.py 하나에만 둔다 (채우기와 검사가 같은 식).
+# 파일이 없을 때(키트 밖 단독 실행)만 검사를 끄고, 그 파일의 문법·import 오류는 그대로 드러낸다
+_summary_path = Path(__file__).with_name("readme_summary.py")
+if _summary_path.exists():
+    _spec = importlib.util.spec_from_file_location("readme_summary", _summary_path)
     _summary = importlib.util.module_from_spec(_spec)
     _spec.loader.exec_module(_summary)
-except Exception:  # noqa: BLE001 — 키트 밖에서 단독 실행될 때
+else:
     _summary = None
 
 DOCS = [
