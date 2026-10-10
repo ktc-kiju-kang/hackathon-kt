@@ -43,6 +43,7 @@ if [ "$strict" = 1 ] || scripts_tests_needed; then  # 제출 직전(--strict)은
   [ -f "$ROOT/scripts/test_prd_docs.py" ] && step prd-docs-test "$ROOT" python3 scripts/test_prd_docs.py
   [ -f "$ROOT/scripts/test_migration_draft.py" ] && step migration-draft-test "$ROOT" python3 scripts/test_migration_draft.py
   [ -f "$ROOT/scripts/test_pr_body.py" ] && step pr-body-test "$ROOT" python3 scripts/test_pr_body.py
+  [ -f "$ROOT/scripts/test_ai_review.py" ] && step ai-review-test "$ROOT" python3 scripts/test_ai_review.py
 else
   printf '  %-22s \033[33mSKIP\033[0m (scripts/ 변경 없음 — 팀 레포 CI docs 잡·키트 레포가 검사)\n' scripts-tests
 fi
