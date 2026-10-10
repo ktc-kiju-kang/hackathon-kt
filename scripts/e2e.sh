@@ -9,8 +9,11 @@ set -uo pipefail
 need_setup
 VERSION=$(source_version)
 OUT="$RUN_DIR/e2e"; rm -rf "$OUT"; mkdir -p "$OUT"
-E2E_API_PORT=${E2E_API_PORT:-$(free_port 18000)}
-E2E_WEB_PORT=${E2E_WEB_PORT:-$(free_port 13000)}
+# 같은 PC에서 체크아웃(worktree) 둘이 동시에 돌리면 free_port가 같은 번호를 고른다(빌드하는 몇 분 동안 둘 다 비어 있음) → 한쪽 스모크가
+# 남의 서버를 보고 "version 다름"으로 실패한다. 체크아웃 경로로 기본 포트를 흩뜨려 처음부터 다른 번호를 잡는다 (E2E_*_PORT로 직접 줄 수도 있다)
+port_seed=$(( $(printf '%s' "$ROOT" | cksum | cut -d' ' -f1) % 40 * 10 ))
+E2E_API_PORT=${E2E_API_PORT:-$(free_port $((18000 + port_seed)))}
+E2E_WEB_PORT=${E2E_WEB_PORT:-$(free_port $((13000 + port_seed)))}
 E2E_SCHEMA="e2e_${E2E_API_PORT}"  # worktree 두 개가 동시에 돌려도 같은 db에서 서로의 schema를 지우지 않게
 export E2E_API_PORT E2E_WEB_PORT
 
