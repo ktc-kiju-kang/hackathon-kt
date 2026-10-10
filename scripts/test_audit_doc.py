@@ -32,10 +32,11 @@ class UpdateTest(unittest.TestCase):
         self.assertIn("| 다른 표 | x | y |", text)  # 같은 머리글의 표를 전부 훑되 행 이름이 맞는 곳만 바꾼다
         self.assertEqual(ad.update(text, "PASS — gitleaks detect 발견 0건", "npm audit(운영) FAIL — high 7·critical 0 (전체 7) · pip-audit PASS — 발견 0건", "2026-10-14 10:00 KST, abc1234")[1], 0)
         self.assertEqual(ad.update("표 없음\n", "a", "b", "c"), ("표 없음\n", 0))
-        # 결과가 바뀌면 그 행만 다시 쓴다
-        text2, n2 = ad.update(text, "PASS — gitleaks detect 발견 0건", "npm audit(운영) PASS — high·critical 0 (전체 0) · pip-audit PASS — 발견 0건", "2026-10-14 12:00 KST, def5678")
+        # 결과가 바뀌면 그 행만 다시 쓴다 (시각·SHA가 같을 때 — 다르면 두 행 다 바뀐다)
+        text2, n2 = ad.update(text, "PASS — gitleaks detect 발견 0건", "npm audit(운영) PASS — high·critical 0 (전체 0) · pip-audit PASS — 발견 0건", "2026-10-14 10:00 KST, abc1234")
         self.assertEqual(n2, 1)
-        self.assertIn("npm audit(운영) PASS — high·critical 0 (전체 0) · pip-audit PASS — 발견 0건 (2026-10-14 12:00 KST, def5678)", text2)
+        self.assertIn("npm audit(운영) PASS — high·critical 0 (전체 0) · pip-audit PASS — 발견 0건 (2026-10-14 10:00 KST, abc1234)", text2)
+        self.assertEqual(ad.update(text2, "PASS — gitleaks detect 발견 0건", "npm audit(운영) PASS — high·critical 0 (전체 0) · pip-audit PASS — 발견 0건", "2026-10-14 12:00 KST, def5678")[1], 2)
 
     def test_main_without_doc_skips(self):
         import subprocess, sys, tempfile
