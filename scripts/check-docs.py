@@ -9,9 +9,20 @@ prd.md는 인덱스(원문 SRC·요구사항 표·상태)이고, REQ별 확인 �
 종료 코드: 오류가 있으면 1
 """
 
+import importlib.util
 import re
 import sys
 from pathlib import Path
+
+# README '결과 한눈에' 숫자를 세는 식은 scripts/readme_summary.py 하나에만 둔다 (채우기와 검사가 같은 식).
+# 파일이 없을 때(키트 밖 단독 실행)만 검사를 끄고, 그 파일의 문법·import 오류는 그대로 드러낸다
+_summary_path = Path(__file__).with_name("readme_summary.py")
+if _summary_path.exists():
+    _spec = importlib.util.spec_from_file_location("readme_summary", _summary_path)
+    _summary = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(_summary)
+else:
+    _summary = None
 
 DOCS = [
     "README.md",
@@ -262,6 +273,17 @@ def main() -> int:
     for rel, text in texts.items():
         for ref in sorted(set(FLOW_RE.findall(PLACEHOLDER.sub("", text))) - flows):
             warns.append(f"{rel}: {ref}가 experience.md 흐름 표에 정의되지 않음")
+    # README '결과 한눈에': 손으로 적은 숫자가 문서 표와 어긋나지 않는가 (make record가 python3 scripts/readme_summary.py로 채운다)
+    readme = texts.get("README.md", "")
+    if readme and _summary is not None:
+        want = _summary.values(root, None)
+        for _, header, rows in _summary.tables(readme):
+            if header != _summary.README_HEADER:
+                continue
+            for _, cells in rows:
+                if len(cells) >= 2 and cells[0] in want and "{{" not in cells[1] and cells[1] != want[cells[0]]:
+                    soft.append(f"README.md: 결과 한눈에 '{cells[0]}' 칸이 문서와 다름 ({cells[1]} → {want[cells[0]]}) — make record 또는 python3 scripts/readme_summary.py")
+            break
     # SEC: 주최 정책의 모든 항목이 compliance 표에 있는가
     policy = root / "docs/security-policy.md"
     if not policy.exists():

@@ -47,6 +47,9 @@ if [ "$strict" = 1 ] || scripts_tests_needed; then  # 제출 직전(--strict)은
   [ -f "$ROOT/scripts/test_e2e_report.py" ] && step e2e-report-test "$ROOT" python3 scripts/test_e2e_report.py
   [ -f "$ROOT/scripts/test_dev_log.py" ] && step dev-log-test "$ROOT" python3 scripts/test_dev_log.py
   [ -f "$ROOT/scripts/test_audit_doc.py" ] && step audit-doc-test "$ROOT" python3 scripts/test_audit_doc.py
+  [ -f "$ROOT/scripts/test_readme_summary.py" ] && step readme-summary-test "$ROOT" python3 scripts/test_readme_summary.py
+  # 제출 양식에 든 검사기 복사본은 원본과 같아야 한다 — export가 양식을 키트에 덮어 복사하므로 다르면 키트의 check-docs가 옛 판이 된다
+  [ -f "$ROOT/templates/submission/scripts/check-docs.py" ] && step submission-check-docs-sync "$ROOT" cmp scripts/check-docs.py templates/submission/scripts/check-docs.py
 else
   printf '  %-22s \033[33mSKIP\033[0m (scripts/ 변경 없음 — 팀 레포 CI docs 잡·키트 레포가 검사)\n' scripts-tests
 fi
