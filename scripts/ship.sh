@@ -193,7 +193,8 @@ gh pr merge "$pr" --squash --delete-branch --match-head-commit "$head" >/dev/nul
 lock_release
 ok "PR #$pr 머지"
 [ -n "$issue" ] && { "$ROOT/scripts/claim.sh" done "$issue" >/dev/null 2>&1 || warn "Issue #$issue 선점 해제 실패 — scripts/claim.sh done $issue"; }
-[ -n "$issue" ] && gh issue edit "$issue" --remove-label in-progress --remove-label impl-done >/dev/null 2>&1  # 루프 라벨은 머지로 끝 (없으면 무시)
+# 루프 라벨은 머지로 끝. 라벨마다 따로 — gh는 한 명령의 라벨 이름을 전부 ID로 바꾸므로 레포에 없는 라벨 하나가 명령 전체를 실패시킨다
+for l in in-progress impl-done; do [ -n "$issue" ] && gh issue edit "$issue" --remove-label "$l" >/dev/null 2>&1; done
 
 say "9/9 머지 후 main 확인"
 shipped_tree=$(git rev-parse "$head^{tree}")  # 검사·CI를 통과한 트리 — squash 머지는 이 트리를 그대로 main에 올린다

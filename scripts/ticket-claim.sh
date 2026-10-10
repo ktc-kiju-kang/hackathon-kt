@@ -251,7 +251,8 @@ cmd_cleanup() {
   done
   # 닫힌 Issue에 남은 루프 라벨 — 사람이 머지한 PR(SHIP_NO_MERGE=1)은 ship이 떼지 못한다
   for n in $(gh issue list --state closed --label in-progress --limit 50 --json number --jq '.[].number' 2>/dev/null); do
-    gh issue edit "$n" --remove-label in-progress --remove-label impl-done >/dev/null 2>&1 && echo "UNLABELED #$n"
+    gh issue edit "$n" --remove-label in-progress >/dev/null 2>&1 && echo "UNLABELED #$n"
+    gh issue edit "$n" --remove-label impl-done >/dev/null 2>&1 || true  # 따로 — 레포에 impl-done 라벨이 없으면 한 명령에 묶인 in-progress까지 실패한다
   done
 }
 
