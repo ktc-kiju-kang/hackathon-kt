@@ -126,6 +126,7 @@ class TicketScriptTest(unittest.TestCase):
                 comment(6, "lee", "COLLABORATOR", "2026-10-02T00:00:00Z"),
                 comment(7, "lee", "CONTRIBUTOR", "2026-10-02T00:00:00Z"),
                 comment(8, "kim", "OWNER", "2026-09-30T00:00:00Z", "옛 댓글"),
+                comment(9, "kim", "OWNER", "2026-10-02T00:00:00Z", "<!-- ticket-agent session=loop-fe -->\n작업 시작"),  # claim의 세션 표식도 에이전트 댓글
             ],
         )
         r = self.sh("ticket-claim.sh", "comments", "5", "2026-10-01T00:00:00Z")
@@ -140,10 +141,12 @@ class TicketScriptTest(unittest.TestCase):
                 comment(1, "kim", "OWNER", "2026-10-01T00:00:00Z", "선점 전 명세"),
                 comment(2, "me", "OWNER", "2026-10-02T00:00:00Z", "<!-- ticket-agent -->\n질문"),
                 comment(3, "kim", "OWNER", "2026-10-03T00:00:00Z", "답변"),
+                comment(4, "me", "OWNER", "2026-10-04T00:00:00Z", "<!-- ticket-agent session=loop-fe -->\n구현 완료 — PR #9"),
+                comment(5, "kim", "OWNER", "2026-10-05T00:00:00Z", "PR 봤어요, 한 가지 더"),
             ],
         )
         r = self.sh("ticket-claim.sh", "comments", "5")
-        self.assertEqual([json.loads(l)["id"] for l in r.stdout.splitlines()], [3])
+        self.assertEqual([json.loads(l)["id"] for l in r.stdout.splitlines()], [5])  # 세션 표식 댓글(4)도 '내 마지막 댓글'이고 새 댓글이 아니다 (리허설 2회차에서 자기 댓글이 새 댓글로 잡혔던 것)
 
     def test_comments_without_agent_comment_read_everything_trusted(self):
         self.put("issue_comments", [comment(1, "kim", "OWNER", "2026-10-01T00:00:00Z"), comment(2, "x", "NONE", "2026-10-01T00:00:00Z")])
@@ -384,7 +387,7 @@ class TicketScriptTest(unittest.TestCase):
 
     def schema_gate(self, loop=True, no_merge=False):
         env = {**self.env, "TICKET_LOOP_MERGE": "1" if loop else "", "SHIP_NO_MERGE": "1" if no_merge else ""}
-        return run(["bash", "-c", ". scripts/lib.sh; schema_gate 99; echo MERGE"], env=env, cwd=self.repo)
+        return run(["bash", "-c", "set -uo pipefail; . scripts/lib.sh; schema_gate 99; echo MERGE"], env=env, cwd=self.repo)  # ship.sh와 같은 셸 옵션
 
     def test_schema_gate_stops_loop_merge_on_table_contracts(self):
         """G3: 루프 자동 머지에서 '## 테이블' 절이 있는 계약을 바꾸면 사람이 머지한다 (컬럼 한 줄만 바뀌어도)."""
@@ -418,6 +421,12 @@ class TicketScriptTest(unittest.TestCase):
         self.git("reset", "-q", "--hard", "origin/main")
         self.write_commit({"docs/contracts/memo.md": None}, "delete")
         self.assertEqual(self.schema_gate().returncode, 1)  # 테이블 초안이 든 계약을 지워도 사람이 본다
+
+        self.git("reset", "-q", "--hard", "origin/main")
+        self.write_commit({"docs/contracts/note.md": table.replace("memos", "notes")}, "new-contract")
+        r = self.schema_gate()  # 플랜 티켓의 일반 경우: 새 계약 파일 — origin/main에 없어도 잡는다 (리허설에서 pipefail로 놓쳤던 것)
+        self.assertEqual(r.returncode, 1, r.stderr)
+        self.assertIn("docs/contracts/note.md", r.stderr)
 
         self.git("reset", "-q", "--hard", "origin/main")
         self.write_commit({"docs/contracts/todo.md": "# todo\n\n## 테이블 (SQL 초안)\n    CREATE TABLE todos (id int);\n"}, "add-table")
