@@ -107,6 +107,17 @@ ship_block="$RUN_DIR/ship-block.md"
 # 판정은 선행과 같은 기준(완료로 닫힘만 통과): scripts/ticket-claim.sh merge-wait (lib.sh merge_waiting·merge_gate)
 waiting=""
 [ -n "$issue" ] && [ "$KIND" != record ] && waiting=$(merge_waiting "$issue")
+# 새 마이그레이션은 계약의 테이블 SQL 초안과 대조한 결과를 적는다 (루프 자동 머지에서는 다르면 migration_gate가 멈춘다)
+mig_line=""
+mig_files=$(git diff --name-only origin/main...HEAD -- database/migrations 2>/dev/null | xargs -n1 basename 2>/dev/null | paste -sd' ' -)
+if [ -n "$mig_files" ] && [ "$KIND" != record ]; then
+  mig_out=$("$PY" scripts/migration_draft.py 2>&1); mig_rc=$?
+  case $mig_rc in
+    0) mig_line="- 마이그레이션 $mig_files: 계약의 테이블 SQL 초안과 동일 (scripts/migration_draft.py)" ;;
+    1) mig_line="- ⚠️ 마이그레이션 $mig_files: 계약 초안과 다름 — $(echo "$mig_out" | head -1) (사람이 스키마 확인)" ;;
+    *) mig_line="- ⚠️ 마이그레이션 $mig_files: 초안 대조 실패 — $(echo "$mig_out" | tail -1)" ;;
+  esac
+fi
 {
   echo "<!-- ship:start -->"
   echo "## 확인 (make ship 자동 기록, \`${head:0:12}\`)"
@@ -114,6 +125,7 @@ waiting=""
   echo "- 충돌 검사: $conflict_line"
   echo "$tc_lines"
   [ -z "$waiting" ] || echo "$waiting" | sed 's/^/- ⚠️ 머지 조건 /'
+  [ -z "$mig_line" ] || echo "$mig_line"
   echo "<!-- ship:end -->"
 } >"$ship_block"
 # 사람이 쓴 본문은 그대로 두고 <!-- ship:start/end --> 구역만 바꾼다
@@ -181,6 +193,7 @@ gh pr merge "$pr" --squash --delete-branch --match-head-commit "$head" >/dev/nul
 lock_release
 ok "PR #$pr 머지"
 [ -n "$issue" ] && { "$ROOT/scripts/claim.sh" done "$issue" >/dev/null 2>&1 || warn "Issue #$issue 선점 해제 실패 — scripts/claim.sh done $issue"; }
+[ -n "$issue" ] && gh issue edit "$issue" --remove-label in-progress --remove-label impl-done >/dev/null 2>&1  # 루프 라벨은 머지로 끝 (없으면 무시)
 
 say "9/9 머지 후 main 확인"
 shipped_tree=$(git rev-parse "$head^{tree}")  # 검사·CI를 통과한 트리 — squash 머지는 이 트리를 그대로 main에 올린다

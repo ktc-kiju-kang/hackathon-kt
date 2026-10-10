@@ -4,6 +4,7 @@
 #     TICKET_ROLE=architect|backend|frontend 이면 그 role:<역할> 라벨 Issue만 (역할 분담 방식, docs/requirements-flow.md)
 #     본문 '- 선행: #N …' 줄(글머리 -·*, 공백 무관)의 Issue가 아직 열려 있으면 후보가 아니다 (list·claim 공통)
 #   scripts/ticket-claim.sh claim <번호> [--dry-run]   선점. 종료코드 0=내가 선점, 1=대상 아님·남이 선점, 2=오류
+#   scripts/ticket-claim.sh why                        후보가 없는 이유 — 열린 Issue(역할)마다 SKIP/DRY-RUN 한 줄 (ticket-tick.sh WAIT가 쓴다)
 #   scripts/ticket-claim.sh mine                      내가 선점한 열린 Issue 번호 (TICKET_ROLE 이면 그 역할 Issue만)
 #   scripts/ticket-claim.sh cleanup                   내 선점 중 이슈가 닫힌 것의 선점 ref 를 정리 (머지 후 남은 claim/<번호>)
 #   scripts/ticket-claim.sh comments <번호> [ISO시각]   신뢰 작성자의 Issue 댓글만 JSON 한 줄씩 (시각 생략 시 내 마지막 에이전트 댓글 이후)
@@ -92,6 +93,15 @@ dep_state() {
   fi
 }
 
+ineligible_why() { # stdin: 이슈 하나, $1: 열린 Issue 번호 JSON 배열 → 대상이 아닌 이유 한 줄 (eligible_json과 같은 조건 순서)
+  jq -r --argjson blocking "$BLOCKING" --argjson trusted "$TRUSTED" --argjson open "${1:-[]}" --arg role "${TICKET_ROLE:-}" '
+    if (.assignees|length) > 0 then "담당자 있음 (" + (.assignees|join(",")) + ")"
+    elif ((.labels|map(select(. as $l | $blocking|index($l)))|length) > 0) then "라벨 " + (.labels|map(select(. as $l | $blocking|index($l)))|join(","))
+    elif (.assoc as $a | $trusted|index($a)|not) then "작성자 " + .author + " 를 신뢰할 수 없음"
+    elif ($role != "" and (.labels|index("role:" + $role)|not)) then "다른 역할 (role:" + $role + " 아님)"
+    else "선행 " + ([.body | '"$DEPS_JQ"'] | map(select(. as $d | $open|index($d))) | map("#" + tostring) | join(",")) + " 열림 — 대기" end'
+}
+
 eligible_json() { # stdin: 이슈 목록, $1: 열린 Issue 번호 JSON 배열 → 후보(오래된 순)
   jq --argjson blocking "$BLOCKING" --argjson trusted "$TRUSTED" --argjson open "${1:-[]}" --arg role "${TICKET_ROLE:-}" '
     map(select((.assignees|length)==0
@@ -113,6 +123,15 @@ cmd_list() {
   done
 }
 
+cmd_why() {  # 후보가 없을 때 이유 — 열린 Issue(역할 라벨)마다 claim --dry-run의 결과 한 줄 (쓰기 없음)
+  local issues n
+  issues=$(open_issues) || die "이슈 목록을 읽지 못함"
+  for n in $(echo "$issues" | jq -r --arg role "${TICKET_ROLE:-}" '.[] | select($role == "" or (.labels|index("role:" + $role))) | .number'); do
+    out=$(cmd_claim "$n" --dry-run 2>&1 | tail -1)  # 파이프 안이라 die(선행 조회 실패)도 이 Issue 한 줄로 끝난다
+    case "$out" in SKIP*|DRY-RUN*|LOST*) echo "$out" ;; *) echo "#$n: ${out:-확인 실패}" ;; esac
+  done
+}
+
 cmd_claim() {
   local n=$1 dry=${2:-} issues issue out rc owner
   num_or_die "$n"
@@ -120,7 +139,7 @@ cmd_claim() {
   issue=$(echo "$issues" | jq --argjson n "$n" '.[] | select(.number==$n)')
   [ -n "$issue" ] || { echo "SKIP #$n: 열린 이슈가 아님"; return 1; }
   echo "$issue" | jq -s '.' | eligible_json "$(echo "$issues" | jq -c 'map(.number)')" | jq -e 'length==1' >/dev/null ||
-    { echo "SKIP #$n: 담당자·차단 라벨·신뢰할 수 없는 작성자·다른 역할(TICKET_ROLE)·열린 선행 Issue 중 하나로 대상이 아님"; return 1; }
+    { echo "SKIP #$n: $(echo "$issue" | ineligible_why "$(echo "$issues" | jq -c 'map(.number)')")"; return 1; }
   # 닫힌 선행은 '완료'로 닫혔어야 한다 — not planned·중복이면 계약 없이 시작하게 되므로 사람에게 넘긴다
   local d reason
   if echo "$issue" | jq -e ".body | $(bare_jq 선행)" >/dev/null; then
@@ -230,6 +249,10 @@ cmd_cleanup() {
       "$CLAIM" done "$n" >/dev/null 2>&1 && echo "CLEANED #$n" || echo "FAILED #$n (선점 ref 정리 실패)" >&2
     fi
   done
+  # 닫힌 Issue에 남은 루프 라벨 — 사람이 머지한 PR(SHIP_NO_MERGE=1)은 ship이 떼지 못한다
+  for n in $(gh issue list --state closed --label in-progress --limit 50 --json number --jq '.[].number' 2>/dev/null); do
+    gh issue edit "$n" --remove-label in-progress --remove-label impl-done >/dev/null 2>&1 && echo "UNLABELED #$n"
+  done
 }
 
 cmd_comments() {
@@ -293,6 +316,7 @@ cmd_release() {
 case "${1:-}" in merge-wait|"") ;; *) need_gh ;; esac
 case "${1:-}" in
   list)        cmd_list ;;
+  why)         cmd_why ;;
   claim)       [ -n "${2:-}" ] || die "사용법: claim <번호> [--dry-run]"; cmd_claim "$2" "${3:-}" ;;
   mine)        cmd_mine ;;
   cleanup)     cmd_cleanup ;;

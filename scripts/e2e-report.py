@@ -57,10 +57,36 @@ def read_junit(path: Path) -> list[dict]:
     return cases
 
 
-def aggregate(cases: list[dict]) -> dict[str, dict]:
+def doc_test_files(text: str) -> dict[str, list[str]]:
+    """e2e-test.md 시험 목록의 TC → '방식' 칸이 가리키는 시험 파일들 (없으면 빈 목록)."""
+    out: dict[str, list[str]] = {}
+    for header, rows in tables(text):
+        if is_tc_list(header) and "방식" in header:
+            for cells in rows:
+                out[norm(cells[0])] = re.findall(r"[\w./-]+\.(?:py|tsx?)", cells[header.index("방식")])
+    return out
+
+
+def file_matches(cls: str, hints: list[str]) -> bool:
+    """junit classname(pytest `tests.test_memo`·`e2e.test_memo`, vitest `src/features/memo/memo.test.ts`)이 문서의 시험 파일인가."""
+    c = re.sub(r"\.(py|tsx?)$", "", cls.replace("\\", "/")).replace("/", ".")
+    for h in hints:
+        h = re.sub(r"\.(py|tsx?)$", "", re.sub(r"^(backend|frontend)/", "", h)).replace("/", ".")
+        if re.search(rf"(^|\.){re.escape(h)}(\.|$)", c):
+            return True
+    return False
+
+
+def aggregate(cases: list[dict], files: dict[str, list[str]] | None = None) -> dict[str, dict]:
+    """TC별 결과. 문서가 그 TC의 시험 파일을 적었으면 그 파일의 테스트만 센다 — 키트 샘플 테스트(같은 TC ID)가
+    팀 TC를 PASS로 만들지 않게 (리허설: BE 없는 FE PR에 API TC가 PASS로 찍혔다). 걸러진 것은 c["ignored"]=TC."""
     by_tc: dict[str, list[dict]] = {}
     for c in cases:
         if tid := tc_id(c["name"]) or tc_id(c["cls"]):
+            hints = (files or {}).get(tid) or []
+            if hints and not file_matches(c["cls"], hints):
+                c["ignored"] = tid
+                continue
             by_tc.setdefault(tid, []).append(c)
     out = {}
     for tid, cs in by_tc.items():
@@ -238,7 +264,8 @@ def main() -> int:
             ran[label] = f"{len(got)}개 중 실패 {sum(c['status'] == 'FAIL' for c in got)}"
         else:
             ran[label] = "결과 없음 (실행 실패)"
-    results = aggregate(cases)
+    doc_text = DOC.read_text(encoding="utf-8") if DOC.exists() else ""
+    results = aggregate(cases, doc_test_files(doc_text))
 
     # 전체 판정: 종료코드 실패·결과 없는 묶음·실패 테스트(TC ID 무관) 중 하나라도 있으면 FAIL
     codes = dict(x.split("=", 1) for x in args.exit_codes)
@@ -273,7 +300,7 @@ def main() -> int:
     }
     in_doc: set[str] = set()
     if DOC.exists():
-        text = DOC.read_text(encoding="utf-8")
+        text = doc_text
         in_doc = {norm(m) for m in re.findall(r"TC-S?\d+-\d+", text)}
         text = update_doc(text, results, env, rel)
         DOC.write_text(text, encoding="utf-8")
@@ -317,6 +344,10 @@ def main() -> int:
         lines += ["", f"⚠️ 테스트는 있는데 e2e-test.md에 없는 TC: {', '.join(missing)}"]
     if manual:
         lines += ["", f"자동 시험이 없는 TC (수동 시험·미실행): {', '.join(manual)}"]
+    ignored = [c for c in cases if c.get("ignored")]
+    if ignored:
+        lines += ["", "문서의 시험 파일이 아니라 TC 집계에서 뺀 테스트 (키트 샘플 등): "
+                  + ", ".join(f"{c['ignored']} `{c['cls']}::{c['name']}`" for c in ignored[:20])]
     unmapped_fail = [c for c in unmapped if c["status"] == "FAIL"]
     lines += ["", f"TC ID가 없는 테스트 {len(unmapped)}개 (회귀 시험, 실패 {len(unmapped_fail)})"]
     lines += [f"- FAIL {c['suite']}: `{c['name']}`" for c in unmapped_fail]

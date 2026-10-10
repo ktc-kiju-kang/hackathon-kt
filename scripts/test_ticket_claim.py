@@ -204,7 +204,17 @@ class TicketScriptTest(unittest.TestCase):
         self.assertEqual(self.sh("ticket-claim.sh", "list").stdout.split(), ["127", "128"])
         r = self.sh("ticket-claim.sh", "claim", "126", "--dry-run")
         self.assertEqual(r.returncode, 1)
-        self.assertIn("열린 선행 Issue", r.stdout)
+        self.assertIn("SKIP #126: 선행 #125 열림 — 대기", r.stdout)  # 어느 선행에 걸렸는지 (리허설: WAIT 이유가 안 보였다)
+        r = self.sh("ticket-claim.sh", "why")  # 후보가 없는 이유를 Issue마다 한 줄 — 쓰기 없음 (조회 실패도 그 Issue 한 줄)
+        self.assertIn("#127: ❌ 선행 #124 조회 실패", r.stdout)  # 픽스처 없음 = gh 실패
+        self.put("issue_124", {"number": 124, "state": "closed", "state_reason": "completed"})
+        r = self.sh("ticket-claim.sh", "why")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        lines = r.stdout.splitlines()
+        self.assertIn("SKIP #125: 담당자 있음 (lee)", lines)
+        self.assertIn("SKIP #126: 선행 #125 열림 — 대기", lines)
+        self.assertIn("SKIP #129: 선행 #125 열림 — 대기", lines)
+        self.assertIn("DRY-RUN #127: 선점 가능 (쓰기 없음)", lines)
 
     def test_claim_requires_closed_predecessor_completed(self):
         """선행이 not planned로 닫혔으면(목록엔 없어도) 선점하지 않는다. 완료로 닫혔으면 선점 가능."""
@@ -439,7 +449,7 @@ class TicketScriptTest(unittest.TestCase):
         """ship 8단계: CI를 잠금 밖에서 기다린다 — 통과 0, 실패 1, 시간 초과 2, CI 없음 0."""
         checks = lambda *buckets: [{"name": f"c{i}", "bucket": b} for i, b in enumerate(buckets)]
         self.put("checks_pending", checks("pass", "pending"))
-        self.put("checks_pass", checks("pass", "skipping"))
+        self.put("checks_pass", checks("pass", "skipping") + [{"name": "score", "bucket": "pending", "workflow": "PR Review"}])  # 점수 워크플로는 기다리지 않는다
         self.put("checks_fail", checks("pass", "fail"))
         self.put("checks_none", [])
         (self.fix / "seq").write_text("checks_pending\nchecks_pending\nchecks_pending\nchecks_pass\n")
@@ -540,6 +550,9 @@ class TicketScriptTest(unittest.TestCase):
         self.assertEqual(r.returncode, 1, r.stderr)
         self.assertIn("STATE WAIT", r.stdout)
         self.assertIn("후보 없음", r.stdout)
+        self.put("issues", [issue(126, body="- 선행: #125 머지 후 시작"), issue(125, assignees=["lee"])])
+        r = self.tick()
+        self.assertIn("후보 없음 — SKIP #126: 선행 #125 열림 — 대기;SKIP #125: 담당자 있음 (lee)", r.stdout)  # 기다리는 이유가 NEXT에
 
     def test_tick_claims_and_prepares_branch_and_spec(self):
         """새 티켓: 선점 → 이 폴더에서 origin/main 기준 브랜치 → 본문+댓글을 spec 파일로 → 에이전트는 명세 검사부터."""
