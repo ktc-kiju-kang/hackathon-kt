@@ -384,7 +384,7 @@ class TicketScriptTest(unittest.TestCase):
 
     def schema_gate(self, loop=True, no_merge=False):
         env = {**self.env, "TICKET_LOOP_MERGE": "1" if loop else "", "SHIP_NO_MERGE": "1" if no_merge else ""}
-        return run(["bash", "-c", ". scripts/lib.sh; schema_gate 99; echo MERGE"], env=env, cwd=self.repo)
+        return run(["bash", "-c", "set -uo pipefail; . scripts/lib.sh; schema_gate 99; echo MERGE"], env=env, cwd=self.repo)  # ship.sh와 같은 셸 옵션
 
     def test_schema_gate_stops_loop_merge_on_table_contracts(self):
         """G3: 루프 자동 머지에서 '## 테이블' 절이 있는 계약을 바꾸면 사람이 머지한다 (컬럼 한 줄만 바뀌어도)."""
@@ -418,6 +418,12 @@ class TicketScriptTest(unittest.TestCase):
         self.git("reset", "-q", "--hard", "origin/main")
         self.write_commit({"docs/contracts/memo.md": None}, "delete")
         self.assertEqual(self.schema_gate().returncode, 1)  # 테이블 초안이 든 계약을 지워도 사람이 본다
+
+        self.git("reset", "-q", "--hard", "origin/main")
+        self.write_commit({"docs/contracts/note.md": table.replace("memos", "notes")}, "new-contract")
+        r = self.schema_gate()  # 플랜 티켓의 일반 경우: 새 계약 파일 — origin/main에 없어도 잡는다 (리허설에서 pipefail로 놓쳤던 것)
+        self.assertEqual(r.returncode, 1, r.stderr)
+        self.assertIn("docs/contracts/note.md", r.stderr)
 
         self.git("reset", "-q", "--hard", "origin/main")
         self.write_commit({"docs/contracts/todo.md": "# todo\n\n## 테이블 (SQL 초안)\n    CREATE TABLE todos (id int);\n"}, "add-table")

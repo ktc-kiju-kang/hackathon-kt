@@ -149,9 +149,11 @@ merge_gate() {  # merge_gate <이유> <PR> — 이유가 있으면 SHIP_NO_MERGE
 # 스키마 게이트 (G3) — 루프 자동 머지(TICKET_LOOP_MERGE=1)에서 테이블 SQL 초안이 있는 계약을 바꾼 PR은 사람이 머지한다.
 # BE 루프가 그 초안으로 마이그레이션을 만들기 때문. 사람이 직접 ship하면 그 사람이 확인한 것으로 본다
 schema_contracts() {  # origin/main...HEAD에서 바뀐 계약 중 바뀌기 전이나 후에 '## 테이블' 절이 있는 것 (공백 구분)
-  local f out=""
+  local f out="" text
   for f in $(git -C "$ROOT" diff --name-only origin/main...HEAD -- 'docs/contracts/*.md' ':!docs/contracts/README.md'); do
-    { git -C "$ROOT" show "HEAD:$f"; git -C "$ROOT" show "origin/main:$f"; } 2>/dev/null | grep -q '^## 테이블' && out="$out $f"
+    # 두 판 중 하나는 없을 수 있다(신규·삭제 계약 → git show 128). 파이프에 넣으면 ship.sh의 pipefail이 grep 결과를 덮어 신규 계약을 놓친다
+    text=$({ git -C "$ROOT" show "HEAD:$f"; git -C "$ROOT" show "origin/main:$f"; } 2>/dev/null)
+    grep -q '^## 테이블' <<<"$text" && out="$out $f"
   done
   echo "${out# }"
 }
