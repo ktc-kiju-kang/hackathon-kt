@@ -33,6 +33,7 @@ EXCLUDE = [
     ".gitleaksignore",  # 이 레포 이력의 오탐 fingerprint
     ".github/dependabot.yml",  # 이 레포 의존성 알림 (팀 레포는 사내 GHE 정책을 따른다)
     "docs/backlog/**",  # 이 레포 자체 일감의 요구사항 정의서 (팀 레포는 docs/prd.md)
+    "docs/pipeline-map.html",  # 파이프라인 그림 (이 레포 참고용 — 팀 레포 docs/는 제출 문서 8개만)
 ]
 # 주최 측이 제공하는 파일 — 어떤 경우에도 덮어쓰지 않는다
 PROTECTED = ["docs/security-policy.md", ".github/ISSUE_TEMPLATE/**"]
