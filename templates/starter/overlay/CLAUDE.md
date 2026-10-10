@@ -14,7 +14,7 @@
 1. **ID 사슬**: SRC·REQ(`docs/prd.md`) → AC(`docs/prd/REQ-xx-….md`) → Issue·코드(`docs/arch.md` "REQ별 코드 위치") → TC(`docs/e2e-test.md`) → 실제 결과. 새 기능은 REQ·AC부터 적는다.
 2. **실행한 것만 결과로 적는다.** TC의 실제 결과·PASS/FAIL은 명령을 실제로 실행한 출력으로만 채운다. 실행하지 않았으면 `미실행`, 확인 못 했으면 `미검증`. 계획·예시를 완료로 쓰지 않는다.
 3. **보안**: `docs/security-policy.md`(주최 제공)는 **수정하지 않는다**. SEC별 적용·코드 위치·정상/거부 시험 결과를 `docs/security-compliance.md`에 남긴다.
-4. **AI 활용 기록**: AI가 틀린 것을 사람이 잡았거나 고친 사례는 바로 `docs/development.md` "AI 활용 기록"에 한 줄 추가한다 (작업·AI가 한 것·확인 방법·고친 것·커밋).
+4. **AI 활용 기록**: AI가 틀린 것을 사람이 잡았거나 고친 사례는 **PR 본문 "## 변경 내용"에 `- AI 검증: <무엇이 틀렸고 어떻게 확인·고쳤나>` 한 줄**로 적는다 — `make record`가 머지된 PR마다 `docs/development.md` "AI 활용 기록" 행을 만들며 그 줄을 "사람이 확인한 방법" 칸에 옮긴다. 기능 PR에서 3절 표를 직접 고치지 않는다 (시험 기록 문서처럼 record만 쓴다 — 같은 표를 여럿이 고치면 충돌).
 5. 문서 검사: `make docs` (작성 중) / `make submit-check` (제출 직전, strict). 사용법: `docs/submission-guide.md`
 6. **시험 결과는 `make e2e`가 기록한다**: 테스트 이름에 TC ID(`test_tc_01_3_...`)를 넣으면 `docs/e2e-test.md` 상태·근거와 `docs/prd.md` REQ 상태가 실행 결과로 채워지고 `docs/evidence/`에 원본이 남는다. 손으로 PASS를 적지 않는다 (수동 시험만 예외, 명령·결과를 함께).
 7. AI 사용 기록 수집기(kode:ton)가 켜져 있어야 한다. PC 재시작 후 앱을 다시 실행한다.
