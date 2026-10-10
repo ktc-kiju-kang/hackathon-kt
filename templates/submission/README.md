@@ -11,7 +11,7 @@
 | 보안 | 적용-검증됨 {{n}} · 적용-미검증 {{n}} · 해당 없음 {{n}} · 예외 {{n}} | [security-compliance.md](docs/security-compliance.md) |
 | 완료 Issue | {{n}} / {{n}} | {{Issues 링크}} |
 
-<!-- 위 숫자는 마지막에 문서의 실제 표를 세어서 채운다. 추정치를 쓰지 않는다. -->
+<!-- 위 숫자는 시작 키트의 make record(scripts/readme_summary.py)가 문서의 실제 표를 세어 채운다. 손으로 고치지 않는다 — check-docs가 어긋나면 잡는다. -->
 
 ## 문서
 | 문서 | 내용 |
