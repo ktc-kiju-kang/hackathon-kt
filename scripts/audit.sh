@@ -7,8 +7,9 @@ set -uo pipefail
 cd "$ROOT"
 A="$RUN_DIR/audit"; mkdir -p "$A"; rm -f "$A"/*.json "$A"/*.log "$A"/*.err  # 이전 실행 보고서가 이번 결과로 읽히지 않게
 fail=0; err=0
-# 제출 레포(docs/evidence/ 있음)에서는 보고서를 근거 폴더에 복사해 그 경로를 적는다 — .run/은 gitignore라 제출본에서 못 연다
-ev=""; [ -d docs/evidence ] && ev="docs/evidence/audit/$(TZ=Asia/Seoul date +%Y%m%d-%H%M%S)-$(git rev-parse --short HEAD)"
+# 제출 레포(security-compliance.md 있음)에서는 보고서를 docs/audit/<시각>-<SHA>/에 복사해 그 경로를 적는다 — .run/은 gitignore라 제출본에서 못 연다.
+# docs/evidence/ 아래에 두지 않는다: 그 폴더는 e2e 실행 폴더만 있어야 한다 (submit-check·ship이 "최신 폴더"를 e2e 근거로 집고, ship이 커밋 전 것을 지운다)
+ev=""; [ -f docs/security-compliance.md ] && ev="docs/audit/$(TZ=Asia/Seoul date +%Y%m%d-%H%M%S)-$(git rev-parse --short HEAD)"
 where=${ev:-.run/audit}
 
 say "1/3 비밀값 (gitleaks)"
