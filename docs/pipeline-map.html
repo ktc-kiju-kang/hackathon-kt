@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>해커톤 파이프라인 지도</title>
+<!-- 원본: 이 레포의 docs/pipeline.md·requirements-flow.md·ticket-loop 스킬을 그림으로 옮긴 것 (2026-10-11). 브라우저로 열면 된다. 키트에는 내보내지 않는다 -->
+<style>body{margin:0} img{max-width:100%}</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* 레이아웃: 한 열, 그림 우선. 스윔레인(사람·에이전트·스크립트) → ship 시간 막대 → 틱 상태도 → 근거 사슬 → 하루 타임라인. 표는 접힘 */
+:root{
+  --bg:#f6f7f9; --surface:#ffffff; --fg:#1b2130; --muted:#5b6578; --line:#d9dee7; --lane:#eef1f6;
+  --accent:#2f4fa8; --accent-soft:#e6ebf8; --accent-2:#6b86d6;
+  --human:#b86e00; --human-soft:#fff1dc;
+  --ok:#1f7a4d; --ok-soft:#e1f3e8;
+  --stop:#b3261e; --stop-soft:#fbe4e2;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --sans:"IBM Plex Sans KR","Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#141821; --surface:#1c2230; --fg:#e8ecf3; --muted:#9aa5b8; --line:#2d3646; --lane:#182030;
+  --accent:#8fa6ea; --accent-soft:#232c45; --accent-2:#5f78c4; --human:#f0b35b; --human-soft:#3a2d16;
+  --ok:#6fcf97; --ok-soft:#1b3326; --stop:#f28b82; --stop-soft:#3d2321; color-scheme:dark } }
+:root[data-theme="dark"]{
+  --bg:#141821; --surface:#1c2230; --fg:#e8ecf3; --muted:#9aa5b8; --line:#2d3646; --lane:#182030;
+  --accent:#8fa6ea; --accent-soft:#232c45; --accent-2:#5f78c4; --human:#f0b35b; --human-soft:#3a2d16;
+  --ok:#6fcf97; --ok-soft:#1b3326; --stop:#f28b82; --stop-soft:#3d2321; color-scheme:dark }
+body{background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:15px;line-height:1.6}
+.wrap{max-width:1080px;margin:0 auto;padding-inline:20px;padding-block:28px 64px}
+h1{font-size:clamp(26px,4vw,36px);line-height:1.2;margin:0 0 8px;letter-spacing:-.01em;text-wrap:balance}
+h2{font-size:20px;margin:48px 0 6px;text-wrap:balance}
+.sub{color:var(--muted);margin:0 0 14px;max-width:72ch}
+p{margin:0 0 10px;max-width:72ch}
+.lead{color:var(--muted);font-size:16px;max-width:72ch}
+code{font-family:var(--mono);font-size:.92em;background:var(--accent-soft);padding:1px 5px;border-radius:4px}
+.fig{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px}
+.fig svg{display:block;width:100%;height:auto;min-width:720px}
+.fig pre.mermaid{margin:0}
+.fig svg text{font-family:var(--sans)}
+.fig svg .mono{font-family:var(--mono)}
+.legend{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:13px;color:var(--muted);margin-top:10px}
+.legend span::before{content:"";display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.legend .h::before{background:var(--human)} .legend .a::before{background:var(--accent)} .legend .o::before{background:var(--ok)} .legend .s::before{background:var(--stop)}
+.stat{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:14px 0 4px}
+.stat div{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.stat b{display:block;font-size:22px;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.stat small{color:var(--muted)}
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;margin-top:12px;font-size:13px}
+.steps div{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-width:0}
+.steps b{font-family:var(--mono);color:var(--accent);margin-right:6px}
+.steps .stop{color:var(--stop);font-weight:600}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;vertical-align:top;padding:9px 12px;border-bottom:1px solid var(--line)}
+th{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;background:var(--bg)}
+tr:last-child td{border-bottom:0}
+td:first-child{white-space:nowrap}
+details{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:8px 0}
+summary{cursor:pointer;font-weight:600}
+summary:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.note{border-left:3px solid var(--human);background:var(--human-soft);padding:8px 12px;border-radius:0 8px 8px 0;margin:10px 0;max-width:none}
+a{color:var(--accent)}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+<h1>해커톤 파이프라인 지도</h1>
+<p class="lead">주제 공개부터 제출까지를 그림으로 봅니다. 입구는 <code>make</code> 하나이고, 사람이 멈춰 결정하는 곳은 세 게이트(G1·G2·G3)와 머지뿐입니다. 나머지는 에이전트와 스크립트가 돌리고, 결과는 PR 본문과 문서 8개에 근거로 남습니다.</p>
+
+<div class="stat">
+  <div><b>3번</b><small>사람이 결정하는 게이트 (정의서 · 분배표 · 테이블 초안)</small></div>
+  <div><b>2~4분</b><small>ship 한 번 (CI 가벼우면 2분, 키트 e2e 포함 4분)</small></div>
+  <div><b>32분</b><small>리허설: REQ 1개 → Issue 3개 → 루프로 전부 머지</small></div>
+  <div><b>8개</b><small>제출 문서. 상태·숫자·AI 기록은 <code>make record</code>가 채움</small></div>
+</div>
+
+<h2>누가 무엇을 하나</h2>
+<p class="sub">세 줄로 나눈 흐름입니다. 위 줄은 사람, 가운데는 에이전트, 아래는 make 스크립트. 화살표를 따라가면 하루가 보입니다.</p>
+<div class="fig">
+<svg viewBox="0 0 1200 430" role="img" aria-label="사람·에이전트·스크립트 세 줄로 나눈 파이프라인 스윔레인">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--muted)"/></marker>
+  </defs>
+  <!-- 레인 -->
+  <rect x="96" y="14" width="1096" height="124" rx="10" fill="var(--lane)"/>
+  <rect x="96" y="150" width="1096" height="124" rx="10" fill="var(--lane)"/>
+  <rect x="96" y="286" width="1096" height="124" rx="10" fill="var(--lane)"/>
+  <text x="14" y="82" font-size="14" font-weight="600" fill="var(--human)">사람</text>
+  <text x="14" y="218" font-size="14" font-weight="600" fill="var(--accent)">에이전트</text>
+  <text x="14" y="354" font-size="14" font-weight="600" fill="var(--ok)">스크립트</text>
+  <!-- 단계 머리글 -->
+  <g font-size="12" fill="var(--muted)" font-weight="600">
+    <text x="190" y="8" text-anchor="middle">기획</text><text x="400" y="8" text-anchor="middle">분배</text><text x="600" y="8" text-anchor="middle">설계</text>
+    <text x="810" y="8" text-anchor="middle">개발 (Issue마다 반복)</text><text x="1010" y="8" text-anchor="middle">기록</text><text x="1140" y="8" text-anchor="middle">제출</text>
+  </g>
+  <!-- 사람 노드 -->
+  <g font-size="13" text-anchor="middle">
+    <rect x="200" y="42" width="170" height="64" rx="10" fill="var(--human-soft)" stroke="var(--human)" stroke-width="1.5"/>
+    <text x="285" y="68" font-weight="700" fill="var(--human)">G1 정의서 승인</text><text x="285" y="88" fill="var(--fg)">커밋 SHA를 PM에게</text>
+    <rect x="410" y="42" width="170" height="64" rx="10" fill="var(--human-soft)" stroke="var(--human)" stroke-width="1.5"/>
+    <text x="495" y="68" font-weight="700" fill="var(--human)">G2 분배표 승인</text><text x="495" y="88" fill="var(--fg)">Issue 생성</text>
+    <rect x="620" y="42" width="170" height="64" rx="10" fill="var(--human-soft)" stroke="var(--human)" stroke-width="1.5"/>
+    <text x="705" y="68" font-weight="700" fill="var(--human)">G3 계약 PR 머지</text><text x="705" y="88" fill="var(--fg)">테이블 SQL 초안 확인</text>
+    <rect x="830" y="42" width="170" height="64" rx="10" fill="var(--human-soft)" stroke="var(--human)" stroke-dasharray="5 4" stroke-width="1.5"/>
+    <text x="915" y="68" font-weight="700" fill="var(--human)">PR 머지</text><text x="915" y="88" fill="var(--fg)">기본값 · 루프에 맡기면 생략</text>
+    <rect x="1040" y="42" width="150" height="64" rx="10" fill="var(--human-soft)" stroke="var(--human)" stroke-width="1.5"/>
+    <text x="1115" y="68" font-weight="700" fill="var(--human)">포털 제출</text><text x="1115" y="88" fill="var(--fg)">40자 SHA · 발표자료</text>
+  </g>
+  <!-- 에이전트 노드 -->
+  <g font-size="13" text-anchor="middle">
+    <rect x="110" y="178" width="160" height="64" rx="10" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/>
+    <text x="190" y="204" font-weight="700" fill="var(--accent)">PO</text><text x="190" y="224" fill="var(--fg)">원문 → REQ·AC·TC (5분)</text>
+    <rect x="320" y="178" width="160" height="64" rx="10" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/>
+    <text x="400" y="204" font-weight="700" fill="var(--accent)">PM</text><text x="400" y="224" fill="var(--fg)">플랜·BE·FE 티켓 (2.5분)</text>
+    <rect x="520" y="178" width="160" height="64" rx="10" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/>
+    <text x="600" y="204" font-weight="700" fill="var(--accent)">아키텍트 루프</text><text x="600" y="224" fill="var(--fg)">계약 · 테이블 초안 · arch</text>
+    <rect x="730" y="178" width="160" height="64" rx="10" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.5"/>
+    <text x="810" y="204" font-weight="700" fill="var(--accent)">BE · FE 루프</text><text x="810" y="224" fill="var(--fg)">틱마다 구현 (3분) → ship</text>
+  </g>
+  <!-- 스크립트 노드 -->
+  <g font-size="13" text-anchor="middle">
+    <rect x="110" y="314" width="160" height="64" rx="10" fill="var(--ok-soft)" stroke="var(--ok)" stroke-width="1.5"/>
+    <text x="190" y="340" font-weight="700" fill="var(--ok)">export · setup · verify</text><text x="190" y="360" fill="var(--fg)">키트 깔기 (약 2분)</text>
+    <rect x="730" y="314" width="160" height="64" rx="10" fill="var(--ok-soft)" stroke="var(--ok)" stroke-width="1.5"/>
+    <text x="810" y="340" font-weight="700" fill="var(--ok)">make ship</text><text x="810" y="360" fill="var(--fg)">9단계 · 2~4분 · 자동 머지</text>
+    <rect x="930" y="314" width="160" height="64" rx="10" fill="var(--ok-soft)" stroke="var(--ok)" stroke-width="1.5"/>
+    <text x="1010" y="340" font-weight="700" fill="var(--ok)">make record</text><text x="1010" y="360" fill="var(--fg)">시험·AI 기록·숫자 채움</text>
+    <rect x="1100" y="314" width="90" height="64" rx="10" fill="var(--ok-soft)" stroke="var(--ok)" stroke-width="1.5"/>
+    <text x="1145" y="336" font-weight="700" fill="var(--ok)" font-size="12">audit</text><text x="1145" y="352" font-weight="700" fill="var(--ok)" font-size="12">submit-check</text><text x="1145" y="370" fill="var(--fg)" font-size="12">SHA 출력</text>
+  </g>
+  <!-- 화살표 -->
+  <g fill="none" stroke="var(--muted)" stroke-width="1.6" marker-end="url(#arr)">
+    <path d="M190 314 V250"/>
+    <path d="M230 178 Q230 140 240 110"/>
+    <path d="M330 106 Q330 150 340 178"/>
+    <path d="M440 178 Q440 140 450 110"/>
+    <path d="M540 106 Q540 150 550 178"/>
+    <path d="M640 178 Q640 140 650 110"/>
+    <path d="M750 106 Q750 150 760 178"/>
+    <path d="M810 242 V306"/>
+    <path d="M870 314 Q870 160 880 110"/>
+    <path d="M890 346 H922"/>
+    <path d="M1090 346 H1092"/>
+    <path d="M1145 314 V114"/>
+  </g>
+  <!-- 반복 표시 -->
+  <path d="M900 250 Q960 250 960 200 Q960 150 900 150" fill="none" stroke="var(--accent-2)" stroke-width="1.4" stroke-dasharray="4 3" marker-end="url(#arr)"/>
+  <text x="975" y="205" font-size="12" fill="var(--muted)">Issue마다 반복</text>
+  <text x="975" y="222" font-size="12" fill="var(--muted)">FE는 BE 머지를 기다렸다 재ship</text>
+</svg>
+</div>
+<div class="legend"><span class="h">사람이 결정</span><span class="a">에이전트</span><span class="o">make 스크립트</span></div>
+
+<h2>ship 한 번은 어디에 시간을 쓰나</h2>
+<p class="sub">작업 브랜치가 main에 들어가는 유일한 길입니다. 막대 길이는 10/10 실주행에서 잰 초 단위이고, 붉은 단계에서는 멈추고 PR을 그대로 둡니다.</p>
+<div class="fig">
+<svg viewBox="0 0 1000 150" role="img" aria-label="make ship 9단계 시간 막대">
+  <g font-size="12" class="mono">
+    <!-- 합계 313초 → 1px = 3.13초, 시작 x=20, 폭 960 -->
+    <rect x="20" y="30" width="31" height="34" fill="var(--accent-2)"/>
+    <rect x="51" y="30" width="215" height="34" fill="var(--accent)"/>
+    <rect x="266" y="30" width="15" height="34" fill="var(--accent-2)"/>
+    <rect x="281" y="30" width="276" height="34" fill="var(--accent)"/>
+    <rect x="557" y="30" width="15" height="34" fill="var(--accent-2)"/>
+    <rect x="572" y="30" width="184" height="34" fill="var(--accent)"/>
+    <rect x="756" y="30" width="9" height="34" fill="var(--stop)"/>
+    <rect x="765" y="30" width="184" height="34" fill="var(--ok)"/>
+    <rect x="949" y="30" width="31" height="34" fill="var(--accent-2)"/>
+    <g fill="#ffffff" text-anchor="middle" font-weight="500">
+      <text x="158" y="52">② verify 70초</text>
+      <text x="419" y="52">④ e2e 90초</text>
+      <text x="664" y="52">⑥ AI 리뷰 60초</text>
+      <text x="857" y="52">⑧ CI 대기·머지 60초</text>
+    </g>
+    <g fill="var(--muted)" text-anchor="middle">
+      <text x="35" y="84">① 10</text><text x="273" y="84">③ 5</text><text x="564" y="84">⑤ 5</text><text x="760" y="84" fill="var(--stop)">⑦ 3</text><text x="964" y="84">⑨ 10</text>
+    </g>
+    <line x1="20" y1="100" x2="980" y2="100" stroke="var(--line)"/>
+    <g fill="var(--muted)" font-size="11" text-anchor="middle">
+      <text x="20" y="118">0초</text><text x="212" y="118">1분</text><text x="403" y="118">2분</text><text x="595" y="118">3분</text><text x="787" y="118">4분</text><text x="980" y="118">5분</text>
+    </g>
+    <text x="20" y="142" fill="var(--muted)" font-size="11">CI가 가벼운 레포는 ⑧이 0~20초라 전체 2분. 키트 CI의 e2e 잡(1분 48초)이 하한.</text>
+  </g>
+</svg>
+</div>
+<div class="steps">
+  <div><b>①</b>main 반영 → push → 초안 PR (CI가 나란히 시작)</div>
+  <div><b>②</b>verify: lint·타입·pytest·vitest·빌드·문서</div>
+  <div><b>③</b>충돌 검사: 열린 PR과 같은 파일·기능이면 경고</div>
+  <div><b>④</b>e2e: 격리 배포에 시험, 기록은 되돌림</div>
+  <div><b>⑤</b>PR 본문 "확인" 절 · 초안 해제 · 마이그레이션 대조</div>
+  <div><b>⑥</b>AI 리뷰 60점 블록. 재리뷰는 이전 지적 처리부터</div>
+  <div><b>⑦</b>Issue 근거 댓글. <span class="stop">머지 조건·G3·초안과 다른 마이그레이션이면 멈춤</span></div>
+  <div><b>⑧</b>CI 대기(잠금 밖) → 잠금 → squash 머지 → 라벨 정리</div>
+  <div><b>⑨</b>main 확인. 같은 트리면 verify 생략</div>
+</div>
+
+<h2>역할 루프의 한 틱</h2>
+<p class="sub">5분마다 한 번씩 돕니다. 앞부분은 스크립트가 결정적으로 처리하고, 에이전트는 STATE를 읽은 뒤부터 일합니다.</p>
+<div class="fig">
+<pre class="mermaid">
+flowchart LR
+  classDef human fill:#fff1dc,stroke:#b86e00,color:#4a2d00
+  classDef auto fill:#e6ebf8,stroke:#2f4fa8,color:#16254f
+  classDef ok fill:#e1f3e8,stroke:#1f7a4d,color:#0d3b24
+  classDef wait fill:#eef1f6,stroke:#9aa5b8,color:#3b4455
+  T[ticket-tick.sh<br/>킬 스위치 · 정리 · 내 티켓 · 새 댓글 · 선점 · 브랜치] --> S{STATE}
+  S -->|CLAIMED| C[명세 검사<br/>대상 코드가 main에 있나 · 사람이 봐야 하나]
+  S -->|CONTINUE| F[새 댓글·리뷰 반영<br/>머지 조건 풀렸으면 ship만]
+  S -->|WAIT · PAUSED| W[한 줄 보고<br/>NEXT에 Issue마다 이유]
+  S -->|NEEDS-HUMAN| H[이유 댓글 → 사람]
+  C -->|모호| Q[질문 댓글 · release needs-info]
+  C -->|마이그레이션·공용 파일 등| H
+  C -->|구현 가능| I[TDD 구현 → verify → reviewer]
+  F --> P[make ship]
+  I --> P
+  P -->|머지됨| D[Issue 닫힘 · 요약 댓글]
+  P -->|멈춤: 머지 조건| M[done 표기 → 다음 틱에 재ship]
+  P -->|멈춤: 리뷰 지적| I
+  class T,C,F,I,P auto
+  class W,M wait
+  class H,Q human
+  class D ok
+</pre>
+</div>
+<div class="legend"><span class="a">에이전트·스크립트</span><span class="h">사람에게 넘김</span><span class="o">완료</span></div>
+
+<h2>채점 근거가 이어지는 길</h2>
+<p class="sub">평가는 문서·코드·실행 결과·GitHub 이력·AI 활용 기록을 봅니다. 어느 문서를 누가 채우는지 색으로 표시했습니다.</p>
+<div class="fig">
+<pre class="mermaid">
+flowchart LR
+  classDef human fill:#fff1dc,stroke:#b86e00,color:#4a2d00
+  classDef auto fill:#e6ebf8,stroke:#2f4fa8,color:#16254f
+  classDef ok fill:#e1f3e8,stroke:#1f7a4d,color:#0d3b24
+  SRC[주최 원문 SRC] --> REQ[prd.md REQ<br/>PO 작성 · 사람 G1]
+  REQ --> AC[prd/REQ-xx.md AC]
+  AC --> ISS[Issue · 코드 · PR<br/>루프 또는 사람]
+  AC --> TC[e2e-test.md TC 시나리오<br/>구현 전에 미실행으로]
+  ISS --> SHIP[PR 본문 확인 절 · AI 리뷰 블록<br/>make ship]
+  TC --> RES[TC 결과 · REQ 상태 · docs/evidence<br/>make record]
+  SHIP --> DEV[development.md AI 활용 기록<br/>make record가 PR에서]
+  RES --> RM[README 결과 한눈에 · compliance 요약<br/>make record가 표를 세어]
+  SEC[security-policy.md<br/>주최 제공] --> COMP[security-compliance.md SEC 행<br/>사람 · 4절은 make audit]
+  COMP --> RM
+  class SRC,SEC human
+  class REQ,AC,ISS,TC,COMP auto
+  class SHIP,RES,DEV,RM ok
+</pre>
+</div>
+<div class="legend"><span class="h">사람·주최가 주는 것</span><span class="a">에이전트·사람이 쓰는 것</span><span class="o">스크립트가 채우는 것</span></div>
+
+<h2>본선 하루</h2>
+<p class="sub">10/14 주제 공개부터 10/15 00:00 마감까지. 공개 시각은 10:00으로 가정했습니다.</p>
+<div class="fig">
+<svg viewBox="0 0 1000 150" role="img" aria-label="본선 하루 타임라인">
+  <!-- 14시간 → 960px, 1시간 = 68.6px, 시작 x=20 -->
+  <g font-size="12">
+    <rect x="20" y="40" width="69" height="30" fill="var(--human)" opacity=".85"/>
+    <rect x="89" y="40" width="68" height="30" fill="var(--human)" opacity=".6"/>
+    <rect x="157" y="40" width="549" height="30" fill="var(--accent)"/>
+    <rect x="706" y="40" width="137" height="30" fill="var(--ok)"/>
+    <rect x="843" y="40" width="34" height="30" fill="var(--ok)" opacity=".6"/>
+    <rect x="877" y="40" width="103" height="30" fill="var(--line)"/>
+    <g fill="var(--fg)" text-anchor="middle" font-weight="600">
+      <text x="54" y="30">기획 G1</text><text x="123" y="30">분배·설계 G2·G3</text><text x="431" y="30">개발 반복 (루프 · ship) · 기록 담당은 2~3시간마다 record</text>
+      <text x="774" y="30">마무리</text><text x="928" y="30">제출 · 여유</text>
+    </g>
+    <g fill="#ffffff" text-anchor="middle" font-size="11">
+      <text x="431" y="60">기능 PR · 반나절 넘는 브랜치 금지</text><text x="774" y="60">문서 8개 · 보안표 · 캡처</text>
+    </g>
+    <line x1="20" y1="80" x2="980" y2="80" stroke="var(--line)"/>
+    <g stroke="var(--muted)"><line x1="20" y1="80" x2="20" y2="88"/><line x1="89" y1="80" x2="89" y2="88"/><line x1="157" y1="80" x2="157" y2="88"/><line x1="706" y1="80" x2="706" y2="88"/><line x1="843" y1="80" x2="843" y2="88"/><line x1="877" y1="80" x2="877" y2="88"/><line x1="980" y1="80" x2="980" y2="88"/></g>
+    <g fill="var(--muted)" font-size="11" text-anchor="middle">
+      <text x="20" y="104">공개</text><text x="89" y="104">+1h</text><text x="157" y="104">+2h</text><text x="706" y="104">20:00 기능 동결</text><text x="843" y="104">22:00 record</text><text x="877" y="118">22:30 submit-check</text><text x="980" y="104">00:00 마감</text>
+    </g>
+    <text x="20" y="140" fill="var(--muted)" font-size="11">기능 동결 뒤 새 REQ 금지. 미완성 REQ는 제외(이유) 또는 구현됨-미검증으로 정직하게 적는다.</text>
+  </g>
+</svg>
+</div>
+
+<h2>참고 표</h2>
+<details><summary>명령 한 벌</summary>
+<div class="tbl"><table>
+<tr><th>명령</th><th>언제</th><th>하는 일</th></tr>
+<tr><td><code>make setup</code></td><td>처음 한 번</td><td>Node 20 · Python 3.11 확인, .venv · npm ci · .env. gitleaks 없으면 안내</td></tr>
+<tr><td><code>make dev</code></td><td>개발 중</td><td>docker compose 핫 리로드, api :8000 · web :3000</td></tr>
+<tr><td><code>make sync</code></td><td>작업 시작 전·중간</td><td>최신 main을 내 브랜치에 merge</td></tr>
+<tr><td><code>make verify</code></td><td>수시로</td><td>CI와 같은 검사 전부</td></tr>
+<tr><td><code>make ship</code></td><td>작업 끝</td><td>9단계. 루프는 <code>SHIP_NO_MERGE=1</code> 기본, 머지까지 맡기면 <code>TICKET_LOOP_MERGE=1</code></td></tr>
+<tr><td><code>make serve</code> · <code>stop</code> · <code>status</code></td><td>로컬 배포 확인</td><td>프로덕션 빌드 + 스모크 (버전 = HEAD)</td></tr>
+<tr><td><code>make e2e</code></td><td>확인용</td><td>단위 + 격리 배포 E2E. 기록 커밋은 record만</td></tr>
+<tr><td><code>make record</code></td><td>2~3시간마다, 제출 전</td><td>시험 기록 · AI 활용 기록 · README 숫자를 자동 PR로 머지</td></tr>
+<tr><td><code>make audit</code></td><td>정책 확인 뒤, 제출 전</td><td>gitleaks · npm audit(운영) · pip-audit → compliance 4절</td></tr>
+<tr><td><code>make claims</code> · <code>release ISSUE=n</code> · <code>lock-status</code></td><td>누가 뭘 잡았나</td><td>선점 목록 · 선점 해제 · 머지 잠금</td></tr>
+<tr><td><code>make submit-check</code></td><td>제출 직전</td><td>4가지 확인 → 포털에 넣을 40자 SHA</td></tr>
+</table></div>
+</details>
+<details><summary>ship이 멈추는 흔한 이유</summary>
+<div class="tbl"><table>
+<tr><th>메시지</th><th>뜻</th><th>할 일</th></tr>
+<tr><td>머지 조건이 풀리지 않아</td><td>FE가 같은 REQ의 BE보다 먼저 끝남</td><td>PR 그대로 두고 BE 머지 뒤 ship 다시 (루프는 다음 틱에 스스로)</td></tr>
+<tr><td>테이블 SQL 초안이 있는 계약이 바뀜</td><td>G3</td><td>사람이 스키마 보고 GitHub에서 머지</td></tr>
+<tr><td>마이그레이션이 계약 초안과 다름</td><td>초안과 다른 컬럼·제약</td><td>초안에 맞추거나 계약 PR 먼저. 의도한 차이면 사람 머지</td></tr>
+<tr><td>AI 리뷰 수정 필요</td><td>차단·높음 또는 42점 미만</td><td>지적을 고치고 커밋 → ship. 재리뷰는 이전 지적 처리 표로 수렴</td></tr>
+<tr><td>CI 체크가 생기지 않음</td><td>Actions가 꺼져 있음</td><td><code>SHIP_NO_CI=1 make ship</code></td></tr>
+<tr><td>머지 대기 중</td><td>다른 사람이 머지 중</td><td>기다린다. 15분 넘은 잠금은 자동 회수. <code>make lock-status</code></td></tr>
+</table></div>
+</details>
+<details><summary>환경 문제</summary>
+<div class="tbl"><table>
+<tr><th>증상</th><th>할 일</th></tr>
+<tr><td>docker가 없습니다</td><td>Docker Desktop 실행. 급하면 <code>NATIVE=1 make dev</code></td></tr>
+<tr><td>포트 사용 중</td><td><code>make stop</code>. 다른 프로그램이면 <code>API_PORT=8100 WEB_PORT=3100 make serve</code></td></tr>
+<tr><td>스모크 version != HEAD</td><td>예전 코드가 떠 있음. <code>make stop &amp;&amp; make serve</code></td></tr>
+<tr><td>DB가 꼬임</td><td><code>make db-reset &amp;&amp; make serve</code> (데이터 삭제)</td></tr>
+<tr><td>worktree 둘이 같은 PC</td><td>두 번째는 <code>DB_PORT=55433</code>. e2e 포트는 체크아웃마다 자동으로 다름</td></tr>
+<tr><td>make audit FAIL</td><td>의존성은 chore/deps 단독 PR 또는 devDependencies로. 비밀값은 지우고 키 폐기</td></tr>
+</table></div>
+</details>
+
+<p style="color:var(--muted);font-size:13px;margin-top:40px">원본: <code>docs/pipeline.md</code> · <code>docs/requirements-flow.md</code> · <code>.claude/skills/ticket-loop/SKILL.md</code>. 시간 값은 2026-10-10 리허설 2회차 실측.</p>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js"></script>
+<script>mermaid.initialize({ startOnLoad: true, theme: window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default' });</script>
+</html>
