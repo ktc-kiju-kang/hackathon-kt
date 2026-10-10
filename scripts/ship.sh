@@ -111,7 +111,7 @@ waiting=""
 mig_line=""
 mig_files=$(git diff --name-only origin/main...HEAD -- database/migrations 2>/dev/null | xargs -n1 basename 2>/dev/null | paste -sd' ' -)
 if [ -n "$mig_files" ] && [ "$KIND" != record ]; then
-  mig_out=$("$PY" scripts/migration_draft.py 2>&1); mig_rc=$?
+  mig_out=$(python3 scripts/migration_draft.py 2>&1); mig_rc=$?  # lib.sh migration_gate와 같은 인터프리터
   case $mig_rc in
     0) mig_line="- 마이그레이션 $mig_files: 계약의 테이블 SQL 초안과 동일 (scripts/migration_draft.py)" ;;
     1) mig_line="- ⚠️ 마이그레이션 $mig_files: 계약 초안과 다름 — $(echo "$mig_out" | head -1) (사람이 스키마 확인)" ;;

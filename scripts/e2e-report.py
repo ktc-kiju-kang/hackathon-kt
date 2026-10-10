@@ -62,8 +62,9 @@ def doc_test_files(text: str) -> dict[str, list[str]]:
     out: dict[str, list[str]] = {}
     for header, rows in tables(text):
         if is_tc_list(header) and "방식" in header:
-            for cells in rows:
-                out[norm(cells[0])] = re.findall(r"[\w./-]+\.(?:py|tsx?)", cells[header.index("방식")])
+            idx = header.index("방식")
+            for cells in rows:  # 칸이 모자란 행(손으로 고치다 빠짐)은 제한 없음
+                out[norm(cells[0])] = re.findall(r"[\w./-]+\.(?:py|tsx?)", cells[idx]) if len(cells) > idx else []
     return out
 
 
