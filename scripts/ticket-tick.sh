@@ -143,7 +143,7 @@ fi
 # ---- 2. 새 티켓 선점 ----
 cand=$("$T" list) || fail "후보 조회 실패"
 cand=$(echo "$cand" | head -1)
-[ -n "$cand" ] || end WAIT "후보 없음 (열린 티켓이 없거나 선행 대기·남이 선점)"
+[ -n "$cand" ] || { why=$("$T" why 2>/dev/null | head -5 | paste -sd';' -); end WAIT "후보 없음${why:+ — $why}"; }
 out=$("$T" claim "$cand" 2>&1); rc=$?
 case $rc in
   0) ;;

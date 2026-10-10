@@ -191,10 +191,15 @@ ci_wait() {  # ci_wait <PR> [head SHA] — PR 체크가 끝날 때까지 기다�
   fi
   [ "${SHIP_NO_CI:-}" = 1 ] && { echo "  SHIP_NO_CI=1 — CI 대기 생략, 로컬 verify 결과로 진행"; return 0; }
   # gh pr checks --json은 pending·fail이어도 종료코드 0 (gh 2.101에서 pending으로 확인 — 종료코드 8은 --json 없이만)
+  # PR Review 워크플로(점수)는 ship이 PR 본문을 고칠 때마다 다시 돌아 기다리면 ship마다 1분쯤 는다 — 머지 조건이 아니므로 뺀다
+  local sel="[.[] | select((.workflow // \"\") != \"${CI_IGNORE_WORKFLOW:-PR Review}\")]" wf=",workflow"
   count_checks() {  # 체크 개수. 조회 오류는 ERR — '없음'이 아니다 (gh가 체크 0개를 "no checks reported" 오류로 내는 판도 0으로)
     local out
-    if out=$(gh pr checks "$pr" --json name,bucket -q 'length' 2>&1); then echo "$out"
-    else case "$out" in *"no checks"*) echo 0 ;; *) echo ERR ;; esac; fi
+    if out=$(gh pr checks "$pr" --json "name,bucket$wf" -q "$sel | length" 2>&1); then echo "$out"
+    else case "$out" in
+      *"no checks"*) echo 0 ;;
+      *"JSON field"*) [ -n "$wf" ] && { sel="."; wf=""; count_checks; } || echo ERR ;;  # workflow 필드가 없는 옛 gh → 필터 없이 센다
+      *) echo ERR ;; esac; fi
   }
   checks=$(count_checks)
   # 오류이거나, CI가 있는 레포인데 아직 0개(push 직후 등록 전)면 생길 때까지 잠시 기다린다
@@ -208,7 +213,7 @@ ci_wait() {  # ci_wait <PR> [head SHA] — PR 체크가 끝날 때까지 기다�
   CI_SEEN=1
   echo "  CI 대기 (최대 $((max * poll / 60))분)…"
   for i in $(seq 1 "$max"); do
-    states=$(gh pr checks "$pr" --json bucket -q '[.[].bucket] | unique | join(",")' 2>/dev/null)
+    states=$(gh pr checks "$pr" --json "bucket$wf" -q "$sel | map(.bucket) | unique | join(\",\")" 2>/dev/null)
     [ -n "$states" ] || { sleep "$poll"; continue; }  # 조회 실패·빈 결과는 통과가 아니다 — 다시 본다
     # cancel은 새 실행으로 대체된 것(PR 본문 수정 → PR Review 재실행)이라 실패로 보지 않는다
     case "$states" in *fail*) gh pr checks "$pr" 2>/dev/null | grep -i "fail"; return 1;; esac
