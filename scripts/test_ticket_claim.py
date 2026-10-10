@@ -126,6 +126,7 @@ class TicketScriptTest(unittest.TestCase):
                 comment(6, "lee", "COLLABORATOR", "2026-10-02T00:00:00Z"),
                 comment(7, "lee", "CONTRIBUTOR", "2026-10-02T00:00:00Z"),
                 comment(8, "kim", "OWNER", "2026-09-30T00:00:00Z", "옛 댓글"),
+                comment(9, "kim", "OWNER", "2026-10-02T00:00:00Z", "<!-- ticket-agent session=loop-fe -->\n작업 시작"),  # claim의 세션 표식도 에이전트 댓글
             ],
         )
         r = self.sh("ticket-claim.sh", "comments", "5", "2026-10-01T00:00:00Z")
@@ -140,10 +141,12 @@ class TicketScriptTest(unittest.TestCase):
                 comment(1, "kim", "OWNER", "2026-10-01T00:00:00Z", "선점 전 명세"),
                 comment(2, "me", "OWNER", "2026-10-02T00:00:00Z", "<!-- ticket-agent -->\n질문"),
                 comment(3, "kim", "OWNER", "2026-10-03T00:00:00Z", "답변"),
+                comment(4, "me", "OWNER", "2026-10-04T00:00:00Z", "<!-- ticket-agent session=loop-fe -->\n구현 완료 — PR #9"),
+                comment(5, "kim", "OWNER", "2026-10-05T00:00:00Z", "PR 봤어요, 한 가지 더"),
             ],
         )
         r = self.sh("ticket-claim.sh", "comments", "5")
-        self.assertEqual([json.loads(l)["id"] for l in r.stdout.splitlines()], [3])
+        self.assertEqual([json.loads(l)["id"] for l in r.stdout.splitlines()], [5])  # 세션 표식 댓글(4)도 '내 마지막 댓글'이고 새 댓글이 아니다 (리허설 2회차에서 자기 댓글이 새 댓글로 잡혔던 것)
 
     def test_comments_without_agent_comment_read_everything_trusted(self):
         self.put("issue_comments", [comment(1, "kim", "OWNER", "2026-10-01T00:00:00Z"), comment(2, "x", "NONE", "2026-10-01T00:00:00Z")])

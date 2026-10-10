@@ -12,7 +12,7 @@
 #   scripts/ticket-claim.sh owns <번호>                 이 세션이 잡은 티켓인가. 종료코드 0=내 세션(또는 세션 표식 없음), 1=같은 계정의 다른 세션
 #   scripts/ticket-claim.sh done <번호>                 구현 완료 표기: impl-done 라벨 (PR 생성 뒤)
 #   scripts/ticket-claim.sh merge-wait <번호>           본문 '- 머지 조건: #N' 중 아직 머지해선 안 되는 이유를 한 줄씩. 종료코드 0=없음, 1=있음, 2=판정 실패 (make ship이 쓴다)
-# claim 은 성공하면 in-progress 라벨과 세션 표식 댓글(<!-- ticket-agent session=ID -->)을 남긴다. 세션 ID 는 TICKET_SESSION, 없으면 호스트·경로 해시.
+# claim 은 성공하면 in-progress 라벨과 세션 표식 댓글(<!-- ticket-agent session=ID -->)을 남긴다 (이것도 에이전트 댓글로 걸러진다). 세션 ID 는 TICKET_SESSION, 없으면 호스트·경로 해시.
 #
 # 동시성: claim.sh 가 refs/heads/claim/<번호> 를 "없을 때만" 만든다 → 사람(make claims)과 루프가 같은 기준을 본다.
 #   한계: 선점 주인은 **GitHub 계정** 단위다. 같은 계정으로 루프를 둘 돌리면 서로를 구분하지 못한다 (계정당 루프 하나).
@@ -237,14 +237,14 @@ cmd_comments() {
   num_or_die "$n"
   if [ -z "$since" ]; then # 내 마지막 에이전트 댓글 이후 (없으면 처음부터)
     since=$(api --paginate "repos/$repo/issues/$n/comments?per_page=100" --jq '.[] | {created_at,body,login:.user.login}' |
-      jq -rs --arg me "$me" 'map(select(.login==$me and (.body|contains("<!-- ticket-agent -->")))) | map(.created_at) | max // "1970-01-01T00:00:00Z"')
+      jq -rs --arg me "$me" 'map(select(.login==$me and (.body|contains("<!-- ticket-agent")))) | map(.created_at) | max // "1970-01-01T00:00:00Z"')
   fi
   api --paginate "repos/$repo/issues/$n/comments?per_page=100" \
     --jq '.[] | {id,user:.user.login,type:.user.type,assoc:.author_association,created_at,body}' |
     jq -c --argjson trusted "$TRUSTED" --arg since "$since" '
       select(.created_at > $since)
       | select((.assoc as $a | $trusted|index($a)) and .type != "Bot")
-      | select((.body|contains("<!-- ticket-agent -->")|not) and (.body|startswith("구현·검증 근거 (make ship)")|not))
+      | select((.body|contains("<!-- ticket-agent")|not) and (.body|startswith("구현·검증 근거 (make ship)")|not))
       | {id,user,created_at,body}'
 }
 
@@ -255,7 +255,7 @@ cmd_pr_comments() {
     local c1 c2
     c1=$(gh pr view "$n" --json commits --jq '[.commits[] | select(.messageHeadline | startswith("Merge ") | not) | .committedDate] | max // ""' 2>/dev/null)
     c2=$(api --paginate "repos/$repo/issues/$n/comments?per_page=100" --jq '.[] | {created_at,body,login:.user.login}' 2>/dev/null |
-      jq -rs --arg me "$me" 'map(select(.login==$me and (.body|contains("<!-- ticket-agent -->")))) | map(.created_at) | max // ""')
+      jq -rs --arg me "$me" 'map(select(.login==$me and (.body|contains("<!-- ticket-agent")))) | map(.created_at) | max // ""')
     since=$(printf '%s\n%s\n' "$c1" "$c2" | sort | tail -1)
     since=${since:-1970-01-01T00:00:00Z}
   fi
@@ -266,7 +266,7 @@ cmd_pr_comments() {
   } | jq -c --argjson trusted "$TRUSTED" --arg since "$since" '
       select(.created_at > $since)
       | select((.assoc as $a | $trusted|index($a)) and .type != "Bot")
-      | select((.body|contains("<!-- ticket-agent -->")|not) and (.body|startswith("구현·검증 근거 (make ship)")|not))
+      | select((.body|contains("<!-- ticket-agent")|not) and (.body|startswith("구현·검증 근거 (make ship)")|not))
       | del(.type,.assoc)'
 }
 
