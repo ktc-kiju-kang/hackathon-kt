@@ -37,7 +37,7 @@
 5. `security-compliance.md`에 SEC 행을 정책 그대로 만들고 적용/해당 없음을 먼저 정한다.
 6. 구현하면서 `arch.md`의 "REQ별 코드 위치"를 채운다. `development.md`의 AI 활용 기록은 시작 키트의 `make record`가 머지된 PR(AI 리뷰 점수·고쳐진 지적·머지한 사람)로 행을 붙이고, 사람은 "사람이 확인한 방법" 칸을 보탠다.
 7. 시험을 **직접 실행**하고 TC에 명령·SHA·PASS/FAIL·근거 경로를 채운다 — 시작 키트에서는 테스트 이름에 TC ID를 넣고 `make e2e`가 자동으로 채운다. Issue 본문에 커밋 주소·테스트 결과를 붙이고 **Close as completed**.
-8. `python3 scripts/check-docs.py` 통과 → push → 40자 SHA로 포털 제출 — 시작 키트에서는 `make submit-check`가 전부 확인하고 SHA를 출력한다 (`docs/pipeline.md`).
+8. README "결과 한눈에"·compliance 요약 숫자는 `make record`가 문서 표를 세어 채운다 (손으로 고치지 않는다). `python3 scripts/check-docs.py` 통과 → push → 40자 SHA로 포털 제출 — 시작 키트에서는 `make submit-check`가 전부 확인하고 SHA를 출력한다 (`docs/pipeline.md`).
 
 ## ID 규칙
 | ID | 뜻 | 정의하는 곳 | 참조하는 곳 |

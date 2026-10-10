@@ -34,7 +34,7 @@ if [ -z "${SHIP_REEXEC:-}" ] && [ -n "$(git diff --name-only "$before_sync" HEAD
 fi
 [ -n "$(git log --oneline origin/main..HEAD)" ] || die "main과 차이가 없습니다"
 if [ "$KIND" = record ]; then  # 생성된 시험 기록만 담겼는지 확인 — 리뷰 없이 머지하는 유일한 경로
-  extra=$(git diff --name-only origin/main...HEAD | grep -vE '^docs/(evidence/|e2e-test\.md$|prd\.md$|development\.md$)' || true)
+  extra=$(git diff --name-only origin/main...HEAD | grep -vE '^(README\.md$|docs/(evidence/|e2e-test\.md$|prd\.md$|development\.md$|security-compliance\.md$))' || true)
   [ -z "$extra" ] || die "record 브랜치에 기록 외 파일이 있음: $extra"
 fi
 # CI(pull_request)는 PR이 있어야 돈다 → 지금 push하고 초안 PR을 만들어 로컬 검사·리뷰와 나란히 돌린다 (8단계 대기가 짧아진다).
