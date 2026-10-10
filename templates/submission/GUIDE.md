@@ -34,7 +34,7 @@
 2. `project-brief.md` → `prd.md`: 주제 원문을 SRC로 나눠 붙이고, 요구를 REQ로 옮기고(출처=`주최 (SRC-…)`), 팀 아이디어는 출처=팀으로 따로 적는다. REQ마다 하위 정의서 `docs/prd/REQ-<번호>-<설명>.md`(양식 `docs/prd/REQ-01.md` 복사)에 AC를 1개 이상, 인덱스 표의 '확인 조건' 칸에 그 AC 목록.
 3. REQ마다 GitHub Issue를 주최 양식(개발 작업·검증)으로 만든다. Issue 제목에 `[REQ-01]`.
 4. `e2e-test.md`에 TC 시나리오(GIVEN/WHEN/THEN)를 **구현 전에** 적는다. 상태는 `미실행`.
-5. `security-compliance.md`에 SEC 행을 정책 그대로 만들고 적용/해당 없음을 먼저 정한다.
+5. `security-compliance.md`에 SEC 행을 정책 그대로 만들고 적용/해당 없음을 먼저 정한다. 4절 공통 점검(비밀값·의존성)은 `make audit`가 결과·시각·SHA를 적는다 — 제출 전에 한 번 더.
 6. 구현하면서 `arch.md`의 "REQ별 코드 위치", `development.md`의 AI 활용 기록을 채운다.
 7. 시험을 **직접 실행**하고 TC에 명령·SHA·PASS/FAIL·근거 경로를 채운다 — 시작 키트에서는 테스트 이름에 TC ID를 넣고 `make e2e`가 자동으로 채운다. Issue 본문에 커밋 주소·테스트 결과를 붙이고 **Close as completed**.
 8. `python3 scripts/check-docs.py` 통과 → push → 40자 SHA로 포털 제출 — 시작 키트에서는 `make submit-check`가 전부 확인하고 SHA를 출력한다 (`docs/pipeline.md`).

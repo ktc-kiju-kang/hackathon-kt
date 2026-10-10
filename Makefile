@@ -14,6 +14,9 @@ dev: ## 개발 서버 (핫 리로드) api :8000 + web :3000 — docker compose (
 sync: ## 최신 main을 지금 브랜치에 merge (작업 시작 전·중간중간)
 	@scripts/sync.sh
 
+audit: ## 보안 공통 점검 — 비밀값(gitleaks)·의존성 취약점(npm audit·pip-audit) → security-compliance.md 4절
+	@scripts/audit.sh
+
 verify: ## CI와 같은 검사 전부 (lint·type·test·build·문서)
 	@scripts/verify.sh
 

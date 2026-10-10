@@ -62,6 +62,7 @@
 | `make serve` / `make stop` / `make status` | 로컬 배포 (docker compose, 프로덕션 빌드 + 스모크). `make verify`·`e2e`·`ship`은 로컬 도구로 돌고 DB(PostgreSQL)만 docker로 자동 기동 |
 | `make db` / `make db-reset` | PostgreSQL만 띄우기(pytest 직접 실행·`NATIVE=1`용) / DB 데이터 전부 삭제 |
 | `make e2e` | 시험 전부 + 격리 배포 E2E (확인용. 기록 커밋은 `make record`) |
+| `make audit` | 보안 공통 점검 (gitleaks·npm audit·pip-audit) → `security-compliance.md` 4절 — 정책 확인 뒤, 제출 전 |
 | `make record` | 기록 담당: main에서 시험 기록을 자동 PR로 머지 (2~3시간마다, 제출 전) — **팀 레포 전용** |
 | `make lock-status` | 누가 머지 중인지 |
 | `make claims` / `make release ISSUE=12` | 누가 어떤 Issue를 잡았는지 / 내 선점 해제 |
