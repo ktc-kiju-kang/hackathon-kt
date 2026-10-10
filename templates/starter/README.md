@@ -74,6 +74,10 @@ git switch -c chore/starter-kit && git add -A && git commit -m "chore: 시작 �
 - **api-client**가 서버 오류 문구·204를 못 다룸 → ApiError
 - **격리 E2E 포트 충돌**(한 PC에서 두 ship) → 빈 포트 자동 선택
 - 제외한 REQ의 TC는 `SKIP(REQ-11 제외)`로 적어야 strict 검사를 통과한다
+- (2회차 실주행, 10/10) **G3 스키마 게이트가 신규 계약을 놓침** — `git show` 그룹을 파이프에 넣어 ship의 pipefail이 grep 결과를 덮던 것 → 플랜 PR이 사람 머지 없이 자동 머지됐다 (#149)
+- **키트 샘플 테스트의 TC ID**(`test_dashboard.py`의 TC-01-1 등)가 팀 TC와 겹쳐 BE 없는 FE PR에 API TC가 PASS로 찍힘 → `e2e-test.md` "방식" 칸의 시험 파일만 그 TC로 센다 (#150)
+- **같은 PC에서 ship 둘이 겹치면** 빈 포트 선택이 같은 번호를 골라 스모크가 남의 서버를 봄 → 체크아웃 경로로 포트를 흩뜨림 (#155)
+- 채점 근거 자동화: `make record`가 `development.md` AI 활용 기록·README 결과 숫자를 채우고(#151·#153), `make audit`가 보안 공통 점검을 `security-compliance.md`에 적는다(#152). shadcn CLI는 devDependencies(#154, 운영 감사 high 7 → 0)
 
 역할별 `/ticket-loop` 실주행(2026-10-09, 한 계정 architect·backend·frontend, 머지까지 루프): plan → BE·FE 병렬 → FE는 머지 조건으로 BE를 기다려 머지까지 확인. 선점 확인 SIGPIPE·역할 `mine`·머지 조건 대기 중 AI 리뷰·worktree ship 등을 고쳤고(#140), 스키마는 사람이 두 번 본다 — 테이블 초안 계약 PR(#141·#142), 초안과 다른 마이그레이션(#143·#144). 상세 `docs/requirements-flow.md` 5절.
 
